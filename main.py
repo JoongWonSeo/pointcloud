@@ -5,6 +5,14 @@ import cv2
 from robosuite.utils import camera_utils
 from scipy.spatial.transform import Rotation as R
 import pandas as pd
+from robosuite.models import MujocoWorldBase
+from robosuite.models.robots import Panda
+from robosuite.models.grippers import gripper_factory
+from robosuite.models.arenas import TableArena
+from robosuite.models.objects import BallObject
+from robosuite.utils.mjcf_utils import new_joint
+from mujoco_py import MjSim, MjViewer
+
 
 def pprint_dict(d):
     import json
@@ -58,23 +66,52 @@ def pixel_to_world(pixels, depth_map, camera_to_world_transform):
 def policy_action(env):
     return np.random.randn(env.robots[0].dof)
 
+
 horizon=10000
 camera_w, camera_h = 512, 512
 
 # create environment instance
-env = suite.make(
-    env_name="Lift", # try with other tasks like "Stack" and "Door"
-    robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
-    has_renderer=False,
-    has_offscreen_renderer=True,
-    render_gpu_device_id=0,
-    use_camera_obs=True,
-    camera_depths=True,
-    camera_widths=camera_w,
-    camera_heights=camera_h,
-    horizon=horizon,
-    # renderer='igibson'
-)
+# env = suite.make(
+#     env_name="Lift", # try with other tasks like "Stack" and "Door"
+#     robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
+#     has_renderer=False,
+#     has_offscreen_renderer=True,
+#     render_gpu_device_id=0,
+#     use_camera_obs=True,
+#     camera_depths=True,
+#     camera_widths=camera_w,
+#     camera_heights=camera_h,
+#     horizon=horizon,
+#     # renderer='igibson'
+# )
+
+# create world and env
+world = MujocoWorldBase()
+mujoco_robot = Panda()
+gripper = gripper_factory('PandaGripper')
+mujoco_robot.add_gripper(gripper)
+
+mujoco_robot.set_base_xpos([0, 0, 0])
+world.merge(mujoco_robot)
+
+mujoco_arena = TableArena()
+mujoco_arena.set_origin([0.8, 0, 0])
+world.merge(mujoco_arena)
+
+sphere = BallObject(
+    name="sphere",
+    size=[0.04],
+    rgba=[0, 0.5, 0.5, 1]).get_obj()
+sphere.set('pos', '1.0 0 1.0')
+world.worldbody.append(sphere)
+
+model = world.get_model(mode="mujoco_py")
+
+sim = MjSim(model)
+viewer = MjViewer(sim)
+
+# TODO: register this "TASK" (as a class?) to ENV and load it as env
+
 
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
