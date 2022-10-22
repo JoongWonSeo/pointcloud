@@ -106,6 +106,19 @@ for t in range(horizon):
         camera.move_camera((0,1,0), -0.05)
     if pressed == ord('w'):
         camera.move_camera((0,0,1), -0.05)
+
+    # set cube position        
+    if pressed == ord('r'):
+        pos = np.array([0, 0, 1])
+        quat = np.array([0, 0, 0, 0])
+        env.sim.data.set_joint_qpos('cube_joint0', np.concatenate([pos, quat]))
+
+        # object_placements = env.placement_initializer.sample()
+
+        # # Loop through all objects and reset their positions
+        # for obj_pos, obj_quat, obj in object_placements.values():
+        #     print(f'obj_pos={obj_pos}\nobj_quat={obj_quat}\nobj={obj}\nobj.joints={obj.joints}')
+        #     env.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
     
 
     if mouse_clicked:
