@@ -5,59 +5,10 @@ import cv2
 from robosuite.utils import camera_utils
 from scipy.spatial.transform import Rotation as R
 import pandas as pd
+import random
+from utils import *
 
-def pprint_dict(d):
-    import json
-    print(json.dumps(d, sort_keys=True, indent=4, default=str))
-
-mouse_x = mouse_y = 0
-mouse_clicked = False
-def mouse_callback(event,x,y,flags,param):
-    global mouse_x, mouse_y, mouse_clicked
-    if event == cv2.EVENT_MOUSEMOVE:
-        mouse_x, mouse_y = x, y
-    if event == cv2.EVENT_LBUTTONDOWN:
-        mouse_clicked = True
-    if event == cv2.EVENT_LBUTTONUP:
-        mouse_clicked = False
-
-
-def normalize(array):
-    '''given np array, stretch its elements to 0 and 1 range'''
-    min, max = np.min(array), np.max(array)
-    return (array - min) / (max - min)
-
-
-def pixel_to_world(pixels, depth_map, camera_to_world_transform):
-    """
-    Helper function to take a batch of pixel locations and the corresponding depth image
-    and transform these points from the camera frame to the world frame.
-
-    Args:
-        pixels (np.array): N pixel coordinates of shape [N, 2]
-        depth_map (np.array): depth image of shape [H, W]
-        camera_to_world_transform (np.array): 4x4 Tensor to go from pixel coordinates to world
-            coordinates.
-
-    Return:
-        points (np.array): N 3D points in robot frame of shape [N, 3]
-    """
-
-    # sample from the depth map using the pixel locations
-    z = np.array([depth_map[y, x, 0] for x, y in pixels])
-    x, y = pixels.T
-
-    # form 4D homogenous camera vector to transform - [x * z, y * z, z, 1]
-    homogenous = np.vstack((x*z, y*z, z, np.ones_like(z)))
-
-    # batch matrix multiplication of 4 x 4 matrix and 4 x N vectors to do camera to robot frame transform
-    points = camera_to_world_transform @ homogenous
-    return points[:3, ...].T
-
-
-def policy_action(env):
-    return np.random.randn(env.robots[0].dof)
-
+# global variables
 horizon=10000
 camera_w, camera_h = 512, 512
 
@@ -69,85 +20,56 @@ env = suite.make(
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
     use_camera_obs=True,
-    camera_depths=True,
     camera_widths=camera_w,
     camera_heights=camera_h,
+    camera_depths=True,
+    camera_segmentations='instance',
     horizon=horizon,
     # renderer='igibson'
 )
 
+robot = env.robots[0]
+print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {robot.dof}")
+
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
-# camera.move_camera((0,0,1), 1)
-# (x, y, z), quat = camera.get_camera_pose()
 
 
-# reset the environment
-#env.reset()
+# simulation
+def main():
+    ui = UI('RGBD', camera)
 
-cv2.namedWindow('RGBD')
-cv2.setMouseCallback('RGBD', mouse_callback)
+    for t in range(horizon):
+        # UI interaction
+        if not ui.update():
+            break
+        
+        # set cube position        
+        if ui.is_pressed('r'):
+            set_obj_pos(env.sim, joint='cube_joint0')
+            #robot.set_robot_joint_positions(np.random.randn(7))
+            robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
-for t in range(horizon):
-    pressed = cv2.waitKey(10)
-    if pressed == 27: #ESC key
-        break
-    if pressed == ord('w'):
-        camera.move_camera((0,0,1), -0.05)
-    if pressed == ord('s'):
-        camera.move_camera((0,0,1), 0.05)
-    if pressed == ord('a'):
-        camera.move_camera((1,0,0), -0.05)
-    if pressed == ord('d'):
-        camera.move_camera((1,0,0), 0.05)
-    if pressed == ord('2'):
-        camera.move_camera((0,1,0), 0.05)
-    if pressed == ord('z'):
-        camera.move_camera((0,1,0), -0.05)
-    if pressed == ord('w'):
-        camera.move_camera((0,0,1), -0.05)
 
-    # set cube position        
-    if pressed == ord('r'):
-        pos = np.array([0, 0, 1])
-        quat = np.array([0, 0, 0, 0])
-        env.sim.data.set_joint_qpos('cube_joint0', np.concatenate([pos, quat]))
+        # Simulation
+        #action = random_action(env) # sample random action
+        action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+        obs, reward, done, info = env.step(action)  # take action in the environment
 
-        # object_placements = env.placement_initializer.sample()
+        # Observation
+        depth_map = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
+        
+        if ui.is_pressed('p'):
+            save_pointcloud(env.sim, depth_map, camera='agentview', w=camera_w, h=camera_h)
 
-        # # Loop through all objects and reset their positions
-        # for obj_pos, obj_quat, obj in object_placements.values():
-        #     print(f'obj_pos={obj_pos}\nobj_quat={obj_quat}\nobj={obj}\nobj.joints={obj.joints}')
-        #     env.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
+        rgb, d = obs['agentview_image'] / 255, normalize(depth_map)
+        s = normalize(obs['agentview_segmentation_instance'])
+        rgbd = np.flip(np.hstack((rgb, np.dstack((d, d, d)), np.dstack((s, s, s)))), axis=0)
+
+        ui.show(rgbd)
     
-
-    if mouse_clicked:
-        mx_prev, my_prev = mx, my
-
-    mx, my = mouse_x, mouse_y
-
-    if mouse_clicked:
-        camera.rotate_camera(point=None, axis=(0, 1, 0), angle=(mx-mx_prev)/10)
-        camera.rotate_camera(point=None, axis=(1, 0, 0), angle=(my-my_prev)/10)
+    ui.close()
 
 
-    action = policy_action(env) # sample random action
-
-    obs, reward, done, info = env.step(action)  # take action in the environment
-
-    depth_map = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
-    
-    if pressed == ord('p'):
-        all_pixels = np.array([[x, y] for x in range(camera_w) for y in range(camera_h)])
-        #all_pixels = np.array([camera_w/2, camera_h/2])
-        trans_pix_to_world = np.linalg.inv(camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w))
-        point_cloud = pixel_to_world(all_pixels, depth_map, trans_pix_to_world)
-        df = pd.DataFrame(point_cloud, columns=['x', 'y', 'z'])
-        df.to_csv('point_cloud.csv')
-
-    rgb, d = np.flip(obs['agentview_image'] / 255, axis=0), np.flip(normalize(depth_map), axis=0)
-    rgbd = np.hstack((rgb, np.dstack((d, d, d))))
-
-    cv2.imshow('RGBD', rgbd)
- 
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    main()
