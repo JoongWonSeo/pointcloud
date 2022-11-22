@@ -25,7 +25,6 @@ env = suite.make(
     camera_depths=True,
     camera_segmentations='instance',
     horizon=horizon,
-    # renderer='igibson'
 )
 
 robot = env.robots[0]
@@ -47,8 +46,8 @@ def main():
         # set cube position        
         if ui.is_pressed('r'):
             set_obj_pos(env.sim, joint='cube_joint0')
-            #robot.set_robot_joint_positions(np.random.randn(7))
-            robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
+            robot.set_robot_joint_positions(np.random.randn(7))
+            #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
 
         # Simulation
