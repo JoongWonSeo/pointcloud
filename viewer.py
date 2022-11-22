@@ -1,9 +1,10 @@
+import sys
 import numpy as np
 import pandas as pd
 import open3d as o3d
 
 #while True:
-df = pd.read_csv('input.csv')
+df = pd.read_csv(sys.argv[1])
 pc = df.loc[:, ['y', 'x', 'z']].to_numpy()
 print(pc)
 

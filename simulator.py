@@ -10,7 +10,7 @@ from utils import *
 
 # global variables
 horizon=10000
-camera_w, camera_h = 512, 512
+camera_w, camera_h = 256, 256 #512, 512
 
 # create environment instance
 env = suite.make(
