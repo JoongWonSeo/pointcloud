@@ -15,32 +15,22 @@ else:
 print(f'device = {device}')
 
 
-# 1 set (point cloud) of 2 points (0,0,0) and (1,1,1) of dim 3
-#X = torch.tensor([[[0., 0., 0.], [1., 1., 1.]]])
-# original = pd.read_csv('input/table.csv')
-# #todo: uniform sampling
-# X = torch.tensor(original.loc[:, ['x', 'y', 'z']].to_numpy(), dtype=torch.float).to(device)
-# print(X)
-# X = X.reshape((1, -1, 3)) # batch of 1 pc
-# X = torch.vstack((X, X)) # batch of 2 pcs
-# print(X.shape)
-
-# df = pd.DataFrame(X.cpu()[0], columns=['x', 'y', 'z'])
-# df.to_csv('input.csv')
-
+# training data
 train_set = PointcloudDataset(root_dir='input', files=None, transform=None)
 print(len(train_set))
 train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
 
-# models
+# model
 ae = PNAutoencoder(2048, 6).to(device)
 
-# training
+# training parameters
 loss_fn = pytorch3d_loss.chamfer_distance
 optimizer = torch.optim.Adam(ae.parameters())
+num_epochs = 100
 
 # training loop
-for epoch in range(3):
+min_loss = np.inf
+for epoch in range(num_epochs):
     # load one batch
     for X in train_loader:
         
@@ -55,12 +45,17 @@ for epoch in range(3):
         loss.backward()
         optimizer.step()
 
-    #if epoch % 50:
+    # TODO evaluate on validation set
     print(f"loss = {loss}")
+    # save best model
+    # if loss < min_loss:
+    #     min_loss = loss
+    #     print('saving new best model')
+    #     torch.save(ae.state_dict(), 'weights/best.pth')
 
 
 # save model
-torch.save(ae.state_dict(), 'weights/model.pth')
+torch.save(ae.state_dict(), 'weights/last.pth')
 
 
 # evaluate

@@ -108,6 +108,8 @@ class PointNetEncoder(nn.Module):
             is_seg (bool, optional): for segmentation or classification. Defaults to False.
         """
         super().__init__()
+        track_stats = False
+
         self.stn = STN3d(in_channels) if input_transform else None
         self.conv0_1 = torch.nn.Conv1d(in_channels, 64, 1)
         self.conv0_2 = torch.nn.Conv1d(64, 64, 1)
@@ -115,11 +117,11 @@ class PointNetEncoder(nn.Module):
         self.conv1 = torch.nn.Conv1d(64, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
-        self.bn0_1 = nn.BatchNorm1d(64)
-        self.bn0_2 = nn.BatchNorm1d(64)
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(1024)
+        self.bn0_1 = nn.BatchNorm1d(64, track_running_stats=track_stats)
+        self.bn0_2 = nn.BatchNorm1d(64, track_running_stats=track_stats)
+        self.bn1 = nn.BatchNorm1d(64, track_running_stats=track_stats)
+        self.bn2 = nn.BatchNorm1d(128, track_running_stats=track_stats)
+        self.bn3 = nn.BatchNorm1d(1024, track_running_stats=track_stats)
         self.fstn = STNkd(k=64) if feature_transform else None
         self.out_channels = 1024 + 64 if is_seg else 1024 
          
