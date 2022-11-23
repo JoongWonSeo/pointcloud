@@ -1,5 +1,4 @@
 # pointclouds
-*.csv
 *.npz
 
 # model weights

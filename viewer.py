@@ -1,14 +1,18 @@
 import sys
+import torch
 import numpy as np
-import pandas as pd
-import open3d as o3d
+from pytorch3d.structures import Pointclouds
+from pytorch3d.vis.plotly_vis import plot_scene
 
-#while True:
-df = pd.read_csv(sys.argv[1])
-pc = df.loc[:, ['y', 'x', 'z']].to_numpy()
-print(pc)
+# Load point cloud
+pointcloud = np.load(sys.argv[1])
+points = torch.Tensor(pointcloud['points'])
+rgb = torch.Tensor(pointcloud['rgb'])
 
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(pc)
+pointcloud = Pointclouds(points=[points], features=[rgb])
 
-o3d.visualization.draw_geometries([pcd])
+plot_scene({
+    "Pointcloud": {
+        "cloud": pointcloud
+    }
+}).show()
