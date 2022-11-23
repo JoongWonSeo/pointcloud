@@ -17,7 +17,6 @@ print(f'device = {device}')
 
 # training data
 train_set = PointcloudDataset(root_dir='input', files=None, transform=None)
-print(len(train_set))
 train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
 
 # model

@@ -14,7 +14,7 @@ class PNAutoencoder(nn.Module):
         self.out_points = out_points
         self.dim_per_point = dim_per_point
 
-        self.encoder = PointNetEncoder(in_channels=dim_per_point)
+        self.encoder = PointNetEncoder(in_channels=dim_per_point, track_stats=False)
         self.decoder = nn.Sequential(
             nn.Linear(self.encoder.out_channels, 1024),
             nn.ReLU(),
