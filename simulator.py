@@ -57,13 +57,14 @@ def main():
 
         # Observation
         depth_map = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
-        
-        if ui.is_pressed('p'):
-            save_pointcloud(env.sim, depth_map, camera='agentview', w=camera_w, h=camera_h)
 
         rgb, d = obs['agentview_image'] / 255, normalize(depth_map)
         s = normalize(obs['agentview_segmentation_instance'])
         rgbd = np.flip(np.hstack((rgb, np.dstack((d, d, d)), np.dstack((s, s, s)))), axis=0)
+
+
+        if ui.is_pressed('p'):
+            save_pointcloud(env.sim, rgb, depth_map, camera='agentview', file='output/pc.npz')
 
         ui.show(rgbd)
     

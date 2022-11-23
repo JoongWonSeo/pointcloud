@@ -21,7 +21,7 @@ def normalize(array):
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     """
     Helper function to take a batch of pixel locations and the corresponding depth image
-    and transform these points from the camera frame to the world frame.
+    and transform these points from the camera coordinate system to the world coords.
 
     Args:
         pixels (np.array): N pixel coordinates of shape [N, 2]
@@ -44,24 +44,46 @@ def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     points = camera_to_world_transform @ homogenous
     return points[:3, ...].T
 
+def pixel_to_feature(pixels, feature_map):
+    """
+    Helper function to take a batch of pixel locations and the corresponding feature map (image)
+    and return the feature vector for each of the pixel location.
+
+    Args:
+        pixels (np.array): N pixel coordinates of shape [N, 2]
+        feature_map (np.array): feature image of shape [H, W, C]
+
+    Return:
+        points (np.array): N 3D points in robot frame of shape [N, C]
+    """
+
+    # sample from the feature map using the pixel locations
+    features = np.array([feature_map[y, x] for x, y in pixels])
+
+    return features
+
 def set_obj_pos(sim, joint, pos=None, quat=None):
     pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1)]) if pos is None else pos
     quat = np.array([0, 0, 0, 0]) if quat is None else quat
 
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
 
-def save_pointcloud(sim, depth_map, camera, w, h, csv='point_cloud.csv'):
+def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
+    w, h = image.shape[1], image.shape[0]
+
     # pixel coordinates of which to sample world position
     all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
 
     # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
     trans_pix_to_world = np.linalg.inv(camera_utils.get_camera_transform_matrix(sim, camera, h, w))
 
-    point_cloud = pixel_to_world(all_pixels, depth_map, trans_pix_to_world)
+    points = pixel_to_world(all_pixels, depth_map, trans_pix_to_world)
+    rgb = pixel_to_feature(all_pixels, image)
 
-    # save as csv TODO: more compact file format
-    df = pd.DataFrame(point_cloud, columns=['x', 'y', 'z'])
-    df.to_csv(csv)
+    # save as file
+    np.savez(file, points=points, rgb=rgb)
+    # df = pd.DataFrame(points, columns=['x', 'y', 'z'])
+    # df.to_csv(csv)
 
 
 def random_action(env):
