@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from pytorch3d import loss
+from pytorch3d import loss as pytorch3d_loss
 import numpy as np
 import pandas as pd
 from models.pointnet import PointNetEncoder
@@ -14,6 +14,7 @@ device = "cuda"
 original = pd.read_csv('input/table.csv')
 #todo: uniform sampling
 X = torch.tensor(original.loc[:, ['x', 'y', 'z']].to_numpy(), dtype=torch.float).to(device)
+print(X)
 X = X.reshape((1, -1, 3)) # batch of 1 pc
 X = torch.vstack((X, X)) # batch of 2 pcs
 print(X.shape)
@@ -25,7 +26,7 @@ print(X.shape)
 ae = PNAutoencoder(2048, 3).to(device)
 
 # training
-loss_fn = loss.chamfer_distance
+loss_fn = pytorch3d_loss.chamfer_distance
 optimizer = torch.optim.Adam(ae.parameters())
 
 # training loop
@@ -45,10 +46,7 @@ for epoch in range(100):
     if epoch % 50:
         print(f"loss = {loss}")
 
-# save model
-torch.save(ae.state_dict(), 'weights/model.pth')
-
-ae.eval()
+#ae.eval() # FOR SOME REASON THIS MAKES THE MODEL OUTPUT VERY WEIRD, PROBABLY DUE TO SOME PARTS BEING TURNED OFF
 with torch.no_grad():
     # encode
     embedding = ae.encoder(X)
@@ -59,11 +57,19 @@ with torch.no_grad():
     # decode
     pred = torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point))
 
+
+    # eval
+    loss, _ = pytorch3d_loss.chamfer_distance(pred, X)
+    print(f"eval loss = {loss}")
+
     # save to csv
     df = pd.DataFrame(pred.cpu()[0], columns=['x', 'y', 'z'])
     df.to_csv('output/reconstructed.csv')
 
 
+
+# save model
+torch.save(ae.state_dict(), 'weights/model.pth')
 # pn.eval()
 # ae.eval()
 
