@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from models.pointnet import PointNetEncoder
+#from models.pointnet import PointNetEncoder
+from models.pointnext import PointNextEncoder
 import numpy as np
 import pandas as pd
 
@@ -14,7 +15,8 @@ class PNAutoencoder(nn.Module):
         self.out_points = out_points
         self.dim_per_point = dim_per_point
 
-        self.encoder = PointNetEncoder(in_channels=dim_per_point)
+        #self.encoder = PointNetEncoder(in_channels=dim_per_point)
+        self.encoder = PointNextEncoder(in_channels=dim_per_point)
         self.decoder = nn.Sequential(
             nn.Linear(self.encoder.out_channels, 1024),
             nn.ReLU(),
