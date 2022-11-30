@@ -10,8 +10,8 @@ import random
 from utils import *
 
 # global variables
-num_frames=1
-camera_w, camera_h = 1024, 1024 #512, 512
+num_frames=100
+camera_w, camera_h = 512, 512
 
 # create environment instance
 env = suite.make(
@@ -69,7 +69,7 @@ def main():
         bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
         pc, rgb = filter_pointcloud(pc, rgb, bbox)
 
-        np.savez(f'output/{t}.npz', points=pc, rgb=rgb)
+        np.savez(f'input/{t}.npz', points=pc, rgb=rgb)
         
         print(f"number of points = {pc.shape[0]}")
 

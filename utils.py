@@ -19,102 +19,6 @@ def normalize(array):
     return (array - min) / (max - min)
 
 
-
-def get_camera_intrinsic_matrix(sim, camera_name, camera_height, camera_width):
-    """
-    Obtains camera intrinsic matrix.
-
-    Args:
-        sim (MjSim): simulator instance
-        camera_name (str): name of camera
-        camera_height (int): height of camera images in pixels
-        camera_width (int): width of camera images in pixels
-    Return:
-        K (np.array): 3x3 camera matrix
-    """
-    cam_id = sim.model.camera_name2id(camera_name)
-    fovy = sim.model.cam_fovy[cam_id]
-    f = 0.5 * camera_height / np.tan(fovy * np.pi / 360)
-    K = np.array([[f, 0, camera_width / 2], [0, f, camera_height / 2], [0, 0, 1]])
-    return K
-
-
-def get_camera_extrinsic_matrix(sim, camera_name):
-    """
-    Returns a 4x4 homogenous matrix corresponding to the camera pose in the
-    world frame. MuJoCo has a weird convention for how it sets up the
-    camera body axis, so we also apply a correction so that the x and y
-    axis are along the camera view and the z axis points along the
-    viewpoint.
-    Normal camera convention: https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
-
-    Args:
-        sim (MjSim): simulator instance
-        camera_name (str): name of camera
-    Return:
-        R (np.array): 4x4 camera extrinsic matrix
-    """
-    cam_id = sim.model.camera_name2id(camera_name)
-    camera_pos = sim.data.cam_xpos[cam_id]
-    camera_rot = sim.data.cam_xmat[cam_id].reshape(3, 3)
-    R = T.make_pose(camera_pos, camera_rot)
-
-    return R
-
-
-def pose_inv(pose):
-    """
-    Computes the inverse of a homogeneous matrix corresponding to the pose of some
-    frame B in frame A. The inverse is the pose of frame A in frame B.
-
-    Args:
-        pose (np.array): 4x4 matrix for the pose to inverse
-
-    Returns:
-        np.array: 4x4 matrix for the inverse pose
-    """
-
-    # Note, the inverse of a pose matrix is the following
-    # [R t; 0 1]^-1 = [R.T -R.T*t; 0 1]
-
-    # Intuitively, this makes sense.
-    # The original pose matrix translates by t, then rotates by R.
-    # We just invert the rotation by applying R-1 = R.T, and also translate back.
-    # Since we apply translation first before rotation, we need to translate by
-    # -t in the original frame, which is -R-1*t in the new frame, and then rotate back by
-    # R-1 to align the axis again.
-
-    pose_inv = np.zeros((4, 4))
-    pose_inv[:3, :3] = pose[:3, :3].T
-    pose_inv[:3, 3] = -pose_inv[:3, :3].dot(pose[:3, 3])
-    pose_inv[3, 3] = 1.0
-    return pose_inv
-
-def get_camera_transform_matrix(sim, camera_name, camera_height, camera_width):
-    """
-    Camera transform matrix to project from world coordinates to pixel coordinates.
-
-    Args:
-        sim (MjSim): simulator instance
-        camera_name (str): name of camera
-        camera_height (int): height of camera images in pixels
-        camera_width (int): width of camera images in pixels
-    Return:
-        K (np.array): 4x4 camera matrix to project from world coordinates to pixel coordinates
-    """
-    R = get_camera_extrinsic_matrix(sim=sim, camera_name=camera_name)
-    K = get_camera_intrinsic_matrix(
-        sim=sim, camera_name=camera_name, camera_height=camera_height, camera_width=camera_width
-    )
-    K_exp = np.eye(4)
-    K_exp[:3, :3] = K
-
-    # Takes a point in world, transforms to camera frame, and then projects onto image plane.
-    return K_exp @ pose_inv(R)
-
-
-
-
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     """
     Helper function to take a batch of pixel locations and the corresponding depth image
@@ -162,13 +66,6 @@ def pixel_to_feature(pixels, feature_map):
 
     return features
 
-def set_obj_pos(sim, joint, pos=None, quat=None):
-    pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1)]) if pos is None else pos
-    quat = np.array([0, 0, 0, 0]) if quat is None else quat
-
-    sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
-
-
 def to_pointcloud(sim, image, depth_map, camera):
     w, h = image.shape[1], image.shape[0]
 
@@ -201,7 +98,12 @@ def filter_pointcloud(points, rgb, bbox):
     return points[mask], rgb[mask]
 
 
+def set_obj_pos(sim, joint, pos=None, quat=None):
+    pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1)]) if pos is None else pos
+    quat = np.array([0, 0, 0, 0]) if quat is None else quat
 
+    sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
+    
 def random_action(env):
     return np.random.randn(env.robots[0].dof)
 
