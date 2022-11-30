@@ -11,7 +11,7 @@ from utils import *
 
 # global variables
 num_frames=100
-camera_w, camera_h = 512, 512
+camera_w, camera_h = 128, 128
 
 # create environment instance
 env = suite.make(
@@ -68,6 +68,12 @@ def main():
         # filter out points outside of bounding box
         bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
         pc, rgb = filter_pointcloud(pc, rgb, bbox)
+
+        # random sampling to fixed number of points
+        n = 10000
+        idx = np.random.choice(pc.shape[0], n, replace=False)
+        pc = pc[idx, :]
+        rgb = rgb[idx, :]
 
         np.savez(f'input/{t}.npz', points=pc, rgb=rgb)
         

@@ -25,7 +25,7 @@ class STN3d(nn.Module):
         self.bn3 = nn.BatchNorm1d(1024, track_running_stats=track_stats)
         self.bn4 = nn.BatchNorm1d(512, track_running_stats=track_stats)
         self.bn5 = nn.BatchNorm1d(256, track_running_stats=track_stats)
-        self.bn1 = self.bn2 = self.bn3 = self.bn4 = self.bn5 = nn.Identity()
+        #self.bn1 = self.bn2 = self.bn3 = self.bn4 = self.bn5 = nn.Identity()
 
         self.iden = torch.from_numpy(np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32)).reshape(1, 9)
 
@@ -63,7 +63,7 @@ class STNkd(nn.Module):
         self.bn3 = nn.BatchNorm1d(1024, track_running_stats=track_stats)
         self.bn4 = nn.BatchNorm1d(512, track_running_stats=track_stats)
         self.bn5 = nn.BatchNorm1d(256, track_running_stats=track_stats)
-        self.bn1 = self.bn2 = self.bn3 = self.bn4 = self.bn5 = nn.Identity()
+        # self.bn1 = self.bn2 = self.bn3 = self.bn4 = self.bn5 = nn.Identity()
 
         self.k = k
         self.iden = torch.from_numpy(np.eye(self.k).flatten().astype(np.float32)).reshape(1, self.k * self.k)
@@ -124,7 +124,7 @@ class PointNetEncoder(nn.Module):
         self.bn1 = nn.BatchNorm1d(64, track_running_stats=track_stats)
         self.bn2 = nn.BatchNorm1d(128, track_running_stats=track_stats)
         self.bn3 = nn.BatchNorm1d(1024, track_running_stats=track_stats)
-        self.bn0_1 = self.bn0_2 = self.bn1 = self.bn2 = self.bn3 = nn.Identity()
+        # self.bn0_1 = self.bn0_2 = self.bn1 = self.bn2 = self.bn3 = nn.Identity()
         self.fstn = STNkd(k=64, track_stats=track_stats) if feature_transform else None
         self.out_channels = 1024 + 64 if is_seg else 1024 
          

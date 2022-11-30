@@ -17,7 +17,7 @@ print(f'device = {device}')
 
 # training data
 train_set = PointcloudDataset(root_dir='input', files=None, transform=None)
-train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
+train_loader = DataLoader(train_set, batch_size=25, shuffle=True)
 
 # model
 ae = PNAutoencoder(2048, 6).to(device)
@@ -45,7 +45,7 @@ for epoch in range(num_epochs):
         optimizer.step()
 
     # TODO evaluate on validation set
-    print(f"loss = {loss}")
+    print(f"{epoch}: loss = {loss}")
     # save best model
     # if loss < min_loss:
     #     min_loss = loss
@@ -70,7 +70,7 @@ with torch.no_grad():
         # encode
         embedding = ae.encoder(X)
 
-        print(embedding.shape)
+        # print(embedding.shape)
         print(embedding)
 
         # decode
