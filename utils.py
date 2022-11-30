@@ -193,6 +193,14 @@ def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
     points, rgb = to_pointcloud(sim, image, depth_map, camera)
     np.savez(file, points=points, rgb=rgb)
 
+def filter_pointcloud(points, rgb, bbox):
+    mask = np.logical_and.reduce((
+        points[:, 0] > bbox[0, 0], points[:, 0] < bbox[0, 1],
+        points[:, 1] > bbox[1, 0], points[:, 1] < bbox[1, 1],
+        points[:, 2] > bbox[2, 0], points[:, 2] < bbox[2, 1]))
+    return points[mask], rgb[mask]
+
+
 
 def random_action(env):
     return np.random.randn(env.robots[0].dof)

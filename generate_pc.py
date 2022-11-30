@@ -11,7 +11,7 @@ from utils import *
 
 # global variables
 num_frames=1
-camera_w, camera_h = 512, 512
+camera_w, camera_h = 1024, 1024 #512, 512
 
 # create environment instance
 env = suite.make(
@@ -62,8 +62,16 @@ def main():
         # combine pointclouds
         pc_l, rgb_l = to_pointcloud(env.sim, rgb_l, depth_map_l, 'frontview')
         pc_r, rgb_r = to_pointcloud(env.sim, rgb_r, depth_map_r, 'agentview')
+        pc = np.concatenate((pc_l, pc_r), axis=0)
+        rgb = np.concatenate((rgb_l, rgb_r), axis=0)
 
-        np.savez(f'output/{t}.npz', points=np.vstack((pc_l,pc_r)), rgb=np.vstack((rgb_l,rgb_r)))
+        # filter out points outside of bounding box
+        bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
+        pc, rgb = filter_pointcloud(pc, rgb, bbox)
+
+        np.savez(f'output/{t}.npz', points=pc, rgb=rgb)
+        
+        print(f"number of points = {pc.shape[0]}")
 
     
 
