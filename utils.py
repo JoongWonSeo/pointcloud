@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import cv2
 from robosuite.utils import camera_utils
 from scipy.spatial.transform import Rotation as R
+import robosuite.utils.transform_utils as T
 import pandas as pd
 import random
 
@@ -18,6 +19,102 @@ def normalize(array):
     return (array - min) / (max - min)
 
 
+
+def get_camera_intrinsic_matrix(sim, camera_name, camera_height, camera_width):
+    """
+    Obtains camera intrinsic matrix.
+
+    Args:
+        sim (MjSim): simulator instance
+        camera_name (str): name of camera
+        camera_height (int): height of camera images in pixels
+        camera_width (int): width of camera images in pixels
+    Return:
+        K (np.array): 3x3 camera matrix
+    """
+    cam_id = sim.model.camera_name2id(camera_name)
+    fovy = sim.model.cam_fovy[cam_id]
+    f = 0.5 * camera_height / np.tan(fovy * np.pi / 360)
+    K = np.array([[f, 0, camera_width / 2], [0, f, camera_height / 2], [0, 0, 1]])
+    return K
+
+
+def get_camera_extrinsic_matrix(sim, camera_name):
+    """
+    Returns a 4x4 homogenous matrix corresponding to the camera pose in the
+    world frame. MuJoCo has a weird convention for how it sets up the
+    camera body axis, so we also apply a correction so that the x and y
+    axis are along the camera view and the z axis points along the
+    viewpoint.
+    Normal camera convention: https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
+
+    Args:
+        sim (MjSim): simulator instance
+        camera_name (str): name of camera
+    Return:
+        R (np.array): 4x4 camera extrinsic matrix
+    """
+    cam_id = sim.model.camera_name2id(camera_name)
+    camera_pos = sim.data.cam_xpos[cam_id]
+    camera_rot = sim.data.cam_xmat[cam_id].reshape(3, 3)
+    R = T.make_pose(camera_pos, camera_rot)
+
+    return R
+
+
+def pose_inv(pose):
+    """
+    Computes the inverse of a homogeneous matrix corresponding to the pose of some
+    frame B in frame A. The inverse is the pose of frame A in frame B.
+
+    Args:
+        pose (np.array): 4x4 matrix for the pose to inverse
+
+    Returns:
+        np.array: 4x4 matrix for the inverse pose
+    """
+
+    # Note, the inverse of a pose matrix is the following
+    # [R t; 0 1]^-1 = [R.T -R.T*t; 0 1]
+
+    # Intuitively, this makes sense.
+    # The original pose matrix translates by t, then rotates by R.
+    # We just invert the rotation by applying R-1 = R.T, and also translate back.
+    # Since we apply translation first before rotation, we need to translate by
+    # -t in the original frame, which is -R-1*t in the new frame, and then rotate back by
+    # R-1 to align the axis again.
+
+    pose_inv = np.zeros((4, 4))
+    pose_inv[:3, :3] = pose[:3, :3].T
+    pose_inv[:3, 3] = -pose_inv[:3, :3].dot(pose[:3, 3])
+    pose_inv[3, 3] = 1.0
+    return pose_inv
+
+def get_camera_transform_matrix(sim, camera_name, camera_height, camera_width):
+    """
+    Camera transform matrix to project from world coordinates to pixel coordinates.
+
+    Args:
+        sim (MjSim): simulator instance
+        camera_name (str): name of camera
+        camera_height (int): height of camera images in pixels
+        camera_width (int): width of camera images in pixels
+    Return:
+        K (np.array): 4x4 camera matrix to project from world coordinates to pixel coordinates
+    """
+    R = get_camera_extrinsic_matrix(sim=sim, camera_name=camera_name)
+    K = get_camera_intrinsic_matrix(
+        sim=sim, camera_name=camera_name, camera_height=camera_height, camera_width=camera_width
+    )
+    K_exp = np.eye(4)
+    K_exp[:3, :3] = K
+
+    # Takes a point in world, transforms to camera frame, and then projects onto image plane.
+    return K_exp @ pose_inv(R)
+
+
+
+
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     """
     Helper function to take a batch of pixel locations and the corresponding depth image
@@ -25,8 +122,8 @@ def pixel_to_world(pixels, depth_map, camera_to_world_transform):
 
     Args:
         pixels (np.array): N pixel coordinates of shape [N, 2]
-        depth_map (np.array): depth image of shape [H, W]
-        camera_to_world_transform (np.array): 4x4 Tensor to go from pixel coordinates to world
+        depth_map (np.array): depth image of shape [H, W, 1]
+        camera_to_world_transform (np.array): 4x4 matrix to go from pixel coordinates to world
             coordinates.
 
     Return:
@@ -34,15 +131,18 @@ def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     """
 
     # sample from the depth map using the pixel locations
-    z = np.array([depth_map[y, x, 0] for x, y in pixels])
+    z = np.array([depth_map[-y, x, 0] for x, y in pixels])
     x, y = pixels.T
 
     # form 4D homogenous camera vector to transform - [x * z, y * z, z, 1]
     homogenous = np.vstack((x*z, y*z, z, np.ones_like(z)))
+    #homogenous = np.vstack((y, x, z, np.ones_like(z)))
 
     # batch matrix multiplication of 4 x 4 matrix and 4 x N vectors to do camera to robot frame transform
     points = camera_to_world_transform @ homogenous
-    return points[:3, ...].T
+    # points = points[:3] / points[3]
+    points = points[:3]
+    return points.T
 
 def pixel_to_feature(pixels, feature_map):
     """
@@ -58,7 +158,7 @@ def pixel_to_feature(pixels, feature_map):
     """
 
     # sample from the feature map using the pixel locations
-    features = np.array([feature_map[y, x] for x, y in pixels])
+    features = np.array([feature_map[-y, x] for x, y in pixels])
 
     return features
 
@@ -68,22 +168,30 @@ def set_obj_pos(sim, joint, pos=None, quat=None):
 
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
 
-def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
+
+def to_pointcloud(sim, image, depth_map, camera):
     w, h = image.shape[1], image.shape[0]
 
     # pixel coordinates of which to sample world position
+    # all_pixels = np.array([[x, y] for x in range(w) for y in range(h)
+    # if image[y, x, 0] > 100/255 and image[y, x, 1] < 60/255 and image[y, x, 2] < 60/255])
     all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
 
-    # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
-    trans_pix_to_world = np.linalg.inv(camera_utils.get_camera_transform_matrix(sim, camera, h, w))
+    # TODO: filter out background
 
-    points = pixel_to_world(all_pixels, depth_map, trans_pix_to_world)
+
+    # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
+    world_to_pix = camera_utils.get_camera_transform_matrix(sim, camera, h, w)
+    pix_to_world = np.linalg.inv(world_to_pix)
+
+    points = pixel_to_world(all_pixels, depth_map, pix_to_world)
     rgb = pixel_to_feature(all_pixels, image)
 
-    # save as file
+    return points, rgb
+
+def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
+    points, rgb = to_pointcloud(sim, image, depth_map, camera)
     np.savez(file, points=points, rgb=rgb)
-    # df = pd.DataFrame(points, columns=['x', 'y', 'z'])
-    # df.to_csv(csv)
 
 
 def random_action(env):
