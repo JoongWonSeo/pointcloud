@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from pytorch3d import loss as pytorch3d_loss
+#from pytorch3d import loss as pytorch3d_loss
 import numpy as np
 import pandas as pd
-from models.pointnet import PointNetEncoder
-from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
+from pn_autoencoder import PNAutoencoder, PointcloudDataset
 
 if torch.cuda.is_available():
     device = torch.device("cuda:0")
@@ -21,10 +20,11 @@ print(len(train_set))
 train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
 
 # model
-ae = PNAutoencoder(2048, 6).to(device)
+ae = PNAutoencoder(2048, 4).to(device)
 
 # training parameters
-loss_fn = pytorch3d_loss.chamfer_distance
+#loss_fn = pytorch3d_loss.chamfer_distance
+loss_fn = nn.MSELoss()
 optimizer = torch.optim.Adam(ae.parameters())
 num_epochs = 100
 
@@ -38,7 +38,8 @@ for epoch in range(num_epochs):
         
         # compute prediction and loss
         pred = ae(X)
-        loss, _ = loss_fn(pred, X)
+        #loss, _ = loss_fn(pred, X)
+        loss = loss_fn(pred, X)
 
         # backprop
         optimizer.zero_grad()
@@ -78,7 +79,9 @@ with torch.no_grad():
         pred = torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point))
 
         # eval
-        loss, _ = loss_fn(pred, X)
+        # loss, _ = loss_fn(pred, X)
+        loss = loss_fn(pred, X)
+        
         print(f"eval loss = {loss}")
 
         # save as npz
