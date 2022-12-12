@@ -50,7 +50,7 @@ def main():
 
         # Simulation
         action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        obs, reward, done, info = env.step(action)  # take action in the environment
+        obs, _, _, _ = env.step(action)  # take action in the environment
 
         # Observation
         depth_map_l = camera_utils.get_real_depth_map(env.sim, obs['frontview_depth'])
@@ -69,11 +69,11 @@ def main():
         bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
         pc, rgb = filter_pointcloud(pc, rgb, bbox)
 
-        # random sampling to fixed number of points
-        n = 10000
-        idx = np.random.choice(pc.shape[0], n, replace=False)
-        pc = pc[idx, :]
-        rgb = rgb[idx, :]
+        # # random sampling to fixed number of points
+        # n = 10000
+        # idx = np.random.choice(pc.shape[0], n, replace=False)
+        # pc = pc[idx, :]
+        # rgb = rgb[idx, :]
 
         np.savez(f'input/{t}.npz', points=pc, rgb=rgb)
         

@@ -45,9 +45,13 @@ class PointcloudDataset(Dataset):
 
     def __getitem__(self, idx):
         pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]))
-        pointcloud = np.hstack((pointcloud['points'], pointcloud['rgb'])).astype(np.float32)
+        pointcloud = torch.tensor(np.hstack((pointcloud['points'], pointcloud['rgb'])).astype(np.float32))
 
         if self.transform:
             pointcloud = self.transform(pointcloud)
 
         return pointcloud
+    
+    def save(self, idx, path):
+        pointcloud = self.__getitem__(idx)
+        np.savez_compressed(path, points=pointcloud[:, :3], rgb=pointcloud[:, 3:])
