@@ -11,8 +11,9 @@ rgb = torch.Tensor(pointcloud['rgb'])
 
 pointcloud = Pointclouds(points=[points], features=[rgb])
 
+print(points.size())
 plot_scene({
     "Pointcloud": {
         "cloud": pointcloud
     }
-}).show()
+}, pointcloud_marker_size=2).show()
