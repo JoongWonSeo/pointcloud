@@ -15,12 +15,8 @@ print(f'device = {device}')
 
 
 # training data
-train_set = PointcloudDataset(root_dir='input', files=None, transform=Compose([
-    SampleFurthestPoints(2048),
-    Normalize((-0.5, 0.5, -0.5, 0.5, 0, 1.5)), #3D bounding box x_min, x_max, y_min, y_max, z_min, z_max
-    ]))
+train_set = PointcloudDataset(root_dir='prep', files=None, transform=None)
 train_loader = DataLoader(train_set, batch_size=25, shuffle=True)
-train_set.save(0, 'transformed.npz')
 
 # model
 ae = PNAutoencoder(2048, 6).to(device)
@@ -29,14 +25,13 @@ ae = PNAutoencoder(2048, 6).to(device)
 loss_fn = chamfer_distance()
 # loss_fn = earth_mover_distance() # number of points must be the same and a multiple of 1024
 optimizer = torch.optim.Adam(ae.parameters())
-num_epochs = 50
+num_epochs = 100
 
 # training loop
 min_loss = np.inf
 for epoch in range(num_epochs):
     # load one batch
     for X in train_loader:
-        
         X = X.to(device)
         
         # compute prediction and loss
@@ -62,10 +57,7 @@ torch.save(ae.state_dict(), 'weights/last.pth')
 
 
 # evaluate
-eval_set = PointcloudDataset(root_dir='input', files=None, transform=Compose([
-    SampleFurthestPoints(2048),
-    Normalize((-0.5, 0.5, -0.5, 0.5, 0, 1.5)), #3D bounding box x_min, x_max, y_min, y_max, z_min, z_max
-    ]))
+eval_set = PointcloudDataset(root_dir='prep', files=None, transform=None)
 eval_loader = DataLoader(eval_set, batch_size=1, shuffle=True)
 # loss_fn = earth_mover_distance(train=False)
 

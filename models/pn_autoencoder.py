@@ -13,16 +13,22 @@ class PNAutoencoder(nn.Module):
 
         self.out_points = out_points
         self.dim_per_point = dim_per_point
-
-        self.encoder = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
+        pe = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
+        self.encoder = nn.Sequential(
+            pe,
+            nn.ReLU(),
+            nn.Linear(pe.out_channels, 3)
+        )
         self.decoder = nn.Sequential(
-            nn.Linear(self.encoder.out_channels, 1024),
+            # nn.Linear(self.encoder.out_channels, 1024),
+            nn.Linear(3, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
             nn.ReLU(),
             nn.Linear(1024, 2048),
             nn.ReLU(),
             nn.Linear(2048, out_points * dim_per_point),
+            nn.Sigmoid(),
         )
     
     def forward(self, X):
@@ -31,7 +37,7 @@ class PNAutoencoder(nn.Module):
 
 
 class PointcloudDataset(Dataset):
-    def __init__(self, root_dir, files=None, transform=None, ):
+    def __init__(self, root_dir, files=None, transform=None):
         self.root_dir = root_dir
 
         # you can either pass a list of files or None for all files in the root_dir

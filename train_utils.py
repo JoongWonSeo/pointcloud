@@ -1,4 +1,5 @@
 import torch
+import torch.nn
 from pytorch3d.ops import sample_farthest_points
 from pytorch3d import loss as pytorch3d_loss
 from loss.emd.emd_module import emdModule
@@ -45,10 +46,13 @@ class chamfer_distance:
         return self.loss_fn(pred, target)[0]
 
 class earth_mover_distance:
-    def __init__(self, train=True):
+    def __init__(self, train=True, feature_loss=torch.nn.MSELoss()):
         self.loss_fn = emdModule()
         self.eps = 0.005 if train else 0.002
         self.iterations = 50 if train else 10000
+        self.feature_loss = feature_loss
     
     def __call__(self, pred, target):
-        return torch.sqrt(self.loss_fn(pred, target,  self.eps, self.iterations)[0]).mean()
+        point_l = torch.sqrt(self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)[0]).mean()
+        feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
+        return point_l + feature_l

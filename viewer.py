@@ -6,26 +6,25 @@ from pytorch3d.ops import sample_farthest_points
 from pytorch3d.vis.plotly_vis import plot_scene
 
 # Load point cloud
-pointcloud = np.load(sys.argv[1])
-points = torch.Tensor(pointcloud['points']) # (N, 3)
-rgb = torch.Tensor(pointcloud['features']) # (N, 3)
+pointcloud1 = np.load(f'prep/{sys.argv[1]}.npz')
+points1 = torch.Tensor(pointcloud1['points']) # (N, 3)
+rgb1 = torch.Tensor(pointcloud1['features']) # (N, 3)
 
-# merge points and rgb
-# points = torch.cat((points, rgb), dim=1) # (N, 6)
-# # convert to batch of 1 pointcloud
-# points = points.unsqueeze(0) # (1, N, 6)
-# # sample 2048 points
-# points, _ = sample_farthest_points(points, K=2048)
-# # convert back to (N, 6)
-# points = points.squeeze(0) # (N, 6)
-# # split points and rgb
-# points, rgb = points.split([3, 3], dim=1) # (N, 3), (N, 3)
+pointcloud2 = np.load(f'output/{sys.argv[1]}.npz')
+points2 = torch.Tensor(pointcloud2['points']) # (N, 3)
+rgb2 = torch.Tensor(pointcloud2['features']) # (N, 3)
 
-pointcloud = Pointclouds(points=[points], features=[rgb])
+# offset points
+points1[:, 1] -= 0.5
+points2[:, 1] += 0.5
 
-print(points.size())
+
+pointcloud = Pointclouds(points=[points1, points2], features=[rgb1, rgb2])
+
+# print(points.size())
 plot_scene({
     "Pointcloud": {
-        "cloud": pointcloud
+        "input": pointcloud[0],
+        "reconstructed": pointcloud[1]
     }
 }, pointcloud_marker_size=2).show()

@@ -39,7 +39,11 @@ camera_r = camera_utils.CameraMover(env, camera='frontview')
 # camera.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
 # camera.rotate_camera(None, (0, 0, 1), 180)
 camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
-camera_r.set_camera_pose([0.2, -1.2, 1.8], transform_utils.axisangle2quat([1, 0, 0]))
+camera_r.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
+#camera_r.set_camera_pose([0.2, -1.2, 1.8], transform_utils.axisangle2quat([1, 0, 0]))
+
+
+# set cube size
 
 
 # simulation
@@ -76,30 +80,30 @@ def main():
         rgb, d = obs['agentview_image'] / 255, normalize(depth_map)
 
         #DEBUG get cube position
-        cp = env.sim.data.get_joint_qpos('cube_joint0')[:3]
-        w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
-        # cp to homogeneous coordinates
-        cp = np.append(cp, 1)
-        ci = w2c @ cp
-        # ci to pixel coordinates
-        ci = ci[:2] / ci[2]
-        # ci to image coordinates
-        ci = np.round(ci).astype(int)
-        x, y = ci[0], ci[1]
-        _y = camera_h - y
-        #print(f"x, y = {x}, {y}")
-        # draw cube position
-        rgb[_y-2:_y+2, x-2:x+2] = [1, 1, 0]
+        # cp = env.sim.data.get_joint_qpos('cube_joint0')[:3]
+        # w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
+        # # cp to homogeneous coordinates
+        # cp = np.append(cp, 1)
+        # ci = w2c @ cp
+        # # ci to pixel coordinates
+        # ci = ci[:2] / ci[2]
+        # # ci to image coordinates
+        # ci = np.round(ci).astype(int)
+        # x, y = ci[0], ci[1]
+        # _y = camera_h - y
+        # #print(f"x, y = {x}, {y}")
+        # # draw cube position
+        # rgb[_y-2:_y+2, x-2:x+2] = [1, 1, 0]
 
         # find original coordinate
-        c2w = np.linalg.inv(w2c)
-        z = depth_map[_y, x]
-        ci = np.array([x*z, y*z, z, 1], dtype=np.float32)
-        cp_reconst = c2w @ ci
-        cp_reconst = cp_reconst[:3] / cp_reconst[3]
-        cp_reconst = np.append(cp_reconst, 1)
-        print(f"cp = {cp}\ncp_reconst = {cp_reconst}")
-        print(f"diff = {cp - cp_reconst}")
+        # c2w = np.linalg.inv(w2c)
+        # z = depth_map[_y, x]
+        # ci = np.array([x*z, y*z, z, 1], dtype=np.float32)
+        # cp_reconst = c2w @ ci
+        # cp_reconst = cp_reconst[:3] / cp_reconst[3]
+        # cp_reconst = np.append(cp_reconst, 1)
+        # print(f"cp = {cp}\ncp_reconst = {cp_reconst}")
+        # print(f"diff = {cp - cp_reconst}")
 
 
 
