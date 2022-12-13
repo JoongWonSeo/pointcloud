@@ -8,7 +8,7 @@ from pytorch3d.vis.plotly_vis import plot_scene
 # Load point cloud
 pointcloud = np.load(sys.argv[1])
 points = torch.Tensor(pointcloud['points']) # (N, 3)
-rgb = torch.Tensor(pointcloud['rgb']) # (N, 3)
+rgb = torch.Tensor(pointcloud['features']) # (N, 3)
 
 # merge points and rgb
 # points = torch.cat((points, rgb), dim=1) # (N, 6)

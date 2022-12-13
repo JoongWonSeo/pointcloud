@@ -19,8 +19,8 @@ train_set = PointcloudDataset(root_dir='input', files=None, transform=Compose([
     SampleFurthestPoints(2048),
     Normalize((-0.5, 0.5, -0.5, 0.5, 0, 1.5)), #3D bounding box x_min, x_max, y_min, y_max, z_min, z_max
     ]))
-train_loader = DataLoader(train_set, batch_size=100, shuffle=True)
-#train_set.save(0, 'transformed.npz')
+train_loader = DataLoader(train_set, batch_size=25, shuffle=True)
+train_set.save(0, 'transformed.npz')
 
 # model
 ae = PNAutoencoder(2048, 6).to(device)
@@ -29,7 +29,7 @@ ae = PNAutoencoder(2048, 6).to(device)
 loss_fn = chamfer_distance()
 # loss_fn = earth_mover_distance() # number of points must be the same and a multiple of 1024
 optimizer = torch.optim.Adam(ae.parameters())
-num_epochs = 5
+num_epochs = 50
 
 # training loop
 min_loss = np.inf
@@ -62,9 +62,12 @@ torch.save(ae.state_dict(), 'weights/last.pth')
 
 
 # evaluate
-eval_set = PointcloudDataset(root_dir='input', files=None, transform=SampleFurthestPoints(2048))
+eval_set = PointcloudDataset(root_dir='input', files=None, transform=Compose([
+    SampleFurthestPoints(2048),
+    Normalize((-0.5, 0.5, -0.5, 0.5, 0, 1.5)), #3D bounding box x_min, x_max, y_min, y_max, z_min, z_max
+    ]))
 eval_loader = DataLoader(eval_set, batch_size=1, shuffle=True)
-#loss_fn = earth_mover_distance(train=False)
+# loss_fn = earth_mover_distance(train=False)
 
 ae.eval() # FOR SOME REASON THIS MAKES THE MODEL OUTPUT VERY WEIRD, PROBABLY DUE TO SOME PARTS BEING TURNED OFF
 # I THINK IT MAY HAVE TO DO WITH THE BATCH NORM LAYER
@@ -89,6 +92,6 @@ with torch.no_grad():
         # split into points and rgb
         points = pred[0, :, :3].cpu().numpy()
         rgb = pred[0, :, 3:].cpu().numpy()
-        np.savez(f'output/{i}.npz', points=points, rgb=rgb)
+        np.savez(f'output/{i}.npz', points=points, features=rgb)
 
 

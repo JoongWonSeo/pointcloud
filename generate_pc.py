@@ -56,6 +56,7 @@ def main():
         depth_map_l = camera_utils.get_real_depth_map(env.sim, obs['frontview_depth'])
         depth_map_r = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
 
+        # normalize rgb to [0, 1]
         rgb_l = obs['frontview_image'] / 255
         rgb_r = obs['agentview_image'] / 255
 
@@ -75,7 +76,7 @@ def main():
         # pc = pc[idx, :]
         # rgb = rgb[idx, :]
 
-        np.savez(f'input/{t}.npz', points=pc, rgb=rgb)
+        np.savez(f'input/{t}.npz', points=pc, features=rgb, boundingbox=bbox)
         
         print(f"number of points = {pc.shape[0]}")
 

@@ -47,12 +47,8 @@ class chamfer_distance:
 class earth_mover_distance:
     def __init__(self, train=True):
         self.loss_fn = emdModule()
-        if train:
-            self.eps = 0.005
-            self.iterations = 50
-        else:
-            self.eps = 0.002
-            self.iterations = 10000
+        self.eps = 0.005 if train else 0.002
+        self.iterations = 50 if train else 10000
     
     def __call__(self, pred, target):
-        return self.loss_fn(pred, target,  self.eps, self.iterations)[0].mean() ** 2
+        return torch.sqrt(self.loss_fn(pred, target,  self.eps, self.iterations)[0]).mean()

@@ -82,20 +82,20 @@ def to_pointcloud(sim, image, depth_map, camera):
     pix_to_world = np.linalg.inv(world_to_pix)
 
     points = pixel_to_world(all_pixels, depth_map, pix_to_world)
-    rgb = pixel_to_feature(all_pixels, image)
+    features = pixel_to_feature(all_pixels, image)
 
-    return points, rgb
+    return points, features
 
 def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
     points, rgb = to_pointcloud(sim, image, depth_map, camera)
     np.savez(file, points=points, rgb=rgb)
 
-def filter_pointcloud(points, rgb, bbox):
+def filter_pointcloud(points, features, bbox):
     mask = np.logical_and.reduce((
         points[:, 0] > bbox[0, 0], points[:, 0] < bbox[0, 1],
         points[:, 1] > bbox[1, 0], points[:, 1] < bbox[1, 1],
         points[:, 2] > bbox[2, 0], points[:, 2] < bbox[2, 1]))
-    return points[mask], rgb[mask]
+    return points[mask], features[mask]
 
 
 def set_obj_pos(sim, joint, pos=None, quat=None):
