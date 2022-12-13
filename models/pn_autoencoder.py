@@ -16,11 +16,11 @@ class PNAutoencoder(nn.Module):
 
         self.encoder = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
         self.decoder = nn.Sequential(
-            nn.Linear(self.encoder.out_channels, 2048),
-            # nn.ReLU(),
-            # nn.Linear(1024, 1024),
-            # nn.ReLU(),
-            # nn.Linear(1024, 2048),
+            nn.Linear(self.encoder.out_channels, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 2048),
             nn.ReLU(),
             nn.Linear(2048, out_points * dim_per_point),
         )
@@ -45,9 +45,9 @@ class PointcloudDataset(Dataset):
 
     def __getitem__(self, idx):
         pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]))
-        pointcloud = np.hstack((pointcloud['points'], pointcloud['rgb'])).astype(np.float32)
+        pointcloud = np.hstack((pointcloud['points'], pointcloud['features'])).astype(np.float32)
 
         if self.transform:
             pointcloud = self.transform(pointcloud)
 
-        return pointcloud
+        return pointcloud[:10000,:]

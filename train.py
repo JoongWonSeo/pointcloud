@@ -84,6 +84,6 @@ with torch.no_grad():
         # split into points and rgb
         points = pred[0, :, :3].cpu().numpy()
         rgb = pred[0, :, 3:].cpu().numpy()
-        np.savez(f'output/{i}.npz', points=points, rgb=rgb)
+        np.savez(f'output/{i}.npz', points=points, features=rgb)
 
 
