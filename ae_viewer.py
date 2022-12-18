@@ -52,8 +52,11 @@ def decrement_z(vis):
 def update_pointcloud(vis):
     global x, y, z
     embedding = torch.Tensor([x, y, z]).to('cuda')
-    points = torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point))[0, :, :3].detach().cpu().numpy()
+    decoded =  torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
+    points = decoded[0, :, :3]
+    rgb = decoded[0, :, 3:]
     pcd.points = o3d.utility.Vector3dVector(points)
+    pcd.colors = o3d.utility.Vector3dVector(rgb)
 
     return True
     
@@ -84,8 +87,11 @@ vis.register_key_callback(67, decrement_z)
 pcd = o3d.geometry.PointCloud()
 # *optionally* add initial points
 embedding = torch.Tensor([0.0, 0.0, 0.0]).to('cuda')
-points = torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point))[0, :, :3].detach().cpu().numpy()
+decoded =  torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
+points = decoded[0, :, :3]
+rgb = decoded[0, :, 3:]
 pcd.points = o3d.utility.Vector3dVector(points)
+pcd.colors = o3d.utility.Vector3dVector(rgb)
 
 # load the preprocessed scene
 # scene = o3d.geometry.PointCloud()
