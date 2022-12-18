@@ -2,10 +2,9 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from models.pointnet import PointNetEncoder
 import numpy as np
-import pandas as pd
 
 class PNAutoencoder(nn.Module):
     def __init__(self, out_points = 2048, dim_per_point=3):
@@ -17,15 +16,15 @@ class PNAutoencoder(nn.Module):
         self.encoder = nn.Sequential(
             pe,
             nn.ReLU(),
-            nn.Linear(pe.out_channels, 3)
+            nn.Linear(pe.out_channels, 3),
+            nn.Tanh(), # normalize the embedding to [-1, 1]
         )
         self.decoder = nn.Sequential(
-            # nn.Linear(pe.out_channels, 1024),
-            nn.Linear(3, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 2048),
+            nn.Linear(3, 2048),
+            # nn.ReLU(),
+            # nn.Linear(1024, 1024),
+            # nn.ReLU(),
+            # nn.Linear(1024, 2048),
             nn.ReLU(),
             nn.Linear(2048, out_points * dim_per_point),
             nn.Sigmoid(),

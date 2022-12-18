@@ -58,37 +58,25 @@ class chamfer_distance:
 
 
 class earth_mover_distance:
-    def __init__(self, train=True, feature_loss=torch.nn.MSELoss(), bbox=None):
+    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss()):
         self.loss_fn = emdModule()
-        self.eps = 0.005 if train else 0.002
-        self.iterations = 50 if train else 10000
+        self.eps = eps
+        self.iterations = iterations
         self.feature_loss = feature_loss
-        self.bbox = bbox
     
     def __call__(self, pred, target):
-        # if self.bbox is None:
-        #     # weight per point-pair is just 1
-        #     weight = torch.ones(pred.shape[0], pred.shape[1], target.shape[1]).to(pred.device)
-
         dists, assignment = self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)
-        point_l = torch.sqrt(dists).mean()
+        point_l = dists.sqrt().mean()
 
         # compare the features (RGB) OF THE CORRESPONDING POINTS ACCORDING TO assignment
-
-        # numpy version
-        # assignment = assignment.cpu().numpy()
-        # assignment = np.expand_dims(assignment, -1)
-        # target = np.take_along_axis(target, assignment, axis = 1)
-
-        # torch version
         assignment = assignment.long().unsqueeze(-1)
-        target = torch.take_along_dim(target, assignment, 1)
+        target = target.take_along_dim(assignment, 1)
+        feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
-        
         # sanity check: compare the points of the permuted pc
         # d = (pred[:,:,:3] - target[:,:,:3]) * (pred[:,:,:3] - target[:,:,:3])
         # d = torch.sqrt(d.sum(-1)).mean()
+        # TODO: check if target is in bbox and increase weight of loss
         # print(f'loss = {point_l}, d = {d}')
 
-        feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
         return point_l + feature_l
