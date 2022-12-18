@@ -21,7 +21,7 @@ env = suite.make(
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
     use_camera_obs=True,
-    camera_names=['agentview', 'frontview'],
+    camera_names=['agentview', 'frontview', 'birdview'],
     camera_widths=camera_w,
     camera_heights=camera_h,
     camera_depths=True,
@@ -35,12 +35,13 @@ print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
 camera_r = camera_utils.CameraMover(env, camera='frontview')
+camera_t = camera_utils.CameraMover(env, camera='birdview')
 # camera_r.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
 # camera.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
 # camera.rotate_camera(None, (0, 0, 1), 180)
 camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
-camera_r.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
-#camera_r.set_camera_pose([0.2, -1.2, 1.8], transform_utils.axisangle2quat([1, 0, 0]))
+camera_r.set_camera_pose([0.2, -1.2, 1.8], transform_utils.axisangle2quat([1, 0, 0]))
+camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
 
 
 # set cube size

@@ -22,8 +22,10 @@ train_loader = DataLoader(train_set, batch_size=25, shuffle=True)
 ae = PNAutoencoder(2048, 6).to(device)
 
 # training parameters
-loss_fn = chamfer_distance()
-# loss_fn = earth_mover_distance() # number of points must be the same and a multiple of 1024
+# loss_fn = chamfer_distance(bbox = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2])
+# TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
+# alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
+loss_fn = earth_mover_distance(train=False) # number of points must be the same and a multiple of 1024
 optimizer = torch.optim.Adam(ae.parameters())
 num_epochs = 100
 
@@ -61,8 +63,7 @@ eval_set = PointcloudDataset(root_dir='prep', files=None, transform=None)
 eval_loader = DataLoader(eval_set, batch_size=1, shuffle=True)
 # loss_fn = earth_mover_distance(train=False)
 
-ae.eval() # FOR SOME REASON THIS MAKES THE MODEL OUTPUT VERY WEIRD, PROBABLY DUE TO SOME PARTS BEING TURNED OFF
-# I THINK IT MAY HAVE TO DO WITH THE BATCH NORM LAYER
+ae.eval()
 with torch.no_grad():
     for i, X in enumerate(eval_loader):
         X = X.to(device)

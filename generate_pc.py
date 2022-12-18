@@ -73,6 +73,7 @@ def main():
 
         # filter out points outside of bounding box
         bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])
+        # bbox = np.array([[-0.4, 0.4], [-0.4, 0.4], [0.8, 1.5]])
         pc, rgb = filter_pointcloud(pc, rgb, bbox)
 
         # # random sampling to fixed number of points

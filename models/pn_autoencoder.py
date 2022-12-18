@@ -20,7 +20,7 @@ class PNAutoencoder(nn.Module):
             nn.Linear(pe.out_channels, 3)
         )
         self.decoder = nn.Sequential(
-            # nn.Linear(self.encoder.out_channels, 1024),
+            # nn.Linear(pe.out_channels, 1024),
             nn.Linear(3, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
@@ -58,6 +58,9 @@ class PointcloudDataset(Dataset):
 
         return pointcloud
     
+    def filename(self, idx):
+        return self.files[idx]
+    
     def save(self, idx, path):
         pointcloud = self.__getitem__(idx)
-        np.savez(path, points=pointcloud[:, :3], features=pointcloud[:, 3:])
+        np.savez(os.path.join(path, self.files[idx]), points=pointcloud[:, :3], features=pointcloud[:, 3:])
