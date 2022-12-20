@@ -1,17 +1,18 @@
-import array
 import numpy as np
 import robosuite as suite
-import matplotlib.pyplot as plt
-import cv2
 from robosuite.utils import camera_utils, transform_utils
-from scipy.spatial.transform import Rotation as R
-import pandas as pd
-import random
+import argparse
 from utils import *
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--frames', type=int, default=100)
+parser.add_argument('--width', type=int, default=128)
+parser.add_argument('--height', type=int, default=128)
+arg = parser.parse_args()
+
 # global variables
-num_frames=100
-camera_w, camera_h = 128, 128
+num_frames=arg.frames
+camera_w, camera_h = arg.width, arg.height
 
 # create environment instance
 env = suite.make(
