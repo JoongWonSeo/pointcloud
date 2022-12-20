@@ -6,6 +6,8 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
 from train_utils import *
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 def preprocess(input_dir, output_dir, num_points=2048):
@@ -19,10 +21,14 @@ def preprocess(input_dir, output_dir, num_points=2048):
 
 
 def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
+    # tensorboard
+    writer = SummaryWriter()
+
     # training data
-    train_set = PointcloudDataset(
-        root_dir=input_dir, files=None, transform=None)
+    dataset = PointcloudDataset(root_dir=input_dir, files=None, transform=None)
+    train_set, val_set = torch.utils.data.random_split(dataset, [0.8, 0.2])
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # model
     ae = PNAutoencoder(2048, 6).to(device)
@@ -35,10 +41,11 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
     optimizer = torch.optim.Adam(ae.parameters())
 
     # training loop
-    min_loss = np.inf
+    loss_min = np.inf
     for epoch in range(num_epochs):
-        # load one batch
-        for X in train_loader:
+        loss_training = 0.0
+
+        for i, X in enumerate(train_loader):
             X = X.to(device)
 
             # compute prediction and loss
@@ -50,16 +57,46 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
             loss.backward()
             optimizer.step()
 
-        # TODO evaluate on validation set
-        print(f"{epoch}: loss = {loss}")
-        # save best model
-        # if loss < min_loss:
-        #     min_loss = loss
-        #     print('saving new best model')
-        #     torch.save(ae.state_dict(), 'weights/best.pth')
+            loss_training += loss.item()
+
+            # validate every 4 batches (every 100 inputs)
+            if i % 4 == 0:
+                loss_validation = 0.0
+                ae.train(False)
+                with torch.no_grad():
+                    for X_val in val_loader:
+                        X_val = X_val.to(device)
+                        pred_val = ae(X_val)
+                        loss_validation += loss_fn(pred_val, X_val).item()
+                ae.train(True)
+
+                loss_training = loss_training / 4
+                loss_validation = loss_validation / len(val_loader)
+
+                # log to tensorboard
+                writer.add_scalars('Training Loss & Validation Loss', {
+                    'Training Loss': loss_training,
+                    'Validation Loss': loss_validation
+                }, epoch * len(train_loader) + i)
+
+                # save best model
+                if loss_validation < loss_min:
+                    print(f'saving new best model: {loss_min} -> {loss_validation}')
+                    loss_min = loss_validation
+                    torch.save(ae.state_dict(), model_path)
+
+                loss_training = 0.0
+
+        print(f"Epoch {epoch}: loss = {loss}")
 
     # save model
-    torch.save(ae.state_dict(), model_path)
+    torch.save(ae.state_dict(), model_path.replace('.pth', '_last.pth'))
+
+    # log model to tensorboard
+    batch = next(iter(train_loader))
+    writer.add_graph(ae, batch.to(device))
+
+    writer.flush()
 
 
 def eval(model_path, input_dir, output_dir, eps=0.002, iter=10000):
@@ -105,7 +142,7 @@ parser = argparse.ArgumentParser(
     description='Train or evaluate a pointnet autoencoder')
 parser.add_argument('mode', choices=[
                     'train', 'eval', 'traineval', 'preprocess'], help='train or evaluate the model')
-parser.add_argument('--model', default='weights/last.pth',
+parser.add_argument('--model', default='weights/PC_AE.pth',
                     help='path to model weights (to save during training or load during evaluation)')
 parser.add_argument('--input', default='prep',
                     help='path to training data (for training) or input data (for evaluation)')
