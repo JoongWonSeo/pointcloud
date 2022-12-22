@@ -48,35 +48,45 @@ class chamfer_distance:
         if self.bbox is None:
             return self.loss_fn(pred, target)[0]
 
-        # else:
-            
-
-            # # compute the loss
-            # loss_in = self.loss_fn(pred_in, target_in)[0]
-
-            # return 2*loss_in + loss_out
-
-
 class earth_mover_distance:
-    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss()):
+    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss(), bbox=None, bbox_bonus=2):
         self.loss_fn = emdModule()
         self.eps = eps
         self.iterations = iterations
         self.feature_loss = feature_loss
+        self.bbox = bbox
+        self.bbox_bonus = bbox_bonus
     
     def __call__(self, pred, target):
         dists, assignment = self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)
-        point_l = dists.sqrt().mean()
 
         # compare the features (RGB) OF THE CORRESPONDING POINTS ACCORDING TO assignment
         assignment = assignment.long().unsqueeze(-1)
         target = target.take_along_dim(assignment, 1)
         feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
+        # DEBUG: check the number of unassigned points
+        num_points = pred.shape[1]
+        num_missing = num_points - assignment.unique().numel()
+        if num_missing > 0:
+            print(f"unassigned = {num_missing} / {num_points} = {num_missing / num_points}")
+
+
         # sanity check: compare the points of the permuted pc
         # d = (pred[:,:,:3] - target[:,:,:3]) * (pred[:,:,:3] - target[:,:,:3])
         # d = torch.sqrt(d.sum(-1)).mean()
-        # TODO: check if target is in bbox and increase weight of loss
-        # print(f'loss = {point_l}, d = {d}')
+
+        # check if target is in bbox and increase weight of loss
+        weights = torch.ones_like(dists)
+        if self.bbox is not None:
+            is_in_bbox = (self.bbox[0] < target[:, :, 0]) & (target[:, :, 0] < self.bbox[1]) \
+                       & (self.bbox[2] < target[:, :, 1]) & (target[:, :, 1] < self.bbox[3]) \
+                       & (self.bbox[4] < target[:, :, 2]) & (target[:, :, 2] < self.bbox[5])
+
+            # weight the loss of points that are not in the bbox
+            weights += (self.bbox_bonus * is_in_bbox.float())
+
+        point_l = (dists.sqrt() * weights).mean()
+
 
         return point_l + feature_l

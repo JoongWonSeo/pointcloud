@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
     
-def main(device='cuda', model_dir='weights/last.pth', input_dir='prep'):
+def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
     # load model
     ae = PNAutoencoder(2048, 6)
     ae.load_state_dict(torch.load(model_dir))
@@ -52,7 +52,9 @@ def main(device='cuda', model_dir='weights/last.pth', input_dir='prep'):
         orig_rgb = orig[:, 3:]
 
         orig = orig.to(device).reshape((1, ae.out_points, ae.dim_per_point))
-        pred = ae(orig).reshape((-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
+        embedding = ae.encoder(orig)
+        print(embedding)
+        pred = ae.decoder(embedding).reshape((-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
 
         # shift the orig_points and pred points so they don't overlap
         orig_points[:, 1] -= 0.6

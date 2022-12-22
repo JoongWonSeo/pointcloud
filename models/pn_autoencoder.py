@@ -17,14 +17,14 @@ class PNAutoencoder(nn.Module):
             pe,
             nn.ReLU(),
             nn.Linear(pe.out_channels, 3),
-            nn.Tanh(), # normalize the embedding to [-1, 1]
+            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
         )
         self.decoder = nn.Sequential(
-            nn.Linear(3, 2048),
-            # nn.ReLU(),
-            # nn.Linear(1024, 1024),
-            # nn.ReLU(),
-            # nn.Linear(1024, 2048),
+            nn.Linear(3, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 2048),
             nn.ReLU(),
             nn.Linear(2048, out_points * dim_per_point),
             nn.Sigmoid(),

@@ -4,6 +4,9 @@
 # model weights
 *.pth
 
+# training logs for tensorboard
+runs/
+
 # vscode
 .vscode/
 

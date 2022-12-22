@@ -20,7 +20,7 @@ def preprocess(input_dir, output_dir, num_points=2048):
         dataset.save(i, output_dir)
 
 
-def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
+def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     # tensorboard
     writer = SummaryWriter()
 
@@ -37,7 +37,8 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
     # alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
     # number of points must be the same and a multiple of 1024
-    loss_fn = earth_mover_distance(eps=eps, iterations=iter)
+    bbox = Normalize((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5))(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
+    loss_fn = earth_mover_distance(eps=eps, iterations=iterations, bbox=bbox, bbox_bonus=10)
     optimizer = torch.optim.Adam(ae.parameters())
 
     # training loop
@@ -74,7 +75,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
                 loss_validation = loss_validation / len(val_loader)
 
                 # log to tensorboard
-                writer.add_scalars('Training Loss & Validation Loss', {
+                writer.add_scalars('PC_AE_Training', {
                     'Training Loss': loss_training,
                     'Validation Loss': loss_validation
                 }, epoch * len(train_loader) + i)
@@ -99,11 +100,11 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iter):
     writer.flush()
 
 
-def eval(model_path, input_dir, output_dir, eps=0.002, iter=10000):
+def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000):
     # evaluate
     eval_set = PointcloudDataset(
         root_dir=input_dir, files=None, transform=None)
-    loss_fn = earth_mover_distance(eps=eps, iterations=iter)
+    loss_fn = earth_mover_distance(eps=eps, iterations=iterations)
 
     ae = PNAutoencoder(2048, 6).to(device)
     ae.load_state_dict(torch.load(model_path))
@@ -155,7 +156,7 @@ parser.add_argument('--batch_size', default=25, type=int,
 parser.add_argument('--num_epochs', default=100, type=int,
                     help='number of epochs to train for')
 parser.add_argument('--eps', default=0.002, type=float, help='epsilon for EMD')
-parser.add_argument('--iter', default=10000, type=int,
+parser.add_argument('--iterations', default=5000, type=int,
                     help='number of iterations for EMD')
 args = parser.parse_args()
 
@@ -164,12 +165,13 @@ print(f'device = {device}')
 
 if args.mode == 'train':
     train(args.input, args.model, args.num_epochs,
-          args.batch_size, args.eps, args.iter)
+          args.batch_size, args.eps, args.iterations)
 elif args.mode == 'eval':
-    eval(args.model, args.input, args.output, args.eps, args.iter)
+    eval(args.model, args.input, args.output, args.eps, args.iterations)
 elif args.mode == 'traineval':
     train(args.input, args.model, args.num_epochs,
-          args.batch_size, args.eps, args.iter)
-    eval(args.model, args.input, args.output, args.eps, args.iter)
+          args.batch_size, args.eps, args.iterations)
+    eval(args.model, args.input, args.output, args.eps, args.iterations)
 elif args.mode == 'preprocess':
     preprocess(args.input, args.output)
+    
