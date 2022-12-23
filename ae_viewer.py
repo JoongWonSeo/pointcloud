@@ -95,7 +95,8 @@ def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
 
     # initialize pointcloud instance.
     pcd = o3d.geometry.PointCloud()
-    update_pointcloud() # initial points
+    # update_pointcloud() # initial points
+    update_input() # initial points
     vis.add_geometry(pcd) # include it in the visualizer before non-blocking visualization.
 
     # run non-blocking visualization. 

@@ -71,8 +71,8 @@ def main():
             #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
         # Simulation
-        #action = random_action(env) # sample random action
-        action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+        action = random_action(env) * 10 # sample random action
+        # action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
         obs, reward, done, info = env.step(action)  # take action in the environment
 
         # Observation

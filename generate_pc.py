@@ -48,11 +48,12 @@ def main():
         
         set_obj_pos(env.sim, joint='cube_joint0')
         #robot.set_robot_joint_positions(np.random.randn(7))
-        robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
+        #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
 
         # Simulation
-        action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+        #action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+        action = random_action(env) * 10 # sample random action
         obs, _, _, _ = env.step(action)  # take action in the environment
 
         # Observation

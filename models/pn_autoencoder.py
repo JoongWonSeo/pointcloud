@@ -13,14 +13,16 @@ class PNAutoencoder(nn.Module):
         self.out_points = out_points
         self.dim_per_point = dim_per_point
         pe = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
-        self.encoder = nn.Sequential(
-            pe,
-            nn.ReLU(),
-            nn.Linear(pe.out_channels, 3),
-            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
-        )
+        # self.encoder = nn.Sequential(
+        #     pe,
+        #     nn.ReLU(),
+        #     nn.Linear(pe.out_channels, 3),
+        #     # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
+        # )
+        self.encoder = pe
         self.decoder = nn.Sequential(
-            nn.Linear(3, 1024),
+            # nn.Linear(3, 1024),
+            nn.Linear(pe.out_channels, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
             nn.ReLU(),
