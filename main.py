@@ -39,7 +39,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     # number of points must be the same and a multiple of 1024
     bbox = Normalize((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5))(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
     loss_fn = earth_mover_distance(eps=eps, iterations=iterations, bbox=bbox, bbox_bonus=10)
-    optimizer = torch.optim.Adam(ae.parameters())
+    optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
 
     # training loop
     loss_min = np.inf
