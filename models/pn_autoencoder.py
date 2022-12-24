@@ -2,10 +2,9 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from models.pointnet import PointNetEncoder
 import numpy as np
-import pandas as pd
 
 class PNAutoencoder(nn.Module):
     def __init__(self, out_points = 2048, dim_per_point=3):
@@ -13,8 +12,14 @@ class PNAutoencoder(nn.Module):
 
         self.out_points = out_points
         self.dim_per_point = dim_per_point
-
-        self.encoder = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
+        pe = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
+        # self.encoder = nn.Sequential(
+        #     pe,
+        #     nn.ReLU(),
+        #     nn.Linear(pe.out_channels, 3),
+        #     # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
+        # )
+        self.encoder = pe
         self.decoder = nn.Sequential(
             nn.Linear(self.encoder.out_channels, 1024),
             nn.ReLU(),
@@ -23,6 +28,7 @@ class PNAutoencoder(nn.Module):
             nn.Linear(1024, 2048),
             nn.ReLU(),
             nn.Linear(2048, out_points * dim_per_point),
+            nn.Sigmoid(),
         )
     
     def forward(self, X):
@@ -45,9 +51,16 @@ class PointcloudDataset(Dataset):
 
     def __getitem__(self, idx):
         pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]))
-        pointcloud = np.hstack((pointcloud['points'], pointcloud['features'])).astype(np.float32)
+        pointcloud = torch.tensor(np.hstack((pointcloud['points'], pointcloud['features'])).astype(np.float32))
 
         if self.transform:
             pointcloud = self.transform(pointcloud)
 
-        return pointcloud[:10000,:]
+        return pointcloud
+    
+    def filename(self, idx):
+        return self.files[idx]
+    
+    def save(self, idx, path):
+        pointcloud = self.__getitem__(idx)
+        np.savez(os.path.join(path, self.files[idx]), points=pointcloud[:, :3], features=pointcloud[:, 3:])

@@ -4,6 +4,13 @@
 # model weights
 *.pth
 
+# slides
+*.html
+*.pdf
+
+# training logs for tensorboard
+runs/
+
 # vscode
 .vscode/
 
