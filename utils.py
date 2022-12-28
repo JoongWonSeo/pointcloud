@@ -19,6 +19,26 @@ def normalize(array):
     return (array - min) / (max - min)
 
 
+def render(points, rgb, img, w2c, camera_h, camera_w):
+    # points = (N, 3) with (x, y, z)
+    # rgb = (N, 3) with (r, g, b)
+    n_points = points.shape[0]
+
+    # points to homogeneous coordinates
+    points = np.hstack((points, np.ones((n_points, 1))))
+    points = (w2c @ points[:, :4].T).T
+    # to pixel coordinates, then round to integers
+    points = np.round(points[:, :2] / points[:, 2:3]).astype(int)
+    # flip y axis
+    points[:, 1] = camera_h - points[:, 1]
+    # filter out points outside of image
+    mask = np.logical_and(np.logical_and(points[:, 0] >= 0, points[:, 0] < camera_w), np.logical_and(points[:, 1] >= 0, points[:, 1] < camera_h))
+    points = points[mask]
+    rgb = rgb[mask]
+    # draw points on image
+    img[points[:, 1], points[:, 0]] = rgb
+
+
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):
     """
     Helper function to take a batch of pixel locations and the corresponding depth image

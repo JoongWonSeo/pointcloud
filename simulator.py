@@ -8,6 +8,8 @@ from scipy.spatial.transform import Rotation as R
 import pandas as pd
 import random
 from utils import *
+import torch
+from models.pn_autoencoder import PNAutoencoder
 
 # global variables
 horizon=10000
@@ -21,7 +23,7 @@ env = suite.make(
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
     use_camera_obs=True,
-    camera_names=['agentview', 'frontview', 'birdview'],
+    camera_names=['agentview'],
     camera_widths=camera_w,
     camera_heights=camera_h,
     camera_depths=True,
@@ -34,17 +36,16 @@ print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {
 
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
-camera_r = camera_utils.CameraMover(env, camera='frontview')
-camera_t = camera_utils.CameraMover(env, camera='birdview')
-# camera_r.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
-# camera.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
-# camera.rotate_camera(None, (0, 0, 1), 180)
 camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
-camera_r.set_camera_pose([0.2, -1.2, 1.8], transform_utils.axisangle2quat([1, 0, 0]))
-camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
 
 
-# set cube size
+
+# import PC AE
+device = 'cuda'
+ae = PNAutoencoder(2048, 6)
+ae.load_state_dict(torch.load('weights/PC_AE.pth'))
+ae = ae.to(device)
+ae.eval()
 
 
 # simulation
@@ -58,7 +59,6 @@ def main():
 
         # get camera pose
         if ui.is_pressed('c'):
-            #camera.set_camera_pose([0.9, -0.2, 1.8])
             camera_pose = camera.get_camera_pose()
             angles = transform_utils.quat2axisangle(camera_pose[1])
             print(f"camera_pose = {camera_pose}")
@@ -76,51 +76,48 @@ def main():
         obs, reward, done, info = env.step(action)  # take action in the environment
 
         # Observation
+        rgb = obs['agentview_image'] / 255
+
+        # Render autoencoder's generated PC
+        # capture the point cloud
         depth_map = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
+        orig, orig_rgb = to_pointcloud(env.sim, rgb, depth_map, 'agentview')
+        # orig, orig_rgb = torch.Tensor(orig), torch.Tensor(orig_rgb)
+        # orig = torch.stack([orig, orig_rgb], dim=1)
+        orig = np.concatenate([orig, orig_rgb], axis=1)
 
-        rgb, d = obs['agentview_image'] / 255, normalize(depth_map)
+        # sample random 2048 points TODO: more uniform dense sampling
+        orig = orig[np.random.choice(orig.shape[0], 2048, replace=False), :]
 
-        #DEBUG get cube position
-        # cp = env.sim.data.get_joint_qpos('cube_joint0')[:3]
-        # w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
-        # # cp to homogeneous coordinates
-        # cp = np.append(cp, 1)
-        # ci = w2c @ cp
-        # # ci to pixel coordinates
-        # ci = ci[:2] / ci[2]
-        # # ci to image coordinates
-        # ci = np.round(ci).astype(int)
-        # x, y = ci[0], ci[1]
-        # _y = camera_h - y
-        # #print(f"x, y = {x}, {y}")
-        # # draw cube position
-        # rgb[_y-2:_y+2, x-2:x+2] = [1, 1, 0]
+        # normalize the points
+        bbox = np.array((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5))
+        min = bbox[0:6:2]
+        max = bbox[1:6:2]
+        orig[:, :3] = (orig[:, :3] - min) / (max - min)
 
-        # find original coordinate
-        # c2w = np.linalg.inv(w2c)
-        # z = depth_map[_y, x]
-        # ci = np.array([x*z, y*z, z, 1], dtype=np.float32)
-        # cp_reconst = c2w @ ci
-        # cp_reconst = cp_reconst[:3] / cp_reconst[3]
-        # cp_reconst = np.append(cp_reconst, 1)
-        # print(f"cp = {cp}\ncp_reconst = {cp_reconst}")
-        # print(f"diff = {cp - cp_reconst}")
+        # run the autoencoder
+        orig = torch.Tensor(orig).to(device)
+        orig = orig.reshape((1, ae.out_points, ae.dim_per_point))
+        embedding = ae.encoder(orig)
+        # embedding = torch.randn(ae.encoder.out_channels).to(device)
+        print(embedding)
+        pred = ae.decoder(embedding).reshape((ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
 
+        # unnormalize the points
+        pred[:, :3] = min + pred[:, :3] * (max - min)
 
-
-        rgbd = np.flip(np.hstack((rgb, np.dstack((d, d, d)))), axis=0)
-
+        w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
         
-        depth_map_r = camera_utils.get_real_depth_map(env.sim, obs['frontview_depth'])
+        # DEBUG make image more blue
+        rgb[:, :, 0:2] = rgb[:, :, 0:2] * 0.5
+        render(pred[:, :3], pred[:, 3:], rgb, w2c, camera_h, camera_w)
 
-        rgb_r, d_r = obs['frontview_image'] / 255, normalize(depth_map_r)
-        rgbd_r = np.flip(np.hstack((rgb_r, np.dstack((d_r, d_r, d_r)))), axis=0)
 
+        # convert to CV2 format (flip along y axis and from RGB to BGR)
+        rgb = np.flip(rgb, axis=0)
+        rgb = rgb[:, :, [2, 1, 0]]
 
-        if ui.is_pressed('p'):
-            save_pointcloud(env.sim, rgb, depth_map, camera='agentview', file='output/pc.npz')
-
-        ui.show(np.vstack((rgbd, rgbd_r)))
+        ui.show(rgb)
     
     ui.close()
 
