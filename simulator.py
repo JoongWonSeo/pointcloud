@@ -10,6 +10,7 @@ import random
 from utils import *
 import torch
 from models.pn_autoencoder import PNAutoencoder
+from pytorch3d.ops import sample_farthest_points
 
 # global variables
 horizon=10000
@@ -23,7 +24,7 @@ env = suite.make(
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
     use_camera_obs=True,
-    camera_names=['agentview'],
+    camera_names=['agentview', 'frontview', 'birdview', 'sideview'],
     camera_widths=camera_w,
     camera_heights=camera_h,
     camera_depths=True,
@@ -37,6 +38,15 @@ print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
 camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
+
+# pc observer
+sens_l = camera_utils.CameraMover(env, camera='frontview')
+sens_r = camera_utils.CameraMover(env, camera='birdview')
+sens_t = camera_utils.CameraMover(env, camera='sideview')
+sens_l.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
+sens_r.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
+sens_r.rotate_camera(None, (0, 0, 1), 180)
+sens_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
 
 
 
@@ -76,48 +86,62 @@ def main():
         obs, reward, done, info = env.step(action)  # take action in the environment
 
         # Observation
-        rgb = obs['agentview_image'] / 255
+        camera_image = obs['agentview_image'] / 255
 
-        # Render autoencoder's generated PC
-        # capture the point cloud
-        depth_map = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
-        orig, orig_rgb = to_pointcloud(env.sim, rgb, depth_map, 'agentview')
-        # orig, orig_rgb = torch.Tensor(orig), torch.Tensor(orig_rgb)
-        # orig = torch.stack([orig, orig_rgb], dim=1)
+        # Sensor images
+        sens_l_image = obs['frontview_image'] / 255
+        sens_r_image = obs['birdview_image'] / 255
+        sens_t_image = obs['sideview_image'] / 255
+        sens_l_depth = camera_utils.get_real_depth_map(env.sim, obs['frontview_depth'])
+        sens_r_depth = camera_utils.get_real_depth_map(env.sim, obs['birdview_depth'])
+        sens_t_depth = camera_utils.get_real_depth_map(env.sim, obs['sideview_depth'])
+
+
+        # RGBD to point cloud
+        pc_l, pc_l_rgb = to_pointcloud(env.sim, sens_l_image, sens_l_depth, 'frontview')
+        pc_r, pc_r_rgb = to_pointcloud(env.sim, sens_r_image, sens_r_depth, 'birdview')
+        pc_t, pc_t_rgb = to_pointcloud(env.sim, sens_t_image, sens_t_depth, 'sideview')
+        orig = np.concatenate([pc_l, pc_r, pc_t], axis=0)
+        orig_rgb = np.concatenate([pc_l_rgb, pc_r_rgb, pc_t_rgb], axis=0)
+
+        # filter, sample and normalize
+        bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])
+        orig, orig_rgb = filter_pointcloud(orig, orig_rgb, bbox)
         orig = np.concatenate([orig, orig_rgb], axis=1)
 
         # sample random 2048 points TODO: more uniform dense sampling
-        orig = orig[np.random.choice(orig.shape[0], 2048, replace=False), :]
+        # orig = orig[np.random.choice(orig.shape[0], 2048, replace=False), :]
+        orig = torch.Tensor(orig).to(device)
+        orig = orig.reshape((1, -1, ae.dim_per_point))
+        orig, _ = sample_farthest_points(orig, K=2048)
 
         # normalize the points
-        bbox = np.array((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5))
+        bbox = torch.Tensor((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5)).to(device)
         min = bbox[0:6:2]
         max = bbox[1:6:2]
-        orig[:, :3] = (orig[:, :3] - min) / (max - min)
+        orig[:, :, :3] = (orig[:, :, :3] - min) / (max - min)
 
         # run the autoencoder
-        orig = torch.Tensor(orig).to(device)
-        orig = orig.reshape((1, ae.out_points, ae.dim_per_point))
-        embedding = ae.encoder(orig)
-        # embedding = torch.randn(ae.encoder.out_channels).to(device)
-        print(embedding)
-        pred = ae.decoder(embedding).reshape((ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
+        pred = ae(orig).reshape((ae.out_points, ae.dim_per_point)).detach()
+        #pred = orig # DEBUG use original point cloud
 
         # unnormalize the points
         pred[:, :3] = min + pred[:, :3] * (max - min)
+        pred = pred.cpu().numpy()
 
+        # render to camera
         w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
-        
         # DEBUG make image more blue
-        rgb[:, :, 0:2] = rgb[:, :, 0:2] * 0.5
-        render(pred[:, :3], pred[:, 3:], rgb, w2c, camera_h, camera_w)
+        camera_image[:, :, 0:2] = camera_image[:, :, 0:2] * 0.5
+        # render(pred[:, :3], pred[:, 3:], camera_image, w2c, camera_h, camera_w)
+        render(pred[:, :3], pred[:, [5, 3, 4]], camera_image, w2c, camera_h, camera_w)
 
 
         # convert to CV2 format (flip along y axis and from RGB to BGR)
-        rgb = np.flip(rgb, axis=0)
-        rgb = rgb[:, :, [2, 1, 0]]
+        camera_image = np.flip(camera_image, axis=0)
+        camera_image = camera_image[:, :, [2, 1, 0]]
 
-        ui.show(rgb)
+        ui.show(camera_image)
     
     ui.close()
 

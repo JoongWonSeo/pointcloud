@@ -31,12 +31,17 @@ def render(points, rgb, img, w2c, camera_h, camera_w):
     points = np.round(points[:, :2] / points[:, 2:3]).astype(int)
     # flip y axis
     points[:, 1] = camera_h - points[:, 1]
+    # shift each points by +-1 in x and y direction
+    points = np.vstack((points, points + np.array([1, 0]), points + np.array([0, 1]), points + np.array([1, 1])))
+    rgb = np.vstack((rgb, rgb, rgb, rgb))
     # filter out points outside of image
     mask = np.logical_and(np.logical_and(points[:, 0] >= 0, points[:, 0] < camera_w), np.logical_and(points[:, 1] >= 0, points[:, 1] < camera_h))
     points = points[mask]
     rgb = rgb[mask]
     # draw points on image
     img[points[:, 1], points[:, 0]] = rgb
+    
+
 
 
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):
