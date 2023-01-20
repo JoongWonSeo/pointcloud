@@ -110,9 +110,9 @@ def main():
         orig = np.concatenate([orig, orig_rgb], axis=1)
 
         # sample random 2048 points TODO: more uniform dense sampling
-        # orig = orig[np.random.choice(orig.shape[0], 2048, replace=False), :]
         orig = torch.Tensor(orig).to(device)
         orig = orig.reshape((1, -1, ae.dim_per_point))
+        # orig = orig[:, np.random.choice(orig.shape[1], 2048, replace=False), :]
         orig, _ = sample_farthest_points(orig, K=2048)
 
         # normalize the points
@@ -123,7 +123,7 @@ def main():
 
         # run the autoencoder
         pred = ae(orig).reshape((ae.out_points, ae.dim_per_point)).detach()
-        #pred = orig # DEBUG use original point cloud
+        # pred = orig.reshape((ae.out_points, ae.dim_per_point)) # DEBUG use original point cloud
 
         # unnormalize the points
         pred[:, :3] = min + pred[:, :3] * (max - min)

@@ -9,6 +9,16 @@ import numpy as np
 
 # Point Cloud Transformations
 
+class SampleRandomPoints:
+    def __init__(self, K):
+        self.K = K
+    
+    def __call__(self, points):
+        # sample K points
+        points = points[torch.randint(points.shape[0], (self.K,)), :]
+
+        return points
+
 class SampleFurthestPoints:
     def __init__(self, K):
         self.K = K

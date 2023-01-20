@@ -86,7 +86,10 @@ def main():
 
         np.savez(f'input/{t}.npz', points=pc, features=rgb, boundingbox=bbox)
         
-        print(f"number of points = {pc.shape[0]}")
+        # print(f"number of points = {pc.shape[0]}")
+        print(('#' * round(t/num_frames * 100)).ljust(100, '-'), end='\r')
+    print('\ndone')
+
 
     
 
