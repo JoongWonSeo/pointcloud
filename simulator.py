@@ -67,7 +67,9 @@ print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {
 
 # create camera mover
 camera = camera_utils.CameraMover(env, camera='agentview')
-camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
+# move the camera back a bit
+camera.move_camera((0,0,1), 0.5) # z axis (forward-backward)
+# camera.set_camera_pose([-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
 
 # pc observer
 # sens_l = camera_utils.CameraMover(env, camera='frontview')
