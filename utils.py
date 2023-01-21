@@ -130,7 +130,7 @@ def set_obj_pos(sim, joint, pos=None, quat=None):
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
     
 def random_action(env):
-    return np.random.randn(env.robots[0].dof)
+    return np.random.randn(env.action_dim)
 
 
 
