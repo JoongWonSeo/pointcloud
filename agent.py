@@ -293,23 +293,25 @@ def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
 
 def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-         steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
+         steps_per_epoch=4000, num_epochs=100, replay_size=int(1e6), gamma=0.99, 
          polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
          update_after=1000, update_every=50, act_noise=0.1, num_test_episodes=10, 
-         max_ep_len=1000, logger_kwargs=dict(), save_freq=1):
+         num_steps=1000, logger_kwargs=dict(), save_freq=1):
 
     torch.manual_seed(seed)
     np.random.seed(seed)
 
     env, test_env = env_fn(), env_fn()
-    obs_dim = env.get_observation().shape[0] + env.get_goal().shape[0]
+    obs_dim = env.get_observation().shape[0]
+    goal_dim = env.get_task_goal().shape[0]
+    og_dim = obs_dim + goal_dim
     act_dim = env.action_dim
 
     # Action limit for clamping: critically, assumes all dimensions share the same bound!
     act_limit = env.action_spec[1][0]
 
     # Create actor-critic module and target networks
-    ac = actor_critic(obs_dim, act_dim, act_limit, **ac_kwargs)
+    ac = actor_critic(og_dim, act_dim, act_limit, **ac_kwargs)
     ac_targ = deepcopy(ac)
 
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -317,7 +319,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         p.requires_grad = False
 
     # Experience buffer
-    replay_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
+    replay_buffer = ReplayBuffer(obs_dim=og_dim, act_dim=act_dim, size=replay_size)
 
     # Count variables (protip: try to get a feel for how different size networks behave!)
     var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.q])
@@ -393,83 +395,83 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     def test_agent():
         for j in range(num_test_episodes):
             o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-            while not(d or (ep_len == max_ep_len)):
+            g = env.get_task_goal()
+            og = np.concatenate((o, g))
+            while not(d or (ep_len == num_steps)):
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = test_env.step(get_action(o, 0))
+                o, r, d, _ = test_env.step(get_action(og, 0))
+                og = np.concatenate((o, g))
+                r = env.get_reward(o, g)
                 ep_ret += r
                 ep_len += 1
             print('ep_ret: ', ep_ret)
 
-    # Prepare for interaction with environment
-    total_steps = steps_per_epoch * epochs
-    start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
-    g = env.get_task_goal(o)
-    og = np.concatenate((o, g))
 
     # Main loop: collect experience in env and update/log each epoch
     # TODO: restructure to for epochs for episodes for steps
-    for t in range(total_steps):
-        # Until start_steps have elapsed, randomly sample actions
-        # from a uniform distribution for better exploration. Afterwards, 
-        # use the learned policy (with some noise, via act_noise). 
-        if t > start_steps:
-            a = get_action(og, act_noise)
-        else:
-            a = random_action(env)
+    global_steps = 0
+    num_updates = 0
 
-        # Step the env
-        o2, r, d, _ = env.step(a)
-        og2 = np.concatenate((o2, g))
-        r = env.get_reward(o2, g)
-        ep_ret += r
-        ep_len += 1
+    for epoch in range(num_epochs):
+        print('epoch: ', epoch)
+        while global_steps < steps_per_epoch * (epoch+1):
+            # initialize the environment and task
+            obs = env.reset()
+            goal = env.get_task_goal()
+            og = np.concatenate((obs, goal))
 
-        # Ignore the "done" signal if it comes from hitting the time
-        # horizon (that is, when it's an artificial terminal signal
-        # that isn't based on the agent's state)
-        d = False if ep_len==max_ep_len else d
+            # gather experience in the environment
+            ep_experience = []
+            for t in range(num_steps):
+                act = get_action(og, act_noise)
 
-        # Store experience to replay buffer
-        replay_buffer.store(og, a, r, og2, d)
+                obs, _, done, _ = env.step(act)
+                og_next = np.concatenate((obs, goal))
+                reward = env.get_reward(obs, goal)
+                done = False if t==num_steps-1 else done # Ignore the "done" signal if timeout
+                global_steps += 1
 
-        # Super critical, easy to overlook step: make sure to update 
-        # most recent observation!
-        o = o2
+                # save the experience
+                ep_experience.append((og, act, reward, og_next, done))
 
-        # End of trajectory handling
-        if d or (ep_len == max_ep_len):
-            # HER: generate new virtual goals and store it in replay buffer
-            # final strategy: last state of episode becomes the goal
-            virtual_goal = env.as_goal(o)
-            og_virtual = np.concatenate((o, virtual_goal))
+                # quit if the episode is done
+                if done or t==num_steps-1:
+                    break
+
+                og = og_next
             
-            # TODO: wrong. instead, resave the entire trajectory with the new virtual goal
-            replay_buffer.store(og_virtual, a, env.get_reward(o, virtual_goal), og2, d)
+            # add the experience to the replay buffer
+            # HER: sample a virtual goal 
+            goal_virtual = env.as_goal(ep_experience[-1][0])
+            for e in ep_experience:
+                # real unaltered experience
+                replay_buffer.store(*e)
 
-            o, ep_ret, ep_len = env.reset(), 0, 0
-            g = env.get_task_goal(o)
-            og = np.concatenate((o, g))
+                # HER: experience with virtual goal
+                og, act, reward, og_next, done = e
+                obs, obs_next = og[:obs_dim], og_next[:obs_dim]
+                og = np.concatenate((obs, goal_virtual))
+                og_next = np.concatenate((obs_next, goal_virtual))
+                reward = env.get_reward(obs_next, goal_virtual)
+                replay_buffer.store(og, act, reward, og_next, done)
+            
+            # update the policy
+            if global_steps >= update_after:
+                while num_updates < global_steps - update_after:
+                    batch = replay_buffer.sample_batch(batch_size)
+                    update(data=batch)
+                    num_updates += 1
 
-        # Update handling
-        if t >= update_after and t % update_every == 0:
-            for _ in range(update_every):
-                batch = replay_buffer.sample_batch(batch_size)
-                update(data=batch)
+        # end of epoch
+        # Test the performance of the deterministic version of the agent.
+        test_agent()
 
-        # End of epoch handling
-        if (t+1) % steps_per_epoch == 0:
-            epoch = (t+1) // steps_per_epoch
+        # Save model
+        torch.save(ac.state_dict(), 'weights/agent.pth')
 
-            # Test the performance of the deterministic version of the agent.
-            test_agent()
-
-            # Save model
-            torch.save(ac.state_dict(), 'weights/agent.pth')
-
-            # Progess bar
-            print(('#' * round(epoch/epochs * 100)).ljust(100, '-') + f"  reward={ep_ret}", end='\n')
-    print('\ndone')
+        # Progess bar
+        print(('#' * round(epoch/num_epochs * 100)).ljust(100, '-'), end='\n')
+    print('Done!')
 
 
 
@@ -499,14 +501,14 @@ if __name__ == '__main__':
             # object position concatenated with robot joint angles
             if obs is None:
                 obs = env._get_observations()
-            return np.concatenate([obs['object-state'], obs['robot0_proprio-state']])
+            return np.concatenate((obs['object-state'], obs['robot0_proprio-state']))
         env.get_observation = get_observation
 
         # create a initial state to task goal mapper, specific to the task
         def get_task_goal(obs=None):
             if obs is None:
-                obs = env._get_observations()
-            goal = obs['object-state'][:3]
+                obs = env.get_observation()
+            goal = obs[:3]
             goal[2] += 0.05 # lift the object by 5cm (in the lift task, it's defined as 4cm above table height)
             return goal
         env.get_task_goal = get_task_goal
@@ -514,14 +516,14 @@ if __name__ == '__main__':
         # create a state to goal mapper for HER, such that the input state safisfies the returned goal
         def as_goal(obs=None):
             if obs is None:
-                obs = env._get_observations()
-            return obs['object-state'][:3] # object position
-        env.get_goal = as_goal
+                obs = env.get_observation()
+            return obs[:3] # object position
+        env.as_goal = as_goal
 
         # create a state-goal to reward function (sparse)
         def get_reward(obs, goal):
             # as long as the object is close enough to the goal, the reward is 1
-            return 1 if np.linalg.norm(obs['object-state'][:3] - goal) < 0.05 else 0
+            return 0 if np.linalg.norm(obs[:3] - goal) < 0.05 else -1
         env.get_reward = get_reward
 
         # wrap the step function to return the wrapped observation
@@ -539,6 +541,9 @@ if __name__ == '__main__':
 
         return env
 
-    ddpg(make_env, actor_critic=core.MLPActorCritic,
+    # ddpg(make_env, actor_critic=core.MLPActorCritic,
+    #      ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
+    #      gamma=args.gamma, seed=args.seed, epochs=args.epochs)
+    her(make_env, actor_critic=core.MLPActorCritic,
          ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
-         gamma=args.gamma, seed=args.seed, epochs=args.epochs)
+         gamma=args.gamma, seed=args.seed, num_epochs=args.epochs)
