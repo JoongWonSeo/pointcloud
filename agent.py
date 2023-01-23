@@ -406,6 +406,10 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 ep_len += 1
             print('ep_ret: ', ep_ret)
 
+            # save if successful
+            if ep_ret > -10:
+                torch.save(ac.state_dict(), 'weights/agent_succ.pth')
+
 
     # Main loop: collect experience in env and update/log each epoch
     # TODO: restructure to for epochs for episodes for steps
@@ -423,7 +427,11 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             # gather experience in the environment
             ep_experience = []
             for t in range(num_steps):
-                act = get_action(og, act_noise)
+                # in the beginning, explore randomly
+                if global_steps > start_steps:
+                    act = get_action(og, act_noise)
+                else:
+                    act = random_action(env)
 
                 obs, _, done, _ = env.step(act)
                 og_next = np.concatenate((obs, goal))
@@ -493,7 +501,7 @@ if __name__ == '__main__':
         env = suite.make(
             env_name="Lift", # try with other tasks like "Stack" and "Door"
             robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
-            reward_shaping=True, # dense rewards
+            reward_shaping=False, # sparse reward
         )
 
         # wrap the observation space for compatibility
