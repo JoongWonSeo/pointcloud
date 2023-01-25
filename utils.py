@@ -19,6 +19,12 @@ def normalize(array):
     return (array - min) / (max - min)
 
 
+def to_cv2_img(img):
+    '''converts robosuite image to cv2 image'''
+    img = np.flip(img, axis=0)
+    img = img[:, :, [2, 1, 0]]
+    return img
+
 def render(points, rgb, img, w2c, camera_h, camera_w):
     # points = (N, 3) with (x, y, z)
     # rgb = (N, 3) with (r, g, b)

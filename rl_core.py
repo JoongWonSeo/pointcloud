@@ -26,7 +26,7 @@ class MLPActor(nn.Module):
         super().__init__()
         pi_sizes = [obs_dim] + list(hidden_sizes) + [act_dim]
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
-        self.act_limit = act_limit
+        self.act_limit = torch.Tensor(act_limit)
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
@@ -48,6 +48,9 @@ class MLPActorCritic(nn.Module):
                  activation=nn.ReLU):
         super().__init__()
 
+        self.act_dim = act_dim
+        self.act_limit = act_limit
+
         # build policy and value functions
         self.pi = MLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit)
         self.q = MLPQFunction(obs_dim, act_dim, hidden_sizes, activation)
@@ -55,3 +58,8 @@ class MLPActorCritic(nn.Module):
     def act(self, obs):
         with torch.no_grad():
             return self.pi(obs).numpy()
+    
+    def noisy_action(self, obs, noise_scale):
+        a = self.act(torch.as_tensor(obs, dtype=torch.float32))
+        a += noise_scale * np.random.randn(self.act_dim)
+        return np.clip(a, -self.act_limit, self.act_limit)

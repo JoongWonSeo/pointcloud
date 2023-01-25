@@ -12,6 +12,7 @@ import torch
 from models.pn_autoencoder import PNAutoencoder
 from pytorch3d.ops import sample_farthest_points
 import rl_core as core
+from simulation_adapter import MultiGoalEnvironment
 # global variables
 horizon = 10000
 camera_w, camera_h = 256, 256 #512, 512
@@ -37,56 +38,35 @@ def make_env():
         env_name="Lift", # try with other tasks like "Stack" and "Door"
         robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
         reward_shaping=False, # sparse reward
+        horizon=horizon,
     )
 
-    # wrap the observation space for compatibility
-    def get_observation(obs=None):
-        # object position concatenated with robot joint angles
-        if obs is None:
-            obs = env._get_observations()
-        return np.concatenate((obs['object-state'], obs['robot0_proprio-state']))
-    env.get_observation = get_observation
 
     # create a initial state to task goal mapper, specific to the task
-    def get_task_goal(obs=None):
-        if obs is None:
-            obs = env.get_observation()
+    def desired_goal(obs):
         goal = obs[:3]
         goal[2] += 0.05 # lift the object by 5cm (in the lift task, it's defined as 4cm above table height)
         return goal
-    env.get_task_goal = get_task_goal
 
     # create a state to goal mapper for HER, such that the input state safisfies the returned goal
-    def as_goal(obs=None):
-        if obs is None:
-            obs = env.get_observation()
+    def achieved_goal(obs):
         return obs[:3] # object position
-    env.as_goal = as_goal
 
     # create a state-goal to reward function (sparse)
-    def get_reward(obs, goal):
-        # as long as the object is close enough to the goal, the reward is 1
-        return 0 if np.linalg.norm(obs[:3] - goal) < 0.05 else -1
-    env.get_reward = get_reward
+    def reward(achieved, desired, info):
+        # penalize for not reaching goal
+        return 0 if np.linalg.norm(achieved - desired) < 0.04 else -1
 
-    # wrap the step function to return the wrapped observation
-    env._step = env.step
-    def step(action):
-        obs, reward, done, info = env._step(action)
-        return get_observation(obs), reward, done, info
-    env.step = step
-
-    # wrap the reset function to return the wrapped observation
-    env._reset = env.reset
-    def reset():
-        return get_observation(env._reset())
-    env.reset = reset
-
-    return env
+    return MultiGoalEnvironment(
+        env,
+        reward=reward,
+        achieved_goal=achieved_goal,
+        desired_goal=desired_goal,
+    )
 env = make_env()
 
-robot = env.robots[0]
-print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {robot.dof}")
+# robot = env.robots[0]
+# print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {robot.dof}")
 
 
 # pc observer
@@ -108,19 +88,8 @@ device = 'cuda'
 # ae.eval()
 
 # create agent
-obs_dim = env.get_observation().shape[0]
-goal_dim = env.get_task_goal().shape[0]
-og_dim = obs_dim + goal_dim
-act_dim = env.action_dim
-act_limit = env.action_spec[1][0]
-
-agent = core.MLPActorCritic(og_dim, act_dim, act_limit)
+agent = core.MLPActorCritic(env.obs_dim, env.action_dim, env.action_space.high)
 agent.load_state_dict(torch.load('weights/agent_succ.pth'))
-
-def get_action(o, noise_scale):
-    a = agent.act(torch.as_tensor(o, dtype=torch.float32))
-    a += noise_scale * np.random.randn(act_dim)
-    return np.clip(a, -act_limit, act_limit)
 
 
 # simulation
@@ -132,8 +101,7 @@ def main():
         obs = env.reset()
         # set_obj_pos(env.sim, joint='cube_joint0')
         # obs = env.get_observation()
-        goal = env.get_task_goal()
-        og = np.concatenate((obs, goal))
+        goal = env.desired_goal(obs)
 
         total_reward = 0
 
@@ -148,23 +116,18 @@ def main():
                 run = False
                 break
             
-            # set cube position        
+            # restart
             if ui.is_pressed('r'):
                 break
-                # set_obj_pos(env.sim, joint='cube_joint0')
-                # robot.set_robot_joint_positions(np.random.randn(7))
-                #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
             # Simulation
-            action = get_action(og, 0.1) # sample agent action
+            action = agent.noisy_action(obs, 0.1) # sample agent action
             # action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
             obs, reward, done, info = env.step(action)  # take action in the environment
-            og = np.concatenate((obs, goal))
-            reward = env.get_reward(obs, goal)
             total_reward += reward
 
             # Observation
-            camera_image = env._get_observations()['agentview_image'] / 255
+            camera_image = env.get_camera_image('agentview')
 
             # # Sensor images
             # sens_l_image = obs['frontview_image'] / 255
@@ -215,11 +178,7 @@ def main():
             # render(pred[:, :3], pred[:, [5, 3, 4]], camera_image, w2c, camera_h, camera_w)
 
 
-            # convert to CV2 format (flip along y axis and from RGB to BGR)
-            camera_image = np.flip(camera_image, axis=0)
-            camera_image = camera_image[:, :, [2, 1, 0]]
-
-            ui.show(camera_image)
+            ui.show(to_cv2_img(camera_image))
     
         print(f"total_reward = {total_reward}")
 
