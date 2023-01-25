@@ -451,9 +451,12 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             # add the experience to the replay buffer
             # HER: sample a virtual goal 
             goal_virtual = env.as_goal(ep_experience[-1][0])
+            real_total_reward = 0
+            her_total_reward = 0
             for e in ep_experience:
                 # real unaltered experience
                 replay_buffer.store(*e)
+                real_total_reward += e[2]
 
                 # HER: experience with virtual goal
                 og, act, reward, og_next, done = e
@@ -462,6 +465,8 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 og_next = np.concatenate((obs_next, goal_virtual))
                 reward = env.get_reward(obs_next, goal_virtual)
                 replay_buffer.store(og, act, reward, og_next, done)
+                her_total_reward += reward
+            print('real_total_reward: ', real_total_reward, 'her_total_reward: ', her_total_reward, 'virtual goal:', goal_virtual)
             
             # update the policy
             if global_steps >= update_after:

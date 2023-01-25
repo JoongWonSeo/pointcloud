@@ -115,7 +115,7 @@ act_dim = env.action_dim
 act_limit = env.action_spec[1][0]
 
 agent = core.MLPActorCritic(og_dim, act_dim, act_limit)
-agent.load_state_dict(torch.load('weights/agent.pth'))
+agent.load_state_dict(torch.load('weights/agent_succ.pth'))
 
 def get_action(o, noise_scale):
     a = agent.act(torch.as_tensor(o, dtype=torch.float32))
@@ -156,7 +156,7 @@ def main():
                 #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
             # Simulation
-            action = get_action(og, 0) # sample agent action
+            action = get_action(og, 0.1) # sample agent action
             # action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
             obs, reward, done, info = env.step(action)  # take action in the environment
             og = np.concatenate((obs, goal))
