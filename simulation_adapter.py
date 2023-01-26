@@ -28,9 +28,10 @@ class MultiGoalEnvironment(GymWrapper):
         self.control_camera = control_camera # function that takes camera name and sets its pose
 
         if encoder == None: # use ground-truth object states instead of encoder
-            keys = ['object-state', 'robot0_proprio-state']
+            # keys = ['object-state', 'robot0_proprio-state']
+            keys = ['cube_pos', 'robot0_eef_pos']
         else: # use encoder to encode the 3D RGB point cloud
-            keys = [c+'_image' for c in cameras] + [c+'_depth' for c in cameras] + ['robot0_proprio-state']
+            keys = [c+'_image' for c in cameras] + [c+'_depth' for c in cameras] + ['robot0_eef_pos']
         super().__init__(env, keys=keys)
 
 
@@ -89,13 +90,21 @@ def make_multigoal_lift(horizon = 100):
 
     # create a initial state to task goal mapper, specific to the task
     def desired_goal(obs):
-        goal = obs[:3]
-        goal[2] += 0.05 # lift the object by 5cm (in the lift task, it's defined as 4cm above table height)
+        # goal is the cube position and end-effector position close to cube
+        cube_pos = obs[0:3]
+        cube_pos[2] += 0.05 # lift the object by 5cm (in the lift task, it's defined as 4cm above table height)
+
+        eef_pos = cube_pos # end-effector should be close to the cube
+        goal = np.concatenate((cube_pos, eef_pos))
         return goal
 
     # create a state to goal mapper for HER, such that the input state safisfies the returned goal
     def achieved_goal(obs):
-        return obs[:3] # object position
+        # real cube position and end-effector position
+        cube_pos = obs[0:3]
+        eef_pos = obs[3:6]
+        goal = np.concatenate((cube_pos, eef_pos))
+        return goal
 
     # create a state-goal to reward function (sparse)
     def compute_reward(achieved, desired, info):

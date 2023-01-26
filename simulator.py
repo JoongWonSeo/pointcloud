@@ -21,7 +21,7 @@ camera_w, camera_h = 256, 256 #512, 512
 # setup environment and agent
 env = make_multigoal_lift(horizon)
 agent = core.MLPActorCritic(env.obs_dim, env.action_dim, env.act_limit)
-agent.load_state_dict(torch.load('weights/agent_succ.pth'))
+agent.load_state_dict(torch.load('weights/agent.pth'))
 
 
 # simulation
@@ -56,6 +56,15 @@ def main():
 
             # Render
             camera_image = env.get_camera_image('agentview')
+            #DEBUG: visualize goal pos and gripper pos
+            goal_pos = obs[env.only_obs_dim:env.only_obs_dim+3]
+            gripper_pos = env._get_observations()['robot0_eef_pos']
+            
+            # to batch of points
+            points = np.stack((goal_pos, gripper_pos), axis=0)
+            rgb = np.array([[1, 0, 0], [0, 0, 1]])
+            w2c = camera_utils.get_camera_transform_matrix(env.sim, 'agentview', camera_h, camera_w)
+            render(points, rgb, camera_image, w2c, camera_h, camera_w)
             ui.show(to_cv2_img(camera_image))
     
         print(f"total_reward = {total_reward}")
