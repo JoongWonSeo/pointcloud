@@ -10,7 +10,7 @@ import robosuite as suite
 from robosuite.wrappers.gym_wrapper import GymWrapper
 
 class MultiGoalEnvironment(GymWrapper):
-    def __init__(self, env, compute_reward, achieved_goal, desired_goal, encoder=None, cameras=[], control_camera=None):
+    def __init__(self, env, check_success, achieved_goal, desired_goal, compute_reward=None, encoder=None, cameras=[], control_camera=None):
         '''
         env: the robosuite environment
         compute_reward: the reward function to replace compute_reward(achieved_goal, desired_goal, info)
@@ -20,9 +20,11 @@ class MultiGoalEnvironment(GymWrapper):
         cameras: list of camera names to be used to generate the 3D RGB point cloud
         control_camera: function that takes camera name and sets its pose
         '''
-        self.compute_reward = compute_reward # reward function
+        self.check_success = check_success # function that returns True if the task is successful
         self.achieved_goal = achieved_goal # function that returns the achieved goal from current observation
         self.desired_goal = desired_goal # function that returns the desired goal from initial task state
+        if compute_reward is None:
+            self.compute_reward = lambda a, d, i: 0 if self.check_success(a, d, i) else -1 # reward function
         self.encoder = encoder # encoder for the 3D RGB point cloud
         self.cameras = cameras # list of camera names to be used to generate the 3D RGB point cloud
         self.control_camera = control_camera # function that takes camera name and sets its pose
@@ -33,7 +35,6 @@ class MultiGoalEnvironment(GymWrapper):
         else: # use encoder to encode the 3D RGB point cloud
             keys = [c+'_image' for c in cameras] + [c+'_depth' for c in cameras] + ['robot0_eef_pos']
         super().__init__(env, keys=keys)
-
 
         # task goal
         self.current_goal = desired_goal(self._flatten_obs(env._get_observations()))
@@ -63,6 +64,8 @@ class MultiGoalEnvironment(GymWrapper):
     def step(self, action):
         obs, reward, done, info = super().step(action)
         reward = self.compute_reward(self.achieved_goal(obs), self.current_goal, info)
+        #done = True if reward >= 0 else False
+        #print('check_success() = ', self.env._check_success())
         return np.concatenate((obs, self.current_goal)), reward, done, info
 
     # good for HER: replace the desired goal with the achieved goal (virtual)
@@ -92,28 +95,28 @@ def make_multigoal_lift(horizon = 100):
     def desired_goal(obs):
         # goal is the cube position and end-effector position close to cube
         cube_pos = obs[0:3]
-        cube_pos[2] += 0.05 # lift the object by 5cm (in the lift task, it's defined as 4cm above table height)
-
+        # add random noise to the cube position
+        cube_pos[0] += np.random.uniform(-0.3, 0.3)
+        cube_pos[1] += np.random.uniform(-0.3, 0.3)
+        cube_pos[2] += 0.1
         eef_pos = cube_pos # end-effector should be close to the cube
-        goal = np.concatenate((cube_pos, eef_pos))
+        goal = eef_pos
         return goal
 
     # create a state to goal mapper for HER, such that the input state safisfies the returned goal
     def achieved_goal(obs):
-        # real cube position and end-effector position
-        cube_pos = obs[0:3]
+        # real end-effector position
         eef_pos = obs[3:6]
-        goal = np.concatenate((cube_pos, eef_pos))
+        goal = eef_pos
         return goal
 
     # create a state-goal to reward function (sparse)
-    def compute_reward(achieved, desired, info):
-        # penalize for not reaching goal
-        return 0 if np.linalg.norm(achieved - desired) < 0.04 else -1
+    def check_success(achieved, desired, info):
+        return np.linalg.norm(achieved - desired) < 0.08
 
     return MultiGoalEnvironment(
         env,
-        compute_reward=compute_reward,
+        check_success=check_success,
         achieved_goal=achieved_goal,
         desired_goal=desired_goal,
     )

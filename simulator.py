@@ -53,6 +53,15 @@ def main():
             action = agent.noisy_action(obs, 0.1) # sample agent action
             obs, reward, done, info = env.step(action)  # take action in the environment
             total_reward += reward
+            if env.check_success(env.achieved_goal(obs), goal, info):
+                print('success!')
+                # break
+            if done:
+                print('done!')
+                # sleep
+                import time
+                time.sleep(1)
+                break
 
             # Render
             camera_image = env.get_camera_image('agentview')

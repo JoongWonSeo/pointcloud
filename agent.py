@@ -306,6 +306,12 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Create actor-critic module and target networks
     ac = actor_critic(env.obs_dim, env.action_dim, env.act_limit, **ac_kwargs)
+
+    # resume training
+    if False:
+        print('Resuming training from weights/agent.pth...')
+        ac.load_state_dict(torch.load('weights/agent.pth'))
+
     ac_targ = deepcopy(ac)
 
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -418,7 +424,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                     act = random_action(env)
 
                 obs_new, reward, done, info = env.step(act)
-                done = False if t==num_steps-1 else done # Ignore the "done" signal if timeout
+                # todo check done and terminate
                 global_steps += 1
 
                 # save the experience
@@ -426,6 +432,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
                 # quit if the episode is done
                 if done or t==num_steps-1:
+                    print('episode done at t =', t)
                     break
 
                 obs = obs_new
