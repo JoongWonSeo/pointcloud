@@ -297,7 +297,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
          steps_per_epoch=4000, num_epochs=100, replay_size=int(1e6), gamma=0.99, 
          polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
          update_after=1000, update_every=50, act_noise=0.1, num_test_episodes=10, 
-         num_steps=1000, logger_kwargs=dict(), save_freq=1):
+         num_steps=100, logger_kwargs=dict(), save_freq=1):
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -424,7 +424,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                     act = random_action(env)
 
                 obs_new, reward, done, info = env.step(act)
-                # todo check done and terminate
+                done = env.check_success(env.achieved_goal(obs_new), env.current_goal, info)
                 global_steps += 1
 
                 # save the experience
@@ -432,7 +432,6 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
                 # quit if the episode is done
                 if done or t==num_steps-1:
-                    print('episode done at t =', t)
                     break
 
                 obs = obs_new

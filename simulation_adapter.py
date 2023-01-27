@@ -82,10 +82,15 @@ class MultiGoalEnvironment(GymWrapper):
         return self.env._get_observations()[camera + '_image'] / 255
     
 
-def make_multigoal_lift(horizon = 100):
+def make_multigoal_lift(horizon = 1000):
+    from robosuite.controllers import load_controller_config
+    # load default controller parameters for Operational Space Control (OSC)
+    controller_config = load_controller_config(default_controller="OSC_POSE")
+
     env = suite.make(
         env_name="Lift", # try with other tasks like "Stack" and "Door"
         robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
+        controller_configs=controller_config,
         reward_shaping=False, # sparse reward
         horizon=horizon,
     )
