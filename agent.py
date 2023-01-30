@@ -2,10 +2,10 @@ from copy import deepcopy
 import numpy as np
 import torch
 from torch.optim import Adam
-import robosuite as suite
+import gymnasium as gym
+import gym_robosuite_envs
 import time
 import rl_core as core
-from simulation_adapter import MultiGoalEnvironment, make_multigoal_lift
 from utils import *
 
 
@@ -136,11 +136,11 @@ def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     np.random.seed(seed)
 
     env, test_env = env_fn(), env_fn()
-    obs_dim = env.get_observation().shape[0]
-    act_dim = env.action_dim
+    obs_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
+    act_dim = env.action_space.shape[0]
 
     # Action limit for clamping: critically, assumes all dimensions share the same bound!
-    act_limit = env.action_spec[1][0]
+    act_limit = env.action_space.high
 
     # Create actor-critic module and target networks
     ac = actor_critic(obs_dim, act_dim, act_limit, **ac_kwargs)
@@ -226,18 +226,22 @@ def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     def test_agent():
         for j in range(num_test_episodes):
-            o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-            while not(d or (ep_len == max_ep_len)):
+            (o, info), d, ep_ret = test_env.reset(), False, 0
+            o = np.concatenate([o['observation'], o['desired_goal']])
+            while not d:
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = test_env.step(get_action(o, 0))
+                o, r, term, trunc, _ = test_env.step(get_action(o, 0))
+                o = np.concatenate([o['observation'], o['desired_goal']])
+                d = term or trunc
                 ep_ret += r
-                ep_len += 1
             print('ep_ret: ', ep_ret)
 
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
     start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
+    o, info = env.reset()
+    o = np.concatenate([o['observation'], o['desired_goal']])
+    ep_ret = 0
 
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
@@ -247,28 +251,24 @@ def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         if t > start_steps:
             a = get_action(o, act_noise)
         else:
-            a = random_action(env)
+            a = env.action_space.sample()
 
         # Step the env
-        o2, r, d, _ = env.step(a)
+        o2, r, term, trunc, info = env.step(a)
+        o2 = np.concatenate([o2['observation'], o2['desired_goal']])
         ep_ret += r
-        ep_len += 1
-
-        # Ignore the "done" signal if it comes from hitting the time
-        # horizon (that is, when it's an artificial terminal signal
-        # that isn't based on the agent's state)
-        d = False if ep_len==max_ep_len else d
 
         # Store experience to replay buffer
-        replay_buffer.store(o, a, r, o2, d)
+        replay_buffer.store(o, a, r, o2, term)
 
         # Super critical, easy to overlook step: make sure to update 
         # most recent observation!
         o = o2
 
         # End of trajectory handling
-        if d or (ep_len == max_ep_len):
-            o, ep_ret, ep_len = env.reset(), 0, 0
+        if term or trunc:
+            (o, info), ep_ret = env.reset(), 0
+            o = np.concatenate([o['observation'], o['desired_goal']])
 
         # Update handling
         if t >= update_after and t % update_every == 0:
@@ -303,15 +303,14 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     np.random.seed(seed)
 
     env, test_env = env_fn(), env_fn()
+    obs_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
+    act_dim = env.action_space.shape[0]
+
+    # Action limit for clamping: critically, assumes all dimensions share the same bound!
+    act_limit = env.action_space.high
 
     # Create actor-critic module and target networks
-    ac = actor_critic(env.obs_dim, env.action_dim, env.act_limit, **ac_kwargs)
-
-    # resume training
-    if False:
-        print('Resuming training from weights/agent.pth...')
-        ac.load_state_dict(torch.load('weights/agent.pth'))
-
+    ac = actor_critic(obs_dim, act_dim, act_limit, **ac_kwargs)
     ac_targ = deepcopy(ac)
 
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -319,7 +318,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         p.requires_grad = False
 
     # Experience buffer
-    replay_buffer = ReplayBuffer(obs_dim=env.obs_dim, act_dim=env.action_dim, size=replay_size)
+    replay_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
 
     # Count variables (protip: try to get a feel for how different size networks behave!)
     var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.q])
@@ -387,24 +386,25 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 p_targ.data.mul_(polyak)
                 p_targ.data.add_((1 - polyak) * p.data)
 
+    def get_action(o, noise_scale):
+        a = ac.act(torch.as_tensor(o, dtype=torch.float32))
+        a += noise_scale * np.random.randn(act_dim)
+        return np.clip(a, -act_limit, act_limit)
 
     def test_agent():
         for j in range(num_test_episodes):
-            o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-            while not(d or (ep_len == num_steps)):
+            (o, info), d, ep_ret = test_env.reset(), False, 0
+            o = np.concatenate([o['observation'], o['desired_goal']])
+            while not d:
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = test_env.step(ac.noisy_action(o, 0))
+                o, r, term, trunc, _ = test_env.step(get_action(o, 0))
+                o = np.concatenate([o['observation'], o['desired_goal']])
+                d = term or trunc
                 ep_ret += r
-                ep_len += 1
             print('ep_ret: ', ep_ret)
-
-            # save if successful
-            if ep_ret > -50:
-                torch.save(ac.state_dict(), 'weights/agent_succ.pth')
 
 
     # Main loop: collect experience in env and update/log each epoch
-    # TODO: restructure to for epochs for episodes for steps
     global_steps = 0
     num_updates = 0
 
@@ -412,29 +412,30 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         print('epoch: ', epoch)
         while global_steps < steps_per_epoch * (epoch+1):
             # initialize the environment and task
-            obs = env.reset()
+            obs, info = env.reset()
+            obs = np.concatenate([obs['observation'], obs['desired_goal']])
 
             # gather experience in the environment
             ep_experience = []
             for t in range(num_steps):
                 # in the beginning, explore randomly
                 if global_steps > start_steps:
-                    act = ac.noisy_action(obs, act_noise)
+                    act = get_action(obs, act_noise)
                 else:
-                    act = random_action(env)
+                    act = env.action_space.sample()
 
-                obs_new, reward, done, info = env.step(act)
-                done = env.check_success(env.achieved_goal(obs_new), env.current_goal, info)
+                obs_new, reward, terminated, truncated, info = env.step(act)
+                obs_new = np.concatenate([obs_new['observation'], obs_new['desired_goal']])
                 global_steps += 1
 
                 # save the experience
-                ep_experience.append((obs, act, reward, obs_new, done))
-
-                # quit if the episode is done
-                if done or t==num_steps-1:
-                    break
+                ep_experience.append((obs, act, reward, obs_new, terminated))
 
                 obs = obs_new
+
+                # quit if the episode is done
+                if terminated or truncated:
+                    break
             
             # add the experience to the replay buffer
             # HER: sample a virtual goal 
@@ -479,7 +480,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='HalfCheetah-v2')
+    parser.add_argument('--env', type=str, default='FetchReach-v2')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
@@ -492,6 +493,11 @@ if __name__ == '__main__':
     # ddpg(make_env, actor_critic=core.MLPActorCritic,
     #      ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
     #      gamma=args.gamma, seed=args.seed, epochs=args.epochs)
-    her(make_multigoal_lift, actor_critic=core.MLPActorCritic,
+
+    # ddpg(lambda: gym.make('FetchReach-v3'), actor_critic=core.MLPActorCritic,
+    #      ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
+    #      gamma=args.gamma, seed=args.seed, epochs=args.epochs)
+         
+    ddpg(lambda: gym.make('RobosuiteReach'), actor_critic=core.MLPActorCritic,
          ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
-         gamma=args.gamma, seed=args.seed, num_epochs=args.epochs)
+         gamma=args.gamma, seed=args.seed, epochs=args.epochs)
