@@ -8,7 +8,7 @@ from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
-from utils import UI
+from utils import UI, to_cv2_img, render
 
 from abc import ABC, abstractmethod
 
@@ -59,7 +59,7 @@ class GroundTruthEncoder(ObservationEncoder):
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_env, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, encoder=GroundTruthEncoder('object-state', 'robot0_proprio-state'), render_mode=None):
+    def __init__(self, robo_env, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, encoder=GroundTruthEncoder('object-state', 'robot0_proprio-state'), render_mode=None, render_info=None):
         '''
         robo_env: Robosuite environment
         achieved_goal: function that takes the *encoded* state+proprioception observations and returns the achieved goal
@@ -80,7 +80,10 @@ class RobosuiteGoalEnv(GoalEnv):
         self._encoder = encoder
         if self._encoder.robo_env is None:
             self._encoder.robo_env = robo_env
+        
+        # information about the current episode
         self._is_episode_success = False
+        self._episode_goal = None
 
 
         # for Gym GoalEnv API
@@ -106,6 +109,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.action_space = Box(low=np.float32(low), high=np.float32(high))
 
         self.render_mode = render_mode
+        self._render_info = render_info # function that returns points to render
         self._renderer = None
         self._request_truncate = False # from the UI
 
@@ -122,6 +126,7 @@ class RobosuiteGoalEnv(GoalEnv):
             'achieved_goal': self._achieved_goal(state, proprio),
             'desired_goal': self._desired_goal(robo_obs),
         }
+        self._episode_goal = obs['desired_goal']
         info = {'is_success': self._is_episode_success}
 
         if self.render_mode == 'human':
@@ -132,12 +137,15 @@ class RobosuiteGoalEnv(GoalEnv):
 
     def step(self, action):
         robo_obs, reward, done, info = self._robo_env.step(action)
+
+        if self._episode_goal is None: # for if reset() is not called first
+            self._episode_goal = self._desired_goal(robo_obs)
         
         state, proprio = self._encoder.encode(robo_obs)
         obs = {
             'observation': np.concatenate((state, proprio)),
             'achieved_goal': self._achieved_goal(state, proprio),
-            'desired_goal': self._desired_goal(robo_obs),
+            'desired_goal': self._episode_goal,
         }
         if self._is_episode_success:
             info['is_success'] = True
@@ -187,11 +195,12 @@ class RobosuiteGoalEnv(GoalEnv):
 
         # render
         camera_image = robo_obs['agentview_image'] / 255
-        # convert to CV2 format (flip along y axis and from RGB to BGR)
-        camera_image = np.flip(camera_image, axis=0)
-        camera_image = camera_image[:, :, [2, 1, 0]]
-
-        self._renderer.show(camera_image)
+        if self._render_info:
+            camera_h, camera_w = camera_image.shape[:2]
+            points, rgb = self._render_info(self, robo_obs)
+            w2c = camera_utils.get_camera_transform_matrix(self._robo_env.sim, 'agentview', camera_h, camera_w)
+            render(points, rgb, camera_image, w2c, camera_h, camera_w)
+        self._renderer.show(to_cv2_img(camera_image))
     
 
 

@@ -24,7 +24,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
             # add random noise to the cube position
             cube_pos[0] += np.random.uniform(-0.3, 0.3)
             cube_pos[1] += np.random.uniform(-0.3, 0.3)
-            cube_pos[2] += np.random.uniform(0.01, 0.5)
+            cube_pos[2] += np.random.uniform(0.01, 0.3)
             return cube_pos # end-effector should be close to the cube
 
         def check_success(achieved, desired, info):
@@ -33,6 +33,12 @@ class RobosuiteReach(RobosuiteGoalEnv):
                 return np.linalg.norm(achieved - desired, axis=1) < 0.05
             else: # single version
                 return np.linalg.norm(achieved - desired) < 0.05
+        
+
+        def render_goal(env, robo_obs):
+            return np.array([env._episode_goal]), np.array([[1, 0, 0]])
+
+
 
 
 
@@ -42,5 +48,6 @@ class RobosuiteReach(RobosuiteGoalEnv):
             desired_goal=desired_goal,
             check_success=check_success,
             encoder=GroundTruthEncoder([], 'robot0_eef_pos'), # observation is only end-effector position
-            render_mode=render_mode
+            render_mode=render_mode,
+            render_info=render_goal
         )
