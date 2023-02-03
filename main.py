@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 def preprocess(input_dir, output_dir, num_points=2048):
     dataset = PointcloudDataset(root_dir=input_dir, files=None, transform=Compose([
         SampleFurthestPoints(num_points),
-        Normalize((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5)), # 3D bounding box x_min, x_max, y_min, y_max, z_min, z_max
+        Normalize([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]]), #3D bounding box [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
     ]))
 
     for i in range(len(dataset)):
@@ -37,7 +37,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
     # alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
     # number of points must be the same and a multiple of 1024
-    bbox = Normalize((-0.5, 0.5, -0.5, 0.5, 0.5, 1.5))(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
+    bbox = Normalize([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
     loss_fn = earth_mover_distance(eps=eps, iterations=iterations, bbox=bbox, bbox_bonus=10)
     optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
 

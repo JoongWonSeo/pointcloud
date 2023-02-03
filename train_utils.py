@@ -36,10 +36,11 @@ class SampleFurthestPoints:
 class Normalize:
     def __init__(self, bbox):
         '''
-        bbox: 3D bounding box of the point cloud (x_min, x_max, y_min, y_max, z_min, z_max)
+        bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         '''
-        self.min = torch.Tensor(bbox[0:6:2])
-        self.max = torch.Tensor(bbox[1:6:2])
+        bbox = torch.Tensor(bbox)
+        self.min = bbox[:, 0]
+        self.max = bbox[:, 1]
 
     def __call__(self, points):
         # normalize points along each axis (only the first 3 dimensions)
