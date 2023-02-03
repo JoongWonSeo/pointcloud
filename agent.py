@@ -498,6 +498,6 @@ if __name__ == '__main__':
     #      ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
     #      gamma=args.gamma, seed=args.seed, epochs=args.epochs)
          
-    ddpg(lambda: gym.make('RobosuiteReach'), actor_critic=core.MLPActorCritic,
+    ddpg(lambda: gym.make('RobosuiteReach-v0'), actor_critic=core.MLPActorCritic,
          ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
          gamma=args.gamma, seed=args.seed, epochs=args.epochs)

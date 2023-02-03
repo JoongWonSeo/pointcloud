@@ -11,6 +11,9 @@
 # training logs for tensorboard
 runs/
 
+# mujoco error logs
+MUJOCO_LOG.txt
+
 # vscode
 .vscode/
 
