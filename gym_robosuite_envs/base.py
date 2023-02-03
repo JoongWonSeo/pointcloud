@@ -14,8 +14,26 @@ from abc import ABC, abstractmethod
 
 # ObservationEncoder transforms the raw Robosuite observation into a single vector (i.e. image encoder or ground truth encoder)
 class ObservationEncoder(ABC):
-    @abstractmethod
+    def __init__(self, proprioception_keys, robo_env = None):
+        self.proprioception_keys = [proprioception_keys] if type(proprioception_keys) == str else list(proprioception_keys)
+        self.all_keys = self.proprioception_keys.copy()
+        self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
+
+    def reset(self, observation):
+        return self.encode(observation)
+
     def encode(self, observation):
+        return self.encode_proprioception(observation), self.encode_state(observation)
+
+    def encode_proprioception(self, observation):
+        obs_list = [observation[key] for key in self.proprioception_keys]
+        if len(obs_list) > 0:
+            return np.concatenate(obs_list, dtype=np.float32)
+        else:
+            return np.array([], dtype=np.float32)
+
+    @abstractmethod
+    def encode_state(self, observation):
         pass
 
     @abstractmethod
@@ -25,24 +43,13 @@ class ObservationEncoder(ABC):
 
 # GroundTruthEncoder returns the ground truth observation as a single vector
 class GroundTruthEncoder(ObservationEncoder):
-    def __init__(self, state_keys, proprioception_keys, robo_env = None):
+    def __init__(self, proprioception_keys, state_keys, robo_env=None):
+        super().__init__(proprioception_keys, robo_env)
         self.state_keys = [state_keys] if type(state_keys) == str else list(state_keys)
-        self.proprioception_keys = [proprioception_keys] if type(proprioception_keys) == str else list(proprioception_keys)
-        self.all_keys = self.state_keys + self.proprioception_keys
-        self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
+        self.all_keys += self.state_keys
 
-    def encode(self, obs):
-        return self.encode_state(obs), self.encode_proprioception(obs)
-    
     def encode_state(self, obs):
         obs_list = [obs[key] for key in self.state_keys]
-        if len(obs_list) > 0:
-            return np.concatenate(obs_list, dtype=np.float32)
-        else:
-            return np.array([], dtype=np.float32)
-
-    def encode_proprioception(self, obs):
-        obs_list = [obs[key] for key in self.proprioception_keys]
         if len(obs_list) > 0:
             return np.concatenate(obs_list, dtype=np.float32)
         else:
@@ -59,7 +66,7 @@ class GroundTruthEncoder(ObservationEncoder):
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_env, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, encoder=GroundTruthEncoder('object-state', 'robot0_proprio-state'), render_mode=None, render_info=None):
+    def __init__(self, robo_env, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, encoder=GroundTruthEncoder('robot0_proprio-state', 'object-state'), render_mode=None, render_info=None):
         '''
         robo_env: Robosuite environment
         achieved_goal: function that takes the *encoded* state+proprioception observations and returns the achieved goal
@@ -71,36 +78,40 @@ class RobosuiteGoalEnv(GoalEnv):
         encoder: ObservationEncoder that transforms the raw robosuite observation into a single vector
         render_mode: str for render mode such as 'human' or 'rgb_array'
         '''
-        
-        # internal variables, not part of the Gym Env API
-        self._robo_env = robo_env
-        self._check_success = check_success
-        self._achieved_goal = lambda state, proprio: np.float32(achieved_goal(state, proprio))
-        self._desired_goal = lambda robo_obs: np.float32(desired_goal(robo_obs))
-        self._encoder = encoder
-        if self._encoder.robo_env is None:
-            self._encoder.robo_env = robo_env
+        ###################################################
+        # internal variables, not part of the Gym Env API #
+        ###################################################
+        self.robo_env = robo_env
+        self.check_success = check_success
+        self.achieved_goal = lambda proprio, state: np.float32(achieved_goal(proprio, state))
+        self.desired_goal = lambda robo_obs: np.float32(desired_goal(robo_obs))
+        self.encoder = encoder
+        if self.encoder.robo_env is None:
+            self.encoder.robo_env = robo_env
         
         # information about the current episode
-        self._is_episode_success = False
-        self._episode_goal = None
+        self.is_episode_success = False
+        self.episode_goal = None
 
 
-        # for Gym GoalEnv API
+        #######################
+        # for Gym GoalEnv API #
+        #######################
         # TODO: vectorize these functions for batched observations
-        self.compute_reward = compute_reward or (lambda achieved_goal, desired_goal, info: self._check_success(achieved_goal, desired_goal, info) - 1)
-        self.compute_truncated = compute_truncated or (lambda achieved_goal, desired_goal, info: self._robo_env.horizon == self._robo_env.timestep - 1)
+        self.compute_reward = compute_reward or (lambda achieved_goal, desired_goal, info: self.check_success(achieved_goal, desired_goal, info) - 1)
+        self.compute_truncated = compute_truncated or (lambda achieved_goal, desired_goal, info: self.robo_env.horizon == self.robo_env.timestep - 1)
         self.compute_terminated = compute_terminated or (lambda achieved_goal, desired_goal, info: False)
 
-
-        # for Gym Env API
+        ###################
+        # for Gym Env API #
+        ###################
         
         # setup attributes
-        robo_obs = self._robo_env.observation_spec()
-        state, proprio = self._encoder.encode(robo_obs)
-        goal = self._achieved_goal(state, proprio) # both achieved and desired goal should be the same shape
+        robo_obs = self.robo_env.observation_spec()
+        proprio, state = self.encoder.encode(robo_obs)
+        goal = self.achieved_goal(proprio, state) # both achieved and desired goal should be the same shape
         self.observation_space = Dict({
-            'observation': self._encoder.get_space(),
+            'observation': self.encoder.get_space(),
             'achieved_goal': Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(goal.shape[0],)),
             'desired_goal': Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(goal.shape[0],)),
         })
@@ -109,98 +120,99 @@ class RobosuiteGoalEnv(GoalEnv):
         self.action_space = Box(low=np.float32(low), high=np.float32(high))
 
         self.render_mode = render_mode
-        self._render_info = render_info # function that returns points to render
-        self._renderer = None
-        self._request_truncate = False # from the UI
+        self.render_info = render_info # function that returns points to render
+        self.renderer = None
+        self.request_truncate = False # from the UI
 
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
 
-        self._is_episode_success = False
+        self.is_episode_success = False
 
-        robo_obs = self._robo_env.reset()
-        state, proprio = self._encoder.encode(robo_obs)
+        robo_obs = self.robo_env.reset()
+        proprio, state = self.encoder.reset(robo_obs)
         obs = {
-            'observation': np.concatenate((state, proprio)),
-            'achieved_goal': self._achieved_goal(state, proprio),
-            'desired_goal': self._desired_goal(robo_obs),
+            'observation': np.concatenate((proprio, state)),
+            'achieved_goal': self.achieved_goal(proprio, state),
+            'desired_goal': self.desired_goal(robo_obs),
         }
-        self._episode_goal = obs['desired_goal']
-        info = {'is_success': self._is_episode_success}
+        self.episode_goal = obs['desired_goal']
+        info = {'is_success': self.is_episode_success}
 
         if self.render_mode == 'human':
-            self._render_frame(robo_obs, info, reset=True)
+            self.render_frame(robo_obs, info, reset=True)
 
         return obs, info
     
 
     def step(self, action):
-        robo_obs, reward, done, info = self._robo_env.step(action)
+        robo_obs, reward, done, info = self.robo_env.step(action)
 
-        if self._episode_goal is None: # for if reset() is not called first
-            self._episode_goal = self._desired_goal(robo_obs)
+        if self.episode_goal is None: # for if reset() is not called first
+            self.episode_goal = self.desired_goal(robo_obs)
         
-        state, proprio = self._encoder.encode(robo_obs)
+        proprio, state = self.encoder.encode(robo_obs)
         obs = {
-            'observation': np.concatenate((state, proprio)),
-            'achieved_goal': self._achieved_goal(state, proprio),
-            'desired_goal': self._episode_goal,
+            'observation': np.concatenate((proprio, state)),
+            'achieved_goal': self.achieved_goal(proprio, state),
+            'desired_goal': self.episode_goal,
         }
-        if self._is_episode_success:
+        if self.is_episode_success:
             info['is_success'] = True
         else:
-            self._is_episode_success = self._check_success(obs['achieved_goal'], obs['desired_goal'], info)
-            info['is_success'] = self._is_episode_success
+            self.is_episode_success = self.check_success(obs['achieved_goal'], obs['desired_goal'], info)
+            info['is_success'] = self.is_episode_success
         
         reward = self.compute_reward(obs['achieved_goal'], obs['desired_goal'], info)
         terminated = self.compute_terminated(obs['achieved_goal'], obs['desired_goal'], info)
-        truncated = done or self.compute_truncated(obs['achieved_goal'], obs['desired_goal'], info) or self._request_truncate
+        truncated = done or self.compute_truncated(obs['achieved_goal'], obs['desired_goal'], info) or self.request_truncate
 
         if self.render_mode == 'human':
-            self._render_frame(robo_obs, info)
+            self.render_frame(robo_obs, info)
 
         return obs, reward, terminated, truncated, info
     
 
     def close(self):
-        if self._renderer is not None:
-            self._renderer.close()
+        if self.renderer is not None:
+            self.renderer.close()
             
 
-    def _render_frame(self, robo_obs, info, reset=False):
+    def render_frame(self, robo_obs, info, reset=False):
         if self.render_mode is None:
             return
         
-        if reset or self._renderer is None: # create camera mover
+        if reset or self.renderer is None: # create camera mover
             if reset: # default camera pose
                 pos, quat = [-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0])
             else: #remember the camera pose
-                pos, quat = self._camera.get_camera_pose()
-            self._camera = camera_utils.CameraMover(self._robo_env, camera='agentview')
-            self._camera.set_camera_pose(pos, quat)
-            if self._renderer is not None:
-                self._renderer.camera = self._camera
+                pos, quat = self.camera.get_camera_pose()
+            self.camera = camera_utils.CameraMover(self.robo_env, camera='agentview')
+            self.camera.set_camera_pose(pos, quat)
+            if self.renderer is not None:
+                self.renderer.camera = self.camera
 
-        if self._renderer is None: #init renderer
-            self._renderer = UI('Robosuite', self._camera)
+        if self.renderer is None: #init renderer
+            self.renderer = UI('Robosuite', self.camera)
         
         if reset: # dont render the first frame to avoid camera switch
             return
         
         # update UI
-        if not self._renderer.update(): # if user closes the window
+        if not self.renderer.update(): # if user closes the window
             quit() # force quit program
-        self._request_truncate = self._renderer.is_pressed('r')
+        self.request_truncate = self.renderer.is_pressed('r')
 
         # render
         camera_image = robo_obs['agentview_image'] / 255
-        if self._render_info:
+        if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
-            points, rgb = self._render_info(self, robo_obs)
-            w2c = camera_utils.get_camera_transform_matrix(self._robo_env.sim, 'agentview', camera_h, camera_w)
+            points, rgb = self.render_info(self, robo_obs)
+            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, 'agentview', camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
-        self._renderer.show(to_cv2_img(camera_image))
+        self.renderer.show(to_cv2_img(camera_image))
+    
     
 
 
