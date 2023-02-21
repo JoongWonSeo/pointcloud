@@ -4,8 +4,8 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
-from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
-from train_utils import *
+from vision.models.pn_autoencoder import PNAutoencoder, PointcloudDataset
+from vision.utils import *
 from torch.utils.tensorboard import SummaryWriter
 
 

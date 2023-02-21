@@ -4,7 +4,7 @@ Play random actions in an environment and render a video that demonstrates segme
 import colorsys
 import matplotlib.cm as cm
 import numpy as np
-from utils import UI
+from sim.utils import UI
 
 import robosuite as suite
 import robosuite.utils.camera_utils as camera_utils

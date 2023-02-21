@@ -1,6 +1,6 @@
 from torchvision.transforms import Compose
 from models.pn_autoencoder import PointcloudDataset
-from train_utils import *
+from vision.utils import *
 
 
 train_set = PointcloudDataset(root_dir='input', files=None, transform=Compose([

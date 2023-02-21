@@ -3,9 +3,9 @@
 import numpy as np
 import torch
 import gymnasium as gym
-import gym_robosuite_envs
-from utils import *
-import rl_core as core
+import robosuite_envs
+from sim.utils import *
+from rl import core
 
 # global variables
 horizon = 10000

@@ -2,7 +2,7 @@ import numpy as np
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
 import argparse
-from utils import *
+from sim.utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=100)

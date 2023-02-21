@@ -8,7 +8,7 @@ from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
-from utils import UI, to_cv2_img, render
+from sim.utils import UI, to_cv2_img, render
 
 from abc import ABC, abstractmethod
 

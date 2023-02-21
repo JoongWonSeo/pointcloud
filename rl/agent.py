@@ -5,8 +5,8 @@ from torch.optim import Adam
 import gymnasium as gym
 import gym_robosuite_envs
 import time
-import rl_core as core
-from utils import *
+from rl import core
+from sim.utils import *
 
 
 class ReplayBuffer:

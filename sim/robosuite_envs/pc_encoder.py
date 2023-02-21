@@ -2,9 +2,9 @@ import torch
 import numpy as np
 from robosuite.utils.camera_utils import CameraMover, get_real_depth_map
 from .base import ObservationEncoder
-from models.pn_autoencoder import PNAutoencoder
-from utils import to_pointcloud, filter_pointcloud
-from train_utils import SampleFurthestPoints, Normalize
+from vision.models.pn_autoencoder import PNAutoencoder
+from sim.utils import to_pointcloud, filter_pointcloud
+from vision.utils import SampleFurthestPoints, Normalize
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
