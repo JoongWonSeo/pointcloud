@@ -4,10 +4,39 @@ from pytorch3d.ops import sample_farthest_points
 from pytorch3d import loss as pytorch3d_loss
 from loss.emd.emd_module import emdModule
 import numpy as np
+from robosuite.utils.camera_utils import get_real_depth_map
+from sim.utils import to_pointcloud
+
+
+# generate pointcloud from 2.5D observations
+def multiview_pointcloud(sim, obs, cameras, transform, features=['rgb']):
+    feature_getter = {
+        'rgb': lambda o, c: o[c + '_image'] / 255,
+        'segmentation': lambda o, c: o[c + '_segmentation_class']
+    }
+
+    # combine multiple 2.5D observations into a single pointcloud
+    pcs, feats = [], []
+    for c in cameras:
+        feature_maps = [feature_getter[feat](obs, c) for feat in features]
+        depth_map = get_real_depth_map(sim, c + '_depth')
+
+        pc, feat = to_pointcloud(sim, feature_maps, depth_map, c)
+        pcs.append(pc)
+        feats.append(feat)
+    
+    pcs = np.concatenate(pcs, axis=0)
+    feats = np.concatenate(feats, axis=0) # WIP: TODO: was working until here
+
+    # apply transform (usually Filter, Sample, Normalize)
+    pc = torch.tensor(np.hstack((pcs, feats)).astype(np.float32))
+    pc = transform(pc)
+
+    return pc
 
 
 
-# Point Cloud Transformations
+# Point Cloud Transformations for PyTorch
 
 class SampleRandomPoints:
     def __init__(self, K):
@@ -32,6 +61,21 @@ class SampleFurthestPoints:
         points = points.squeeze(0) # (N, D)
 
         return points
+
+class FilterBBox:
+    def __init__(self, bbox):
+        '''
+        bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+        '''
+        self.bbox = torch.Tensor(bbox)
+    
+    def __call__(self, points):
+        # filter points outside of bounding box
+        mask = torch.logical_and.reduce((
+            points[:, 0] > self.bbox[0, 0], points[:, 0] < self.bbox[0, 1],
+            points[:, 1] > self.bbox[1, 0], points[:, 1] < self.bbox[1, 1],
+            points[:, 2] > self.bbox[2, 0], points[:, 2] < self.bbox[2, 1]))
+        return points[mask]
 
 class Normalize:
     def __init__(self, bbox):

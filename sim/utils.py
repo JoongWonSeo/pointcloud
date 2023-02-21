@@ -5,7 +5,6 @@ import cv2
 from robosuite.utils import camera_utils
 from scipy.spatial.transform import Rotation as R
 import robosuite.utils.transform_utils as T
-import pandas as pd
 import random
 
 def pprint_dict(d):
@@ -97,36 +96,32 @@ def pixel_to_feature(pixels, feature_map):
 
     return features
 
-def to_pointcloud(sim, image, depth_map, camera):
-    w, h = image.shape[1], image.shape[0]
+def to_pointcloud(sim, feature_maps, depth_map, camera):
+    multi_feature = type(feature_maps) is list
+    if not multi_feature:
+        feature_maps = [feature_maps]
+    w, h = feature_maps[0].shape[1], feature_maps[0].shape[0]
 
     # pixel coordinates of which to sample world position
     # all_pixels = np.array([[x, y] for x in range(w) for y in range(h)
     # if image[y, x, 0] > 100/255 and image[y, x, 1] < 60/255 and image[y, x, 2] < 60/255])
     all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
 
-    # TODO: filter out background
-
-
     # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
     world_to_pix = camera_utils.get_camera_transform_matrix(sim, camera, h, w)
     pix_to_world = np.linalg.inv(world_to_pix)
 
     points = pixel_to_world(all_pixels, depth_map, pix_to_world)
-    features = pixel_to_feature(all_pixels, image)
+    features = [pixel_to_feature(all_pixels, fm) for fm in feature_maps]
 
+    if not multi_feature:
+        features = features[0]
     return points, features
 
 def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
     points, rgb = to_pointcloud(sim, image, depth_map, camera)
     np.savez(file, points=points, rgb=rgb)
 
-def filter_pointcloud(points, features, bbox):
-    mask = np.logical_and.reduce((
-        points[:, 0] > bbox[0, 0], points[:, 0] < bbox[0, 1],
-        points[:, 1] > bbox[1, 0], points[:, 1] < bbox[1, 1],
-        points[:, 2] > bbox[2, 0], points[:, 2] < bbox[2, 1]))
-    return points[mask], features[mask]
 
 
 def set_obj_pos(sim, joint, pos=None, quat=None):

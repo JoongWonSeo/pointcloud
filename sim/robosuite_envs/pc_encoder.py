@@ -3,8 +3,8 @@ import numpy as np
 from robosuite.utils.camera_utils import CameraMover, get_real_depth_map
 from .base import ObservationEncoder
 from vision.models.pn_autoencoder import PNAutoencoder
-from sim.utils import to_pointcloud, filter_pointcloud
-from vision.utils import SampleFurthestPoints, Normalize
+from sim.utils import to_pointcloud
+from vision.utils import multiview_pointcloud, FilterBBox, SampleFurthestPoints, Normalize
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
@@ -23,8 +23,9 @@ class PointCloudEncoder(ObservationEncoder):
         self.pc_encoder.eval()
 
         self.transform = Compose([
-            SampleFurthestPoints(2048),
-            Normalize([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]]),
+            FilterBBox(bbox), # filter points outside of bounding box
+            SampleFurthestPoints(sample_points), # sample consistent number of points
+            Normalize(bbox), # normalize to [0, 1] range
         ])
         
     def reset(self, obs):
@@ -37,25 +38,8 @@ class PointCloudEncoder(ObservationEncoder):
     
     def encode_state(self, obs):
         # generate pointcloud from 2.5D observations
-        pcs, rgbs = [], []
-        for c in self.cameras:
-            img = obs[c + '_image'] / 255
-            depth_map = get_real_depth_map(self.robo_env.sim, c + '_depth')
-
-            pc, rgb = to_pointcloud(self.robo_env.sim, img, depth_map, c)
-            pcs.append(pc)
-            rgbs.append(rgb)
+        pc = multiview_pointcloud(self.robo_env.sim, obs, self.cameras, self.transform)
         
-        pcs = np.concatenate(pcs, axis=0)
-        rgbs = np.concatenate(rgbs, axis=0)
-
-        # filter points outside of bounding box
-        pcs, rgbs = filter_pointcloud(pcs, rgbs, self.bbox)
-
-        # sample points
-        pc = torch.tensor(np.hstack((pcs, rgbs)).astype(np.float32))
-        pc = self.transform(pc)
-
         # encode pointcloud
         pc = pc.unsqueeze(0).to('cuda')
         embedding = self.pc_encoder(pc)

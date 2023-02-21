@@ -2,7 +2,9 @@ import numpy as np
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
 import argparse
+from torchvision.transforms import Compose
 from sim.utils import *
+from vision.utils import multiview_pointcloud, SampleFurthestPoints, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=100)
@@ -13,6 +15,7 @@ arg = parser.parse_args()
 # global variables
 num_frames=arg.frames
 camera_w, camera_h = arg.width, arg.height
+cameras = ['frontview', 'agentview', 'birdview']
 
 # create environment instance
 env = suite.make(
@@ -22,7 +25,7 @@ env = suite.make(
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
     use_camera_obs=True,
-    camera_names=['agentview', 'frontview', 'birdview'],
+    camera_names=cameras,
     camera_widths=camera_w,
     camera_heights=camera_h,
     camera_depths=True,
@@ -33,13 +36,21 @@ robot = env.robots[0]
 # print(f"limits = {robot.action_limits}\naction_dim = {robot.action_dim}\nDoF = {robot.dof}")
 
 # create camera mover
-camera_l = camera_utils.CameraMover(env, camera='frontview')
-camera_r = camera_utils.CameraMover(env, camera='agentview')
-camera_t = camera_utils.CameraMover(env, camera='birdview')
+camera_l = camera_utils.CameraMover(env, camera=cameras[0])
+camera_r = camera_utils.CameraMover(env, camera=cameras[1])
+camera_t = camera_utils.CameraMover(env, camera=cameras[2])
 camera_l.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
 camera_r.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
 camera_r.rotate_camera(None, (0, 0, 1), 180)
 camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
+
+# define transform to apply to pointcloud
+bbox = np.array([[-0.5, -0.5, 0], [0.5, 0.5, 1.5]])
+transform = Compose([
+    FilterBBox(bbox),
+    SampleFurthestPoints(2048),
+    Normalize(bbox)
+])
 
 # simulation
 def main():
@@ -56,35 +67,9 @@ def main():
         action = random_action(env) * 10 # sample random action
         obs, _, _, _ = env.step(action)  # take action in the environment
 
-        # Observation
-        depth_map_l = camera_utils.get_real_depth_map(env.sim, obs['frontview_depth'])
-        depth_map_r = camera_utils.get_real_depth_map(env.sim, obs['agentview_depth'])
-        depth_map_t = camera_utils.get_real_depth_map(env.sim, obs['birdview_depth'])
-
-        # normalize rgb to [0, 1]
-        rgb_l = obs['frontview_image'] / 255
-        rgb_r = obs['agentview_image'] / 255
-        rgb_t = obs['birdview_image'] / 255
-
-        # combine pointclouds
-        pc_l, rgb_l = to_pointcloud(env.sim, rgb_l, depth_map_l, 'frontview')
-        pc_r, rgb_r = to_pointcloud(env.sim, rgb_r, depth_map_r, 'agentview')
-        pc_t, rgb_t = to_pointcloud(env.sim, rgb_t, depth_map_t, 'birdview')
-        pc = np.concatenate((pc_l, pc_r, pc_t), axis=0)
-        rgb = np.concatenate((rgb_l, rgb_r, rgb_t), axis=0)
-
-        # filter out points outside of bounding box
-        bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])
-        # bbox = np.array([[-0.4, 0.4], [-0.4, 0.4], [0.8, 1.5]])
-        pc, rgb = filter_pointcloud(pc, rgb, bbox)
-
-        # # random sampling to fixed number of points
-        # n = 10000
-        # idx = np.random.choice(pc.shape[0], n, replace=False)
-        # pc = pc[idx, :]
-        # rgb = rgb[idx, :]
-
-        np.savez(f'input/{t}.npz', points=pc, features=rgb, boundingbox=bbox)
+        pc = multiview_pointcloud(env.sim, obs, cameras, transform)
+        
+        np.savez(f'input/{t}.npz', points=pc[:, :3], features=pc[:, 3:], boundingbox=bbox)
         
         # print(f"number of points = {pc.shape[0]}")
         print(('#' * round(t/num_frames * 100)).ljust(100, '-'), end='\r')
