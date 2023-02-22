@@ -16,23 +16,33 @@ def multiview_pointcloud(sim, obs, cameras, transform, features=['rgb']):
     }
 
     # combine multiple 2.5D observations into a single pointcloud
-    pcs, feats = [], []
+    pcs = []
+    feats = [[] for _ in features] # [feat0, feat1, ...]
     for c in cameras:
-        feature_maps = [feature_getter[feat](obs, c) for feat in features]
-        depth_map = get_real_depth_map(sim, c + '_depth')
+        feature_maps = [feature_getter[f](obs, c) for f in features]
+        depth_map = get_real_depth_map(sim, obs[c + '_depth'])
 
         pc, feat = to_pointcloud(sim, feature_maps, depth_map, c)
         pcs.append(pc)
-        feats.append(feat)
+        # gather by feature type
+        for feat_type, new_feat in zip(feats, feat):
+            feat_type.append(new_feat)
     
     pcs = np.concatenate(pcs, axis=0)
-    feats = np.concatenate(feats, axis=0) # WIP: TODO: was working until here
+    feats = [np.concatenate(f, axis=0) for f in feats]
+
+    feat_dims = [f.shape[1] for f in feats]
 
     # apply transform (usually Filter, Sample, Normalize)
-    pc = torch.tensor(np.hstack((pcs, feats)).astype(np.float32))
+    pc = torch.tensor(np.hstack((pcs, *feats)).astype(np.float32))
     pc = transform(pc)
 
-    return pc
+    # split the features back into their original dimensions
+    pc, feats = pc[:, :3], pc[:, 3:]
+    feats = torch.split(feats, feat_dims, dim=1)
+    feats = {f_name: f for f_name, f in zip(features, feats)}
+
+    return pc, feats
 
 
 
@@ -71,10 +81,9 @@ class FilterBBox:
     
     def __call__(self, points):
         # filter points outside of bounding box
-        mask = torch.logical_and.reduce((
-            points[:, 0] > self.bbox[0, 0], points[:, 0] < self.bbox[0, 1],
-            points[:, 1] > self.bbox[1, 0], points[:, 1] < self.bbox[1, 1],
-            points[:, 2] > self.bbox[2, 0], points[:, 2] < self.bbox[2, 1]))
+        mask = (points[:, 0] > self.bbox[0, 0]) & (points[:, 0] < self.bbox[0, 1]) \
+             & (points[:, 1] > self.bbox[1, 0]) & (points[:, 1] < self.bbox[1, 1]) \
+             & (points[:, 2] > self.bbox[2, 0]) & (points[:, 2] < self.bbox[2, 1])
         return points[mask]
 
 class Normalize:
