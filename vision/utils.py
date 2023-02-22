@@ -142,7 +142,7 @@ class earth_mover_distance:
 
         # check if target is in bbox and increase weight of loss
         weights = torch.ones_like(dists)
-        if self.bbox is not None:
+        if self.bbox is not None: #TODO: change bbox format to be consistent with the rest of the code
             is_in_bbox = (self.bbox[0] < target[:, :, 0]) & (target[:, :, 0] < self.bbox[1]) \
                        & (self.bbox[2] < target[:, :, 1]) & (target[:, :, 1] < self.bbox[3]) \
                        & (self.bbox[4] < target[:, :, 2]) & (target[:, :, 2] < self.bbox[5])

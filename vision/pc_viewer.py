@@ -8,9 +8,16 @@ from pytorch3d.vis.plotly_vis import plot_scene
 if sys.argv[1].endswith('.npz'):
     pointcloud = np.load(sys.argv[1])
     points = torch.Tensor(pointcloud['points']) # (N, 3)
-    rgb = torch.Tensor(pointcloud['features']) # (N, 3)
+    rgb = torch.Tensor(pointcloud['rgb']) # (N, 3)
+    seg = torch.Tensor(pointcloud['segmentation']) # (N, 1)
 
-    pointcloud = Pointclouds(points=[points], features=[rgb])
+    # segmentation to color converter
+    seg_range = torch.max(seg) - torch.min(seg)
+    seg = (seg - torch.min(seg)) / seg_range
+    seg = torch.cat([seg, seg, seg], dim=1)
+    print(seg)
+
+    pointcloud = Pointclouds(points=[points], features=[seg])
 
     # print(points.size())
     plot_scene({
@@ -19,7 +26,7 @@ if sys.argv[1].endswith('.npz'):
         }
     }, pointcloud_marker_size=2).show()
 
-else:
+else: #TODO update to new format like above
     # Load point cloud
     pointcloud1 = np.load(f'prep/{sys.argv[1]}.npz')
     points1 = torch.Tensor(pointcloud1['points']) # (N, 3)
