@@ -7,12 +7,13 @@ from models.pointnet import PointNetEncoder
 import numpy as np
 
 class PNAutoencoder(nn.Module):
-    def __init__(self, out_points = 2048, dim_per_point=3):
+    def __init__(self, out_points = 2048, in_dim=6, out_dim=6):
         super().__init__()
 
         self.out_points = out_points
-        self.dim_per_point = dim_per_point
-        pe = PointNetEncoder(in_channels=dim_per_point, track_stats=True)
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        pe = PointNetEncoder(in_channels=self.in_dim, track_stats=True)
         # self.encoder = nn.Sequential(
         #     pe,
         #     nn.ReLU(),
@@ -27,40 +28,55 @@ class PNAutoencoder(nn.Module):
             nn.ReLU(),
             nn.Linear(1024, 2048),
             nn.ReLU(),
-            nn.Linear(2048, out_points * dim_per_point),
+            nn.Linear(2048, out_points * self.out_dim),
             nn.Sigmoid(),
         )
     
     def forward(self, X):
         embedding = self.encoder(X)
-        return torch.reshape(self.decoder(embedding), (-1, self.out_points, self.dim_per_point))
+        return self.decoder(embedding).reshape((-1, self.out_points, self.out_dim))
 
 
 class PointcloudDataset(Dataset):
-    def __init__(self, root_dir, files=None, transform=None):
+    def __init__(self, root_dir, files=None, in_features=['rgb'], out_features=['rgb'], in_transform=None, out_transform=None):
         self.root_dir = root_dir
 
         # you can either pass a list of files or None for all files in the root_dir
         self.files = files if files is not None else os.listdir(root_dir)
         self.files = [f for f in self.files if f.endswith('.npz')] # get only npz files
         
-        self.transform = transform
+        self.in_transform = in_transform
+        self.out_transform = out_transform
+
+        self.in_features = in_features
+        self.out_features = out_features
 
     def __len__(self):
         return len(self.files)
 
     def __getitem__(self, idx):
         pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]))
-        pointcloud = torch.tensor(np.hstack((pointcloud['points'], pointcloud['features'])).astype(np.float32))
 
-        if self.transform:
-            pointcloud = self.transform(pointcloud)
+        if self.in_features == self.out_features:
+            features = [pointcloud[f] for f in self.in_features]
+            in_pc = out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *features), axis=1))
+        else:
+            in_features = [pointcloud[f] for f in self.in_features]
+            out_features = [pointcloud[f] for f in self.out_features]
 
-        return pointcloud
+            in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
+            out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *out_features), axis=1))
+
+        if self.in_transform:
+            in_pc = self.in_transform(in_pc)
+        if self.out_transform:
+            out_pc = self.out_transform(out_pc)
+
+        return in_pc, out_pc
     
     def filename(self, idx):
         return self.files[idx]
     
-    def save(self, idx, path):
-        pointcloud = self.__getitem__(idx)
-        np.savez(os.path.join(path, self.files[idx]), points=pointcloud[:, :3], features=pointcloud[:, 3:])
+    # def save(self, idx, path):
+    #     pointcloud = self[idx]
+    #     np.savez(os.path.join(path, self.files[idx]), points=pointcloud[:, :3], features=pointcloud[:, 3:])

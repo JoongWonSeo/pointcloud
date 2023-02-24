@@ -5,6 +5,7 @@ from pytorch3d.structures import Pointclouds
 from pytorch3d.ops import sample_farthest_points
 from pytorch3d.vis.plotly_vis import plot_scene
 
+
 if sys.argv[1].endswith('.npz'):
     pointcloud = np.load(sys.argv[1])
     points = torch.Tensor(pointcloud['points']) # (N, 3)
@@ -13,9 +14,9 @@ if sys.argv[1].endswith('.npz'):
 
     # segmentation to color converter
     seg_range = torch.max(seg) - torch.min(seg)
+    print(torch.min(seg), torch.max(seg))
     seg = (seg - torch.min(seg)) / seg_range
-    seg = torch.cat([seg, seg, seg], dim=1)
-    print(seg)
+    seg = torch.cat([torch.zeros_like(seg), seg, torch.zeros_like(seg)], dim=1)
 
     pointcloud = Pointclouds(points=[points], features=[seg])
 

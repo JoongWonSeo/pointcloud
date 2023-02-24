@@ -17,7 +17,7 @@ class PointCloudEncoder(ObservationEncoder):
         self.sample_points = sample_points
         self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
         
-        self.pc_encoder = PNAutoencoder(out_points=sample_points, dim_per_point=6)
+        self.pc_encoder = PNAutoencoder(out_points=sample_points, in_dim=6, out_dim=4) # segmenting autoencoder
         self.pc_encoder.load_state_dict(torch.load('weights/PC_AE.pth'))
         self.pc_encoder = self.pc_encoder.encoder.to('cuda')
         self.pc_encoder.eval()

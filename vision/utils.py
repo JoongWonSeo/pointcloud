@@ -9,10 +9,10 @@ from sim.utils import to_pointcloud
 
 
 # generate pointcloud from 2.5D observations
-def multiview_pointcloud(sim, obs, cameras, transform, features=['rgb']):
+def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
     feature_getter = {
         'rgb': lambda o, c: o[c + '_image'] / 255,
-        'segmentation': lambda o, c: o[c + '_segmentation_class']
+        'segmentation': lambda o, c: o[c + '_segmentation_class'] # TODO: / N for N classes
     }
 
     # combine multiple 2.5D observations into a single pointcloud
@@ -23,26 +23,27 @@ def multiview_pointcloud(sim, obs, cameras, transform, features=['rgb']):
         depth_map = get_real_depth_map(sim, obs[c + '_depth'])
 
         pc, feat = to_pointcloud(sim, feature_maps, depth_map, c)
-        pcs.append(pc)
+        pcs.append(torch.from_numpy(pc))
         # gather by feature type
         for feat_type, new_feat in zip(feats, feat):
-            feat_type.append(new_feat)
+            feat_type.append(torch.from_numpy(new_feat))
     
-    pcs = np.concatenate(pcs, axis=0)
-    feats = [np.concatenate(f, axis=0) for f in feats]
+    pcs = torch.cat(pcs, dim=0)
+    feats = [torch.cat(f, dim=0) for f in feats]
 
     feat_dims = [f.shape[1] for f in feats]
 
-    # apply transform (usually Filter, Sample, Normalize)
-    pc = torch.tensor(np.hstack((pcs, *feats)).astype(np.float32))
-    pc = transform(pc)
+    if transform is not None:
+        # apply transform (usually Filter, Sample, Normalize)
+        pcs = torch.cat((pcs, *feats), dim=1)
+        pcs = transform(pcs)
 
-    # split the features back into their original dimensions
-    pc, feats = pc[:, :3], pc[:, 3:]
-    feats = torch.split(feats, feat_dims, dim=1)
+        # split the features back into their original dimensions
+        pcs, feats = pcs[:, :3], pcs[:, 3:]
+        feats = torch.split(feats, feat_dims, dim=1)
     feats = {f_name: f for f_name, f in zip(features, feats)}
 
-    return pc, feats
+    return pcs, feats
 
 
 
@@ -87,23 +88,24 @@ class FilterBBox:
         return points[mask]
 
 class Normalize:
-    def __init__(self, bbox):
+    def __init__(self, bbox, dim=3):
         '''
         bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         '''
         bbox = torch.Tensor(bbox)
         self.min = bbox[:, 0]
         self.max = bbox[:, 1]
+        self.dim = dim
 
     def __call__(self, points):
-        # normalize points along each axis (only the first 3 dimensions)
-        points[:, 0:3] = (points[:, 0:3] - self.min) / (self.max - self.min)
+        # normalize points along each axis
+        points[:, 0:self.dim] = (points[:, 0:self.dim] - self.min) / (self.max - self.min)
         return points
 
 
 # Loss Functions
 
-class chamfer_distance:
+class ChamferDistance:
     def __init__(self, bbox=None):
         self.loss_fn = pytorch3d_loss.chamfer_distance
         self.bbox = bbox
@@ -112,7 +114,7 @@ class chamfer_distance:
         if self.bbox is None:
             return self.loss_fn(pred, target)[0]
 
-class earth_mover_distance:
+class EarthMoverDistance:
     def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss(), bbox=None, bbox_bonus=2):
         self.loss_fn = emdModule()
         self.eps = eps
