@@ -13,9 +13,6 @@ if sys.argv[1].endswith('.npz'):
     seg = torch.Tensor(pointcloud['segmentation']) # (N, 1)
 
     # segmentation to color converter
-    seg_range = torch.max(seg) - torch.min(seg)
-    print(torch.min(seg), torch.max(seg))
-    seg = (seg - torch.min(seg)) / seg_range
     seg = torch.cat([torch.zeros_like(seg), seg, torch.zeros_like(seg)], dim=1)
 
     pointcloud = Pointclouds(points=[points], features=[seg])
@@ -29,20 +26,23 @@ if sys.argv[1].endswith('.npz'):
 
 else: #TODO update to new format like above
     # Load point cloud
-    pointcloud1 = np.load(f'prep/{sys.argv[1]}.npz')
-    points1 = torch.Tensor(pointcloud1['points']) # (N, 3)
-    rgb1 = torch.Tensor(pointcloud1['features']) # (N, 3)
+    pointcloud1 = np.load(f'input/{sys.argv[1]}.npz')
+    points1 = torch.Tensor(pointcloud1['points'])
+    feat1 = torch.Tensor(pointcloud1['segmentation'])
+    feat1 = torch.cat([torch.zeros_like(feat1), feat1, torch.zeros_like(feat1)], dim=1)
 
     pointcloud2 = np.load(f'output/{sys.argv[1]}.npz')
-    points2 = torch.Tensor(pointcloud2['points']) # (N, 3)
-    rgb2 = torch.Tensor(pointcloud2['features']) # (N, 3)
+    points2 = torch.Tensor(pointcloud2['points'])
+    feat2 = torch.Tensor(pointcloud2['segmentation'])
+    feat2 = torch.cat([torch.zeros_like(feat2), feat2, torch.zeros_like(feat2)], dim=1)
+
 
     # offset points
     points1[:, 1] -= 0.5
     points2[:, 1] += 0.5
 
 
-    pointcloud = Pointclouds(points=[points1, points2], features=[rgb1, rgb2])
+    pointcloud = Pointclouds(points=[points1, points2], features=[feat1, feat2])
 
     # print(points.size())
     plot_scene({

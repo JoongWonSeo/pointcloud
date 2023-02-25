@@ -4,7 +4,7 @@ from robosuite.utils import camera_utils, transform_utils
 import argparse
 from torchvision.transforms import Compose
 from sim.utils import *
-from vision.utils import multiview_pointcloud, SampleFurthestPoints, FilterBBox, Normalize
+from vision.utils import SampleFurthestPoints, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=100)
@@ -16,6 +16,7 @@ arg = parser.parse_args()
 num_frames=arg.frames
 camera_w, camera_h = arg.width, arg.height
 cameras = ['frontview', 'agentview', 'birdview']
+num_classes = 5 # TODO: 0: background, 1: table, 2: cube, 3: robot, 4: gripper
 
 # create environment instance
 env = suite.make(
@@ -69,8 +70,10 @@ def main():
         obs, _, _, _ = env.step(action)  # take action in the environment
 
         pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'])
+
+        feats['segmentation'] /= num_classes - 1
         
-        np.savez(f'input/{t}.npz', points=pc, **feats, boundingbox=bbox)
+        np.savez(f'input/{t}.npz', points=pc, **feats, boundingbox=bbox, classes=num_classes)
         
         # print(f"number of points = {pc.shape[0]}")
         print(('#' * round(t/num_frames * 100)).ljust(100, '-'), end='\r')

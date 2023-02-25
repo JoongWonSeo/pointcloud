@@ -1,24 +1,25 @@
+import os
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 from vision.models.pn_autoencoder import PNAutoencoder, PointcloudDataset
-from vision.utils import *
-from torch.utils.tensorboard.writer import SummaryWriter
+from vision.utils import Normalize, EarthMoverDistance
+from torch.utils.tensorboard import SummaryWriter
 
 
-def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
+def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device='cuda:0'):
     # tensorboard
     writer = SummaryWriter()
 
     # training data
-    dataset = PointcloudDataset(root_dir=input_dir, files=None, transform=None)
+    dataset = PointcloudDataset(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
     train_set, val_set = torch.utils.data.random_split(dataset, [0.8, 0.2])
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
-    # model
-    ae = PNAutoencoder(2048, 6).to(device)
+    # model: XYZRGB -> XYZL (L = segmentation label)
+    ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
 
     # training
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
@@ -33,12 +34,13 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     for epoch in range(num_epochs):
         loss_training = 0.0
 
-        for i, X in enumerate(train_loader):
+        for i, (X, Y) in enumerate(train_loader):
             X = X.to(device)
+            Y = Y.to(device)
 
             # compute prediction and loss
             pred = ae(X)
-            loss = loss_fn(pred, X)
+            loss = loss_fn(pred, Y)
 
             # backprop
             optimizer.zero_grad()
@@ -52,10 +54,11 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
                 loss_validation = 0.0
                 ae.train(False)
                 with torch.no_grad():
-                    for X_val in val_loader:
+                    for X_val, Y_val in val_loader:
                         X_val = X_val.to(device)
+                        Y_val = Y_val.to(device)
                         pred_val = ae(X_val)
-                        loss_validation += loss_fn(pred_val, X_val).item()
+                        loss_validation += loss_fn(pred_val, Y_val).item()
                 ae.train(True)
 
                 loss_training = loss_training / 4
@@ -81,27 +84,29 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     torch.save(ae.state_dict(), model_path.replace('.pth', '_last.pth'))
 
     # log model to tensorboard
-    batch = next(iter(train_loader))
+    batch = next(iter(train_loader))[0]
     writer.add_graph(ae, batch.to(device))
 
     writer.flush()
 
 
-def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000):
+def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000, device='cuda:0'):
     # evaluate
-    eval_set = PointcloudDataset(
-        root_dir=input_dir, files=None, transform=None)
+    eval_set = PointcloudDataset(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
     loss_fn = EarthMoverDistance(eps=eps, iterations=iterations)
-
-    ae = PNAutoencoder(2048, 6).to(device)
+    
+    ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
     ae.load_state_dict(torch.load(model_path))
     ae.eval()
 
     with torch.no_grad():
         for i in range(len(eval_set)):
-            X = eval_set[i].to(device)
-            # X to batch of size 1
-            X = X.reshape((1, ae.out_points, ae.dim_per_point))
+            X, Y = eval_set[i]
+            X = X.to(device)
+            Y = Y.to(device)
+            # to batch of size 1
+            X = X.reshape((1, ae.out_points, ae.in_dim))
+            Y = Y.reshape((1, ae.out_points, ae.out_dim))
 
             # encode
             embedding = ae.encoder(X)
@@ -109,17 +114,15 @@ def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000):
             print(embedding)
 
             # decode
-            pred = ae.decoder(embedding).reshape(
-                (-1, ae.out_points, ae.dim_per_point))
+            pred = ae.decoder(embedding).reshape((-1, ae.out_points, ae.out_dim))
 
             # eval
-            loss = loss_fn(pred, X)
+            loss = loss_fn(pred, Y)
             print(f"eval loss = {loss}")
 
             # save as npz
-            # split into points and rgb
+            # split into points and seg
             pred = pred.detach().cpu().numpy()
             points = pred[0, :, :3]
-            rgb = pred[0, :, 3:]
-            np.savez(os.path.join(output_dir, eval_set.filename(i)),
-                     points=points, features=rgb)
+            seg = pred[0, :, 3:]
+            np.savez(os.path.join(output_dir, eval_set.filename(i)), points=points, segmentation=seg)

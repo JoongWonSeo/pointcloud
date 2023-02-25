@@ -5,11 +5,11 @@ import vision.train as vision
 parser = argparse.ArgumentParser(description='Train or evaluate a pointnet autoencoder')
 parser.add_argument('mode', choices=[
                     'train', 'eval', 'traineval'], help='train or evaluate the model')
-parser.add_argument('--model', default='weights/PC_AE.pth',
+parser.add_argument('--model', default='vision/weights/PC_AE.pth',
                     help='path to model weights (to save during training or load during evaluation)')
-parser.add_argument('--input', default='prep',
+parser.add_argument('--input', default='vision/input',
                     help='path to training data (for training) or input data (for evaluation)')
-parser.add_argument('--output', default='output',
+parser.add_argument('--output', default='vision/output',
                     help='path to output data (for evaluation)')
 parser.add_argument('--device', default='cuda:0',
                     help='device to use for training or evaluation')
@@ -21,18 +21,17 @@ parser.add_argument('--eps', default=0.002, type=float,
                     help='epsilon for EMD')
 parser.add_argument('--iterations', default=5000, type=int,
                     help='number of iterations for EMD')
-args = parser.parse_args()
+a = parser.parse_args()
 
 
-device = args.device
-print(f'device = {device}')
+print(f'device = {a.device}')
 
-if args.mode == 'train':
-    vision.train(args.input, args.model, args.num_epochs,
-          args.batch_size, args.eps, args.iterations)
-elif args.mode == 'eval':
-    vision.eval(args.model, args.input, args.output, args.eps, args.iterations)
-elif args.mode == 'traineval':
-    vision.train(args.input, args.model, args.num_epochs,
-          args.batch_size, args.eps, args.iterations)
-    eval(args.model, args.input, args.output, args.eps, args.iterations)
+if a.mode == 'train':
+    vision.train(a.input, a.model, a.num_epochs,
+          a.batch_size, a.eps, a.iterations, a.device)
+elif a.mode == 'eval':
+    vision.eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)
+elif a.mode == 'traineval':
+    vision.train(a.input, a.model, a.num_epochs,
+          a.batch_size, a.eps, a.iterations, a.device)
+    eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
-from models.pointnet import PointNetEncoder
+from .pointnet import PointNetEncoder
 import numpy as np
 
 class PNAutoencoder(nn.Module):

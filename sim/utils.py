@@ -1,10 +1,12 @@
 import numpy as np
+import torch
 import robosuite as suite
 import matplotlib.pyplot as plt
 import cv2
 from robosuite.utils import camera_utils
 from scipy.spatial.transform import Rotation as R
 import robosuite.utils.transform_utils as T
+from robosuite.utils.camera_utils import get_real_depth_map
 import random
 
 def pprint_dict(d):
@@ -117,6 +119,45 @@ def to_pointcloud(sim, feature_maps, depth_map, camera):
     if not multi_feature:
         features = features[0]
     return points, features
+
+
+# generate pointcloud from 2.5D observations
+def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
+    feature_getter = {
+        'rgb': lambda o, c: o[c + '_image'] / 255,
+        'segmentation': lambda o, c: o[c + '_segmentation_class']
+    }
+
+    # combine multiple 2.5D observations into a single pointcloud
+    pcs = []
+    feats = [[] for _ in features] # [feat0, feat1, ...]
+    for c in cameras:
+        feature_maps = [feature_getter[f](obs, c) for f in features]
+        depth_map = get_real_depth_map(sim, obs[c + '_depth'])
+
+        pc, feat = to_pointcloud(sim, feature_maps, depth_map, c)
+        pcs.append(torch.from_numpy(pc))
+        # gather by feature type
+        for feat_type, new_feat in zip(feats, feat):
+            feat_type.append(torch.from_numpy(new_feat))
+    
+    pcs = torch.cat(pcs, dim=0)
+    feats = [torch.cat(f, dim=0) for f in feats]
+
+    feat_dims = [f.shape[1] for f in feats]
+
+    if transform is not None:
+        # apply transform (usually Filter, Sample, Normalize)
+        pcs = torch.cat((pcs, *feats), dim=1)
+        pcs = transform(pcs)
+
+        # split the features back into their original dimensions
+        pcs, feats = pcs[:, :3], pcs[:, 3:]
+        feats = torch.split(feats, feat_dims, dim=1)
+    feats = {f_name: f for f_name, f in zip(features, feats)}
+
+    return pcs, feats
+
 
 def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
     points, rgb = to_pointcloud(sim, image, depth_map, camera)
