@@ -55,7 +55,7 @@ if __name__ == "__main__":
     options = {}
 
     # Choose environment and add it to options
-    options["env_name"] = "PickPlace"
+    options["env_name"] = "Lift"
     options["robots"] = ["Panda"]
 
     # Choose controller
@@ -90,6 +90,8 @@ if __name__ == "__main__":
 
     # Get action limits
     low, high = env.action_spec
+
+    print(segmentation_to_rgb(np.array([0,1,2,3,4,5,6]), random_colors=False))
 
     # do visualization
     for i in range(10000):

@@ -1,3 +1,5 @@
+import cfg
+from functools import reduce
 import torch
 import torch.nn
 from pytorch3d.ops import sample_farthest_points
@@ -47,6 +49,18 @@ class FilterBBox:
              & (points[:, 2] > self.bbox[2, 0]) & (points[:, 2] < self.bbox[2, 1])
         return points[mask]
 
+class FilterClasses:
+    def __init__(self, blacklist):
+        '''
+        blacklist: list of classes to remove
+        '''
+        self.blacklist = blacklist
+    
+    def __call__(self, points):
+        # filter out points that are in the blacklist
+        mask = reduce(torch.logical_or, [points[:, 3] == v for v in self.blacklist])
+        return points[mask]
+
 class Normalize:
     def __init__(self, bbox, dim=3):
         '''
@@ -75,13 +89,12 @@ class ChamferDistance:
             return self.loss_fn(pred, target)[0]
 
 class EarthMoverDistance:
-    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss(), bbox=None, bbox_bonus=2):
+    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss(), classes=None):
         self.loss_fn = emdModule()
         self.eps = eps
         self.iterations = iterations
         self.feature_loss = feature_loss
-        self.bbox = bbox
-        self.bbox_bonus = bbox_bonus
+        self.classes = classes
     
     def __call__(self, pred, target):
         dists, assignment = self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)
@@ -92,27 +105,26 @@ class EarthMoverDistance:
         feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
         # DEBUG: check the number of unassigned points
-        num_points = pred.shape[1]
-        num_missing = num_points - assignment.unique().numel()
-        if num_missing > 0:
-            print(f"unassigned = {num_missing} / {num_points} = {num_missing / num_points}")
-
+        if cfg.debug:
+            num_points = pred.shape[1]
+            num_missing = num_points - assignment.unique().numel()
+            if num_missing > 0:
+                print(f"DEBUG: EMD unassigned = {num_missing} / {num_points} = {num_missing / num_points}")
 
         # sanity check: compare the points of the permuted pc
         # d = (pred[:,:,:3] - target[:,:,:3]) * (pred[:,:,:3] - target[:,:,:3])
         # d = torch.sqrt(d.sum(-1)).mean()
 
         # check if target is in bbox and increase weight of loss
+        # now that segmentation is available, use it to assign weights by class
         weights = torch.ones_like(dists)
-        if self.bbox is not None: #TODO: change bbox format to be consistent with the rest of the code
-            is_in_bbox = (self.bbox[0] < target[:, :, 0]) & (target[:, :, 0] < self.bbox[1]) \
-                       & (self.bbox[2] < target[:, :, 1]) & (target[:, :, 1] < self.bbox[3]) \
-                       & (self.bbox[4] < target[:, :, 2]) & (target[:, :, 2] < self.bbox[5])
+        if self.classes is not None:
+            N = len(self.classes)
+            target_classes = (target[:, :, 3]*(N-1)).round()
+            for idx, (_, w) in enumerate(self.classes):
+                weights[target_classes == idx] = w
 
-            # weight the loss of points that are not in the bbox
-            weights += (self.bbox_bonus * is_in_bbox.float())
-
+        
         point_l = (dists.sqrt() * weights).mean()
-
 
         return point_l + feature_l
