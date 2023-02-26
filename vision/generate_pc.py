@@ -1,10 +1,11 @@
+import cfg
 import numpy as np
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
 import argparse
 from torchvision.transforms import Compose
 from sim.utils import *
-from vision.utils import SampleRandomPoints, SampleFurthestPoints, FilterBBox, Normalize
+from vision.utils import SampleRandomPoints, SampleFurthestPoints, FilterClasses, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=100)
@@ -16,7 +17,7 @@ arg = parser.parse_args()
 num_frames=arg.frames
 camera_w, camera_h = arg.width, arg.height
 cameras = ['frontview', 'agentview', 'birdview']
-num_classes = 5 # TODO: 0: background, 1: table, 2: cube, 3: robot, 4: gripper
+num_classes = len(cfg.classes)
 
 # create environment instance
 env = suite.make(
@@ -47,8 +48,9 @@ camera_r.rotate_camera(None, (0, 0, 1), 180)
 camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
 
 # define transform to apply to pointcloud
-bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
+bbox = np.array(cfg.bbox)
 transform = Compose([
+    FilterClasses(whitelist=[0, 1], seg_dim=6), # only keep table and cube
     FilterBBox(bbox),
     # SampleRandomPoints(2048),
     SampleFurthestPoints(2048),
@@ -70,9 +72,7 @@ def main():
         action = random_action(env) * 10 # sample random action
         obs, _, _, _ = env.step(action)  # take action in the environment
 
-        pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'])
-
-        feats['segmentation'] /= num_classes - 1
+        pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'], num_classes)
         
         np.savez(f'input/{t}.npz', points=pc, **feats, boundingbox=bbox, classes=num_classes)
         

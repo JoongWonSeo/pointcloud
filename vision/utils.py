@@ -6,7 +6,6 @@ from torch.nn import MSELoss
 from pytorch3d.ops import sample_farthest_points
 from pytorch3d import loss as pytorch3d_loss
 from .loss.emd.emd_module import emdModule
-import numpy as np
 
 
 
@@ -51,16 +50,22 @@ class FilterBBox:
         return points[mask]
 
 class FilterClasses:
-    def __init__(self, blacklist):
+    def __init__(self, whitelist, seg_dim, num_classes=len(cfg.classes)):
         '''
-        blacklist: list of classes to remove
+        whitelist: list of classes to remove
+        num_classes: number of classes in the dataset
+        seg_dim: dimension index of the segmentation label in the point cloud
         '''
-        self.blacklist = blacklist
+        self.whitelist = whitelist
+        self.num_classes = num_classes
+        self.seg_dim = seg_dim
     
     def __call__(self, points):
-        # filter out points that are in the blacklist
-        mask = reduce(torch.logical_or, [points[:, 3] == v for v in self.blacklist])
-        return points[mask]
+        # only keep points that are in the whitelist
+        seg = points[:, self.seg_dim] # (N,)
+        seg = (seg*(self.num_classes-1)).round().long() # (N,)
+        mask = reduce(torch.logical_or, [seg == v for v in self.whitelist])
+        return points[mask, :]
 
 class Normalize:
     def __init__(self, bbox, dim=3):
