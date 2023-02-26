@@ -1,11 +1,7 @@
 import numpy as np
 import torch
-import robosuite as suite
-import matplotlib.pyplot as plt
 import cv2
 from robosuite.utils import camera_utils
-from scipy.spatial.transform import Rotation as R
-import robosuite.utils.transform_utils as T
 from robosuite.utils.camera_utils import get_real_depth_map
 import random
 
@@ -98,15 +94,28 @@ def pixel_to_feature(pixels, feature_map):
 
     return features
 
+
 def to_pointcloud(sim, feature_maps, depth_map, camera):
-    multi_feature = type(feature_maps) is list
-    if not multi_feature:
+    """
+    Generates a pointcloud from a single 2.5D camera observation.
+
+    Args:
+        sim (MjSim): MjSim instance
+        feature_maps (np.array or list of np.array): feature maps of shape [H, W, C]
+        depth_map (np.array): depth map of shape [H, W, 1]
+        camera (str): name of camera
+
+    Return:
+        points (np.array): N 3D points in robot frame of shape [N, 3]
+        features (np.array or list of np.array): N feature vectors of shape [N, C]
+    """
+
+    is_multifeature = type(feature_maps) is list
+    if not is_multifeature:
         feature_maps = [feature_maps]
-    w, h = feature_maps[0].shape[1], feature_maps[0].shape[0]
+    w, h = depth_map.shape[1], depth_map.shape[0]
 
     # pixel coordinates of which to sample world position
-    # all_pixels = np.array([[x, y] for x in range(w) for y in range(h)
-    # if image[y, x, 0] > 100/255 and image[y, x, 1] < 60/255 and image[y, x, 2] < 60/255])
     all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
 
     # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
@@ -116,16 +125,29 @@ def to_pointcloud(sim, feature_maps, depth_map, camera):
     points = pixel_to_world(all_pixels, depth_map, pix_to_world)
     features = [pixel_to_feature(all_pixels, fm) for fm in feature_maps]
 
-    if not multi_feature:
+    if not is_multifeature:
         features = features[0]
     return points, features
 
 
-# generate pointcloud from 2.5D observations
-def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
+def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], num_seg_classes=2):
+    """
+    Generates a combined pointcloud from multiple 2.5D camera observations.
+
+    Args:
+        sim (MjSim): MjSim instance
+        obs (dict): observation dictionary
+        cameras (list of str): list of camera names
+        transform (callable): PyTorch transform to apply to pointcloud
+        features (list of str): list of features to include in pointcloud
+
+    Return:
+        pcs (torch.Tensor): N 3D points in robot frame of shape [N, 3]
+        feats (dict): feature vectors of shape [N, C] (keyed by feature name)
+    """
     feature_getter = {
         'rgb': lambda o, c: o[c + '_image'] / 255,
-        'segmentation': lambda o, c: o[c + '_segmentation_class']
+        'segmentation': lambda o, c: o[c + '_segmentation_class'] / (num_seg_classes - 1)
     }
 
     # combine multiple 2.5D observations into a single pointcloud
@@ -166,7 +188,7 @@ def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
 
 
 def set_obj_pos(sim, joint, pos=None, quat=None):
-    pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1)]) if pos is None else pos
+    pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1.4)]) if pos is None else pos
     quat = np.array([0, 0, 0, 0]) if quat is None else quat
 
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
