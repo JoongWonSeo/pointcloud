@@ -34,4 +34,4 @@ elif a.mode == 'eval':
 elif a.mode == 'traineval':
     vision.train(a.input, a.model, a.num_epochs,
           a.batch_size, a.eps, a.iterations, a.device)
-    eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)
+    vision.eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)

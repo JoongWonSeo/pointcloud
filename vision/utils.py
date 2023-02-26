@@ -2,6 +2,7 @@ import cfg
 from functools import reduce
 import torch
 import torch.nn
+from torch.nn import MSELoss
 from pytorch3d.ops import sample_farthest_points
 from pytorch3d import loss as pytorch3d_loss
 from .loss.emd.emd_module import emdModule
@@ -89,7 +90,7 @@ class ChamferDistance:
             return self.loss_fn(pred, target)[0]
 
 class EarthMoverDistance:
-    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=torch.nn.MSELoss(), classes=None):
+    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=MSELoss(), classes=None):
         self.loss_fn = emdModule()
         self.eps = eps
         self.iterations = iterations
@@ -101,7 +102,7 @@ class EarthMoverDistance:
 
         # compare the features (RGB) OF THE CORRESPONDING POINTS ACCORDING TO assignment
         assignment = assignment.long().unsqueeze(-1)
-        target = target.take_along_dim(assignment, 1)
+        target = target.take_along_dim(assignment, 1) # permute target according to assignment, such that matched points are at the same index
         feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
         # DEBUG: check the number of unassigned points
@@ -123,6 +124,12 @@ class EarthMoverDistance:
             target_classes = (target[:, :, 3]*(N-1)).round()
             for idx, (_, w) in enumerate(self.classes):
                 weights[target_classes == idx] = w
+            
+            # if cfg.debug:
+            #     points_per_class = [(target_classes == i).sum()/25 for i in range(N)]
+            #     num_points = 2048
+            #     for i in range(N):
+            #         print(f"DEBUG: EMD class {self.classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
 
         
         point_l = (dists.sqrt() * weights).mean()

@@ -4,7 +4,7 @@ from robosuite.utils import camera_utils, transform_utils
 import argparse
 from torchvision.transforms import Compose
 from sim.utils import *
-from vision.utils import SampleFurthestPoints, FilterBBox, FilterClasses, Normalize
+from vision.utils import SampleRandomPoints, SampleFurthestPoints, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=100)
@@ -50,7 +50,7 @@ camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
 bbox = np.array([[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]])
 transform = Compose([
     FilterBBox(bbox),
-    # FilterClasses([1, 2]), # robot base and arm
+    # SampleRandomPoints(2048),
     SampleFurthestPoints(2048),
     Normalize(bbox)
 ])

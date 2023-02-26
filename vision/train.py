@@ -27,11 +27,16 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device
     # number of points must be the same and a multiple of 1024
     # bbox = Normalize([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
     classes = [ # name and training weight
-        ('env', 1.0),
-        ('cube', 10.0),
-        ('arm', 0.5),
-        ('base', 0.5),
-        ('gripper', 2.0),
+        # ('env', 1.0),
+        # ('cube', 100.0),
+        # ('arm', 0.01),
+        # ('base', 0.01),
+        # ('gripper', 0.01),
+        ('env', 1.5),
+        ('cube', 150.0),
+        ('arm', 5.0),
+        ('base', 10.0),
+        ('gripper', 15.0),
     ]
     loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=classes)
     optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
