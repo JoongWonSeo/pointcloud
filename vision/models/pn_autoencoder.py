@@ -33,8 +33,8 @@ class PNAutoencoder(nn.Module):
         )
     
     def forward(self, X):
-        embedding = self.encoder(X)
-        return self.decoder(embedding).reshape((-1, self.out_points, self.out_dim))
+        self.embedding = self.encoder(X)
+        return self.decoder(self.embedding).reshape((-1, self.out_points, self.out_dim))
 
 
 class PointcloudDataset(Dataset):
