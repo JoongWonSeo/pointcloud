@@ -7,3 +7,29 @@ device = 'cuda:0'
 
 # this enables more verbose output and more sanity checks (performance impact)
 debug = True
+
+
+########## Vision: Env Specific Variables ##########
+
+classes = [ # name and color
+    ('env', [0, 0, 0]),
+    ('cube', [1, 0, 0]),
+    ('arm', [0.5, 0.5, 0.5]),
+    ('base', [0, 1, 0]),
+    ('gripper', [0, 0, 1]),
+]
+
+class_weights = [ # name and training weight # TODO: automatically calculate these in EMD based on the distribution of the classes
+    # ('env', 1.5),
+    # ('cube', 150.0),
+    # ('arm', 5.0),
+    # ('base', 10.0),
+    # ('gripper', 15.0),
+    ('env', 0.0),
+    ('cube', 0.0),
+    ('arm', 0.0),
+    ('base', 0.0),
+    ('gripper', 0.0),
+]
+
+bbox = [[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]]
