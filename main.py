@@ -1,3 +1,4 @@
+import cfg
 import argparse
 import vision.train as vision
 
@@ -11,7 +12,7 @@ parser.add_argument('--input', default='vision/input',
                     help='path to training data (for training) or input data (for evaluation)')
 parser.add_argument('--output', default='vision/output',
                     help='path to output data (for evaluation)')
-parser.add_argument('--device', default='cuda:0',
+parser.add_argument('--device', default=cfg.device,
                     help='device to use for training or evaluation')
 parser.add_argument('--batch_size', default=25, type=int,
                     help='batch size for training')
@@ -27,11 +28,9 @@ a = parser.parse_args()
 print(f'device = {a.device}')
 
 if a.mode == 'train':
-    vision.train(a.input, a.model, a.num_epochs,
-          a.batch_size, a.eps, a.iterations, a.device)
+    vision.train(a.input, a.model, a.num_epochs, a.batch_size, a.eps, a.iterations)
 elif a.mode == 'eval':
-    vision.eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)
+    vision.eval(a.model, a.input, a.output, a.batch_size, a.eps, a.iterations)
 elif a.mode == 'traineval':
-    vision.train(a.input, a.model, a.num_epochs,
-          a.batch_size, a.eps, a.iterations, a.device)
-    vision.eval(a.model, a.input, a.output, a.eps, a.iterations, a.device)
+    vision.train(a.input, a.model, a.num_epochs, a.batch_size, a.eps, a.iterations)
+    vision.eval(a.model, a.input, a.output, a.batch_size, a.eps, a.iterations)

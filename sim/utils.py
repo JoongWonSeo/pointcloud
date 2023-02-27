@@ -182,6 +182,20 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], nu
 
 
 def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
+    """
+    Saves a pointcloud to a file.
+
+    Args:
+        sim (MjSim): MjSim instance
+        image (np.array): image of shape [H, W, C]
+        depth_map (np.array): depth map of shape [H, W, 1]
+        camera (str): name of camera
+        file (str): path to save pointcloud to
+
+    Return:
+        None
+    """
+
     points, rgb = to_pointcloud(sim, image, depth_map, camera)
     np.savez(file, points=points, rgb=rgb)
 

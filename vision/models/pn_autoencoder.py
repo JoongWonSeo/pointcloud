@@ -55,7 +55,7 @@ class PointcloudDataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, idx):
-        pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]))
+        pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
 
         if self.in_features == self.out_features:
             features = [pointcloud[f] for f in self.in_features]

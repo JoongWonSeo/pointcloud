@@ -1,3 +1,4 @@
+import cfg
 import os
 import torch
 import numpy as np
@@ -8,7 +9,9 @@ from vision.utils import Normalize, EarthMoverDistance
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device='cuda:0'):
+def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
+    device = cfg.device
+
     # tensorboard
     writer = SummaryWriter()
 
@@ -25,20 +28,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
     # alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
     # number of points must be the same and a multiple of 1024
-    # bbox = Normalize([[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]])(torch.Tensor([[-0.4, -0.4, 0.8],[0.4, 0.4, 1.5]])).T.reshape((6))
-    classes = [ # name and training weight
-        # ('env', 1.0),
-        # ('cube', 100.0),
-        # ('arm', 0.01),
-        # ('base', 0.01),
-        # ('gripper', 0.01),
-        ('env', 1.5),
-        ('cube', 150.0),
-        ('arm', 5.0),
-        ('base', 10.0),
-        ('gripper', 15.0),
-    ]
-    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=classes)
+    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=cfg.class_weights)
     optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
 
     # training loop
@@ -62,7 +52,8 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device
             loss_training += loss.item()
 
             # validate every 4 batches (every 100 inputs)
-            if i % 4 == 0:
+            eval_every = 4
+            if i % eval_every == eval_every - 1:
                 loss_validation = 0.0
                 ae.train(False)
                 with torch.no_grad():
@@ -73,7 +64,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device
                         loss_validation += loss_fn(pred_val, Y_val).item()
                 ae.train(True)
 
-                loss_training = loss_training / 4
+                loss_training = loss_training / eval_every
                 loss_validation = loss_validation / len(val_loader)
 
                 # log to tensorboard
@@ -102,9 +93,30 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations, device
     writer.flush()
 
 
-def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000, device='cuda:0'):
+def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10000):
+    device = cfg.device
+
+    # in order to get the indices of the data in each batch, we wrap the dataloader in a special class
+    # from https://discuss.pytorch.org/t/how-to-retrieve-the-sample-indices-of-a-mini-batch/7948/19
+    def WithIndex(cls):
+        """
+        Modifies the given Dataset class to return a tuple data, target, index
+        instead of just data, target.
+        """
+
+        def __getitem__(self, index):
+            data, target = cls.__getitem__(self, index)
+            return data, target, index
+
+        return type(cls.__name__, (cls,), {
+            '__getitem__': __getitem__,
+        })
+    PointCloudDatasetWithIndex = WithIndex(PointcloudDataset)
+
+
     # evaluate
-    eval_set = PointcloudDataset(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
+    eval_set = PointCloudDatasetWithIndex(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
+    eval_loader = DataLoader(eval_set, batch_size=batch_size, shuffle=False)
     loss_fn = EarthMoverDistance(eps=eps, iterations=iterations)
     
     ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
@@ -112,21 +124,11 @@ def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000, device=
     ae.eval()
 
     with torch.no_grad():
-        for i in range(len(eval_set)):
-            X, Y = eval_set[i]
+        for X, Y, IDX in eval_loader:
             X = X.to(device)
             Y = Y.to(device)
-            # to batch of size 1
-            X = X.reshape((1, ae.out_points, ae.in_dim))
-            Y = Y.reshape((1, ae.out_points, ae.out_dim))
 
-            # encode
-            embedding = ae.encoder(X)
-
-            print(embedding)
-
-            # decode
-            pred = ae.decoder(embedding).reshape((-1, ae.out_points, ae.out_dim))
+            pred = ae(X)
 
             # eval
             loss = loss_fn(pred, Y)
@@ -135,6 +137,10 @@ def eval(model_path, input_dir, output_dir, eps=0.002, iterations=10000, device=
             # save as npz
             # split into points and seg
             pred = pred.detach().cpu().numpy()
-            points = pred[0, :, :3]
-            seg = pred[0, :, 3:]
-            np.savez(os.path.join(output_dir, eval_set.filename(i)), points=points, segmentation=seg)
+            points = pred[:, :, :3]
+            seg = pred[:, :, 3:]
+            for i in range(len(IDX)):
+                p, s, idx = points[i], seg[i], IDX[i]
+                path = os.path.join(output_dir, eval_set.filename(idx))
+
+                np.savez(path, points=p, segmentation=s, classes=np.array(cfg.classes, dtype=object))

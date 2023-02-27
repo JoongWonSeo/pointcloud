@@ -69,12 +69,12 @@ def main():
 
         # Simulation
         #action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        action = random_action(env) * 10 # sample random action
+        action = random_action(env) # sample random action
         obs, _, _, _ = env.step(action)  # take action in the environment
 
         pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'], num_classes)
         
-        np.savez(f'input/{t}.npz', points=pc, **feats, boundingbox=bbox, classes=num_classes)
+        np.savez(f'input/{t}.npz', points=pc, **feats, boundingbox=bbox, classes=np.array(cfg.classes, dtype=object))
         
         # print(f"number of points = {pc.shape[0]}")
         print(('#' * round(t/num_frames * 100)).ljust(100, '-'), end='\r')
