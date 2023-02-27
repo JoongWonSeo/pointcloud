@@ -76,6 +76,9 @@ class PointcloudDataset(Dataset):
     
     def filename(self, idx):
         return self.files[idx]
+
+    def file(self, idx):
+        return np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
     
     # def save(self, idx, path):
     #     pointcloud = self[idx]

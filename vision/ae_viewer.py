@@ -1,13 +1,15 @@
+import cfg
 import open3d as o3d
 import numpy as np
 import torch
 from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
+from vision.utils import seg_to_color
     
-def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
+def main(model_dir='weights/PC_AE.pth', input_dir='input'):
     # load model
-    ae = PNAutoencoder(2048, 6)
+    ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
     ae.load_state_dict(torch.load(model_dir))
-    ae = ae.to(device)
+    ae = ae.to(cfg.device)
     ae.eval()
 
 
@@ -32,8 +34,8 @@ def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
 
     def update_pointcloud():
         nonlocal x, y, z
-        embedding = torch.Tensor([x, y, z]).to(device)
-        decoded =  torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
+        embedding = torch.Tensor([x, y, z]).to(cfg.device)
+        decoded =  torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.out_dim)).detach().cpu().numpy()
         points = decoded[0, :, :3]
         rgb = decoded[0, :, 3:]
         pcd.points = o3d.utility.Vector3dVector(points)
@@ -42,27 +44,25 @@ def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
 
     # input pointcloud -> encoder -> latent variable -> decoder -> pointcloud
     input_index = 0
-    input_set = PointcloudDataset(root_dir=input_dir)
+    input_current = None
+    input_set = PointcloudDataset(root_dir=input_dir, in_features=['rgb'], out_features=['segmentation'])
 
     def update_input():
-        nonlocal input_index
+        nonlocal input_index, input_current
         # load input pointcloud
-        orig = input_set[input_index]
-        orig_points = orig[:, :3]
-        orig_rgb = orig[:, 3:]
+        orig, target = input_set[input_index]
+        classes = input_set.file(input_index)['classes']
 
-        orig = orig.to(device).reshape((1, ae.out_points, ae.dim_per_point))
-        embedding = ae.encoder(orig)
-        print(embedding)
-        pred = ae.decoder(embedding).reshape((-1, ae.out_points, ae.dim_per_point)).detach().cpu().numpy()
-
+        pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+        print(ae.embedding)
+ 
         # shift the orig_points and pred points so they don't overlap
-        orig_points[:, 1] -= 0.6
-        pred[0, :, 1] += 0.6
+        orig[:, 1] -= 0.6
+        pred[:, 1] += 0.6
         
         # merge input and output pointclouds
-        points = np.concatenate((orig_points, pred[0, :, :3]), axis=0)
-        rgb = np.concatenate((orig_rgb, pred[0, :, 3:]), axis=0)
+        points = np.concatenate((orig[:, :3], pred[:, :3]), axis=0)
+        rgb = np.concatenate((orig[:, 3:], seg_to_color(torch.from_numpy(pred[:, 3:]), classes)), axis=0)
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.colors = o3d.utility.Vector3dVector(rgb)
         return True
@@ -89,8 +89,8 @@ def main(device='cuda', model_dir='weights/PC_AE.pth', input_dir='prep'):
     vis.register_key_callback(67, make_xyz_changer('z', -0.1))
 
     # left, right to change input pointcloud
-    vis.register_key_callback(262, make_input_changer(True))
-    vis.register_key_callback(263, make_input_changer(False))
+    vis.register_key_callback(262, make_input_changer(inc=True))
+    vis.register_key_callback(263, make_input_changer(inc=False))
 
 
     # initialize pointcloud instance.

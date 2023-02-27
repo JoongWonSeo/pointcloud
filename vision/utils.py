@@ -9,7 +9,32 @@ from .loss.emd.emd_module import emdModule
 
 
 
-# Point Cloud Transformations for PyTorch
+########## Segmentation Visualization ##########
+
+def seg_to_color(seg, classes):
+    if type(classes[0][1]) is not torch.Tensor:
+        classes = [(name, torch.Tensor(col)) for name, col in classes]
+
+    color = torch.zeros(seg.shape[0], 3)
+    
+    N = len(classes)
+    seg = seg.squeeze(1)
+    seg = (seg*(N-1)).round().long()
+    
+    for i, (name, c) in enumerate(classes):
+        color[seg == i, :] = c
+
+    if cfg.debug: # DEBUG: show class distribution
+        points_per_class = [(seg == i).sum() for i in range(N)]
+        num_points = seg.shape[0]
+        for i in range(N):
+            print(f"DEBUG: class {classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
+
+    return color
+
+
+
+########## Point Cloud Transformations for PyTorch Datasets ##########
 
 class SampleRandomPoints:
     def __init__(self, K):
@@ -83,7 +108,8 @@ class Normalize:
         return points
 
 
-# Loss Functions
+
+########## Loss Functions ##########
 
 class ChamferDistance:
     def __init__(self, bbox=None):
@@ -137,6 +163,6 @@ class EarthMoverDistance:
             #         print(f"DEBUG: EMD class {self.classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
 
         
-        point_l = (dists.sqrt() * weights).mean()
+        point_l = (dists.sqrt() * weights) / weights.sum()
 
         return point_l + feature_l
