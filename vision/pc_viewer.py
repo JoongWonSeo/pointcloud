@@ -25,14 +25,15 @@ if sys.argv[1].endswith('.npz'):
     pointcloud = np.load(sys.argv[1], allow_pickle=True)
     points = torch.Tensor(pointcloud['points']) # (N, 3)
     seg = torch.Tensor(pointcloud['segmentation'])
-    # rgb = torch.Tensor(pointcloud['rgb']) # (N, 3)
     classes = [(name, torch.Tensor(col)) for name, col in pointcloud['classes']]
 
     pointclouds = split_by_class(points, seg, classes)
+    if 'rgb' in pointcloud.files:
+        pointclouds |= {'rgb': Pointclouds(points=[points], features=[torch.Tensor(pointcloud['rgb'])])}
 
     plot_scene({
         sys.argv[1]: pointclouds
-    }, pointcloud_marker_size=2).show()
+    }, pointcloud_marker_size=3).show()
 
 else:
 
