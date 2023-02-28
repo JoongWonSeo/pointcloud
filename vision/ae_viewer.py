@@ -1,11 +1,17 @@
 import cfg
+import argparse
 import open3d as o3d
 import numpy as np
 import torch
 from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
 from vision.utils import seg_to_color
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', default='weights/PC_AE.pth')
+parser.add_argument('--input', default='input')
+arg = parser.parse_args()
     
-def main(model_dir='weights/PC_AE.pth', input_dir='input'):
+def main(model_dir, input_dir):
     # load model
     ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
     ae.load_state_dict(torch.load(model_dir))
@@ -108,4 +114,4 @@ def main(model_dir='weights/PC_AE.pth', input_dir='input'):
     vis.destroy_window()
 
 
-main()
+main(arg.model, arg.input)
