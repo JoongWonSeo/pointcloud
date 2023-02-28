@@ -7,22 +7,23 @@ from .pointnet import PointNetEncoder
 import numpy as np
 
 class PNAutoencoder(nn.Module):
-    def __init__(self, out_points = 2048, in_dim=6, out_dim=6):
+    def __init__(self, out_points=2048, in_dim=6, out_dim=6):
         super().__init__()
 
         self.out_points = out_points
         self.in_dim = in_dim
         self.out_dim = out_dim
+        self.emb_dim = 16 #self.encoder.out_channels
         pe = PointNetEncoder(in_channels=self.in_dim, track_stats=True)
-        # self.encoder = nn.Sequential(
-        #     pe,
-        #     nn.ReLU(),
-        #     nn.Linear(pe.out_channels, 3),
-        #     # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
-        # )
-        self.encoder = pe
+        self.encoder = nn.Sequential(
+            pe,
+            nn.ReLU(),
+            nn.Linear(pe.out_channels, self.emb_dim),
+            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
+        )
+        # self.encoder = pe
         self.decoder = nn.Sequential(
-            nn.Linear(self.encoder.out_channels, 1024),
+            nn.Linear(self.emb_dim, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
             nn.ReLU(),
