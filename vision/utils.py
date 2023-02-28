@@ -163,6 +163,6 @@ class EarthMoverDistance:
             #         print(f"DEBUG: EMD class {self.classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
 
         
-        point_l = (dists.sqrt() * weights) / weights.sum()
+        point_l = (dists.sqrt() * weights).sum() / weights.sum()
 
         return point_l + feature_l
