@@ -8,7 +8,7 @@ from sim.utils import *
 from rl import core
 
 # global variables
-horizon = 10000
+horizon = 100
 
 # setup environment and agent
 # env = gym.make('FetchReach-v3', render_mode='human', max_episode_steps=horizon)
@@ -46,12 +46,12 @@ def main():
 
             total_reward += reward
             if info['is_success']:
-                print('success!')
+                print('s', end='')
 
             if terminated or truncated:
                 break
     
-        print(f"total_reward = {total_reward}")
+        print(f"\ntotal_reward = {total_reward}")
 
 
 if __name__ == '__main__':

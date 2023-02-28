@@ -126,6 +126,16 @@ class RobosuiteGoalEnv(GoalEnv):
 
 
     def reset(self, *, seed=None, options=None):
+        # pre-reset operations
+        if self.render_mode == 'human':
+            if self.renderer is None:
+                # default camera pose
+                self.cam_pose = [1.1, 0, 1.6], np.array([0.35, 0.35, 0.60, 0.60])
+            else:
+                #remember the camera pose
+                pos, quat = self.camera.get_camera_pose()
+                self.cam_pose = pos.copy(), quat.copy()
+
         super().reset(seed=seed)
 
         self.is_episode_success = False
@@ -183,14 +193,12 @@ class RobosuiteGoalEnv(GoalEnv):
         if self.render_mode is None:
             return
         
-        if reset or self.renderer is None: # create camera mover
-            if reset: # default camera pose
-                pos, quat = [-0.2, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0])
-            else: #remember the camera pose
-                pos, quat = self.camera.get_camera_pose()
+        if reset or self.renderer is None:
+            # create camera mover
             self.camera = camera_utils.CameraMover(self.robo_env, camera='agentview')
-            self.camera.set_camera_pose(pos, quat)
+            self.camera.set_camera_pose(*self.cam_pose)
             if self.renderer is not None:
+                # update camera
                 self.renderer.camera = self.camera
 
         if self.renderer is None: #init renderer
