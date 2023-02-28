@@ -20,16 +20,16 @@ classes = [ # name and color
 ]
 
 class_weights = [ # name and training weight # TODO: automatically calculate these in EMD based on the distribution of the classes
-    # ('env', 1.5),
-    # ('cube', 150.0),
-    # ('arm', 5.0),
-    # ('base', 10.0),
-    # ('gripper', 15.0),
-    ('env', 1.0),
-    ('cube', 10.0),
-    ('arm', 0.0),
-    ('base', 0.0),
-    ('gripper', 0.0),
+    ('env', 1.5),
+    ('cube', 150.0),
+    ('arm', 5.0),
+    ('base', 10.0),
+    ('gripper', 15.0),
+    # ('env', 1.0),
+    # ('cube', 100.0),
+    # ('arm', 0.0),
+    # ('base', 0.0),
+    # ('gripper', 0.0),
 ]
 
 bbox = [[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]]

@@ -117,6 +117,7 @@ def to_pointcloud(sim, feature_maps, depth_map, camera):
 
     # pixel coordinates of which to sample world position
     all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
+    # np.savez('input/maps.npz', depth=depth_map, rgb=feature_maps[0], seg=feature_maps[1])
 
     # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
     world_to_pix = camera_utils.get_camera_transform_matrix(sim, camera, h, w)

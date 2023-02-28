@@ -64,7 +64,7 @@ for r in range(runs):
     camera_l.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
     camera_r.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
     camera_r.rotate_camera(None, (0, 0, 1), 180)
-    camera_t.set_camera_pose([0, 0, 1.7], transform_utils.axisangle2quat([0, 0, 0]))
+    camera_t.set_camera_pose([1.1, 0, 1.6], np.array([0.35, 0.35, 0.60, 0.60]))
     
     for t in range(horizon):        
         set_obj_pos(env.sim, joint='cube_joint0')

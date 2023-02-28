@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
-from vision.models.pn_autoencoder import PNAutoencoder, PointcloudDataset
+from vision.models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder
 from vision.utils import Normalize, EarthMoverDistance
 from torch.utils.tensorboard import SummaryWriter
 
@@ -22,7 +22,8 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # model: XYZRGB -> XYZL (L = segmentation label)
-    ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
+    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
+    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4).to(device)
 
     # training
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
@@ -119,7 +120,8 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
     eval_loader = DataLoader(eval_set, batch_size=batch_size, shuffle=False)
     loss_fn = EarthMoverDistance(eps=eps, iterations=iterations)
     
-    ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
+    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
+    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4).to(device)
     ae.load_state_dict(torch.load(model_path))
     ae.eval()
 

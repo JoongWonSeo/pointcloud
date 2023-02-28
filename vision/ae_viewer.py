@@ -3,7 +3,7 @@ import argparse
 import open3d as o3d
 import numpy as np
 import torch
-from models.pn_autoencoder import PNAutoencoder, PointcloudDataset
+from models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder
 from vision.utils import seg_to_color
 
 parser = argparse.ArgumentParser()
@@ -13,7 +13,8 @@ arg = parser.parse_args()
     
 def main(model_dir, input_dir):
     # load model
-    ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
+    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
+    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4)
     ae.load_state_dict(torch.load(model_dir))
     ae = ae.to(cfg.device)
     ae.eval()

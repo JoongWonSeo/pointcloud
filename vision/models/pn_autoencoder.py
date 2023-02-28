@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from .pointnet import PointNetEncoder
+from .pointnet2 import PointNet2Encoder
 import numpy as np
 
 class PNAutoencoder(nn.Module):
@@ -14,7 +15,7 @@ class PNAutoencoder(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.emb_dim = 16 #self.encoder.out_channels
-        pe = PointNetEncoder(in_channels=self.in_dim, track_stats=True)
+        pe = PointNetEncoder(in_channels=self.in_dim)
         self.encoder = nn.Sequential(
             pe,
             nn.ReLU(),
@@ -23,9 +24,41 @@ class PNAutoencoder(nn.Module):
         )
         # self.encoder = pe
         self.decoder = nn.Sequential(
-            nn.Linear(self.emb_dim, 1024),
+            nn.Linear(self.emb_dim, 512),
             nn.ReLU(),
-            nn.Linear(1024, 1024),
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, out_points * self.out_dim),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, X):
+        self.embedding = self.encoder(X)
+        return self.decoder(self.embedding).reshape((-1, self.out_points, self.out_dim))
+
+        
+class PN2Autoencoder(nn.Module):
+    def __init__(self, out_points=2048, in_dim=6, out_dim=6):
+        super().__init__()
+
+        self.out_points = out_points
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.emb_dim = 16 #self.encoder.out_channels
+        pe = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3)
+        self.encoder = nn.Sequential(
+            pe,
+            nn.ReLU(),
+            nn.Linear(1024, self.emb_dim),
+            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
+        )
+        # self.encoder = pe
+        self.decoder = nn.Sequential(
+            nn.Linear(self.emb_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1024),
             nn.ReLU(),
             nn.Linear(1024, 2048),
             nn.ReLU(),
