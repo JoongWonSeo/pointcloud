@@ -7,6 +7,26 @@ from .pointnet import PointNetEncoder
 from .pointnet2 import PointNet2Encoder
 import numpy as np
 
+class PN2PosExtractor(nn.Module):
+    def __init__(self, in_dim=6):
+        super().__init__()
+
+        self.in_dim = in_dim
+        self.encoder = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3)
+        self.pos_extractor = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 3),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, X):
+        return self.pos_extractor(self.encoder(X))
+
 class PNAutoencoder(nn.Module):
     def __init__(self, out_points=2048, in_dim=6, out_dim=6):
         super().__init__()

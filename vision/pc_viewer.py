@@ -18,6 +18,11 @@ def split_by_class(points, seg, classes):
     split_colors = [classes[i][1].repeat(split_points[i].shape[0], 1) for i in range(N)]
     pcs = Pointclouds(points=split_points, features=split_colors)
 
+    if cfg.debug:
+        # print number of cube points
+        num_cube = split_points[1].shape[0]
+        print(f"DEBUG: cube points = {num_cube} / {points.shape[0]} = {num_cube / points.shape[0]}")
+
     return {name: pcs[i] for i, (name, _) in enumerate(classes) if pcs[i].num_points_per_cloud()[0] > 0}
 
 

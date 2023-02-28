@@ -4,9 +4,15 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
-from vision.models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder
-from vision.utils import Normalize, EarthMoverDistance
+from vision.models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder, PN2PosExtractor
+from vision.utils import Normalize, EarthMoverDistance, get_class_points
 from torch.utils.tensorboard import SummaryWriter
+
+def mean_cube_pos(Y):
+    mean_points = torch.zeros((Y.shape[0], 3))
+    for i in range(Y.shape[0]):
+        mean_points[i, :] = get_class_points(Y[i, :, :3], Y[i, :, 3:4], 1, len(cfg.classes)).mean(dim=0)
+    return mean_points
 
 
 def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
@@ -23,13 +29,13 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
 
     # model: XYZRGB -> XYZL (L = segmentation label)
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4).to(device)
+    ae = PN2PosExtractor(6).to(device)
 
     # training
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
     # alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
     # number of points must be the same and a multiple of 1024
-    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=cfg.class_weights)
+    loss_fn = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
 
     # training loop
@@ -39,7 +45,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
 
         for i, (X, Y) in enumerate(train_loader):
             X = X.to(device)
-            Y = Y.to(device)
+            Y = mean_cube_pos(Y).to(device) # the mean position of the cube
 
             # compute prediction and loss
             pred = ae(X)
@@ -60,7 +66,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
                 with torch.no_grad():
                     for X_val, Y_val in val_loader:
                         X_val = X_val.to(device)
-                        Y_val = Y_val.to(device)
+                        Y_val = mean_cube_pos(Y_val).to(device)
                         pred_val = ae(X_val)
                         loss_validation += loss_fn(pred_val, Y_val).item()
                 ae.train(True)
@@ -118,19 +124,20 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
     # evaluate
     eval_set = PointCloudDatasetWithIndex(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
     eval_loader = DataLoader(eval_set, batch_size=batch_size, shuffle=False)
-    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations)
+    loss_fn = torch.nn.MSELoss()
     
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4).to(device)
+    ae = PN2PosExtractor(6).to(device)
     ae.load_state_dict(torch.load(model_path))
     ae.eval()
 
     with torch.no_grad():
         for X, Y, IDX in eval_loader:
             X = X.to(device)
-            Y = Y.to(device)
+            Y = mean_cube_pos(Y).to(device)
 
             pred = ae(X)
+            print(f"pred = {pred}", f"Y = {Y}")
 
             # eval
             loss = loss_fn(pred, Y)
@@ -138,11 +145,11 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
 
             # save as npz
             # split into points and seg
-            pred = pred.detach().cpu().numpy()
-            points = pred[:, :, :3]
-            seg = pred[:, :, 3:]
-            for i in range(len(IDX)):
-                p, s, idx = points[i], seg[i], IDX[i]
-                path = os.path.join(output_dir, eval_set.filename(idx))
+            # pred = pred.detach().cpu().numpy()
+            # points = pred[:, :, :3]
+            # seg = pred[:, :, 3:]
+            # for i in range(len(IDX)):
+            #     p, s, idx = points[i], seg[i], IDX[i]
+            #     path = os.path.join(output_dir, eval_set.filename(idx))
 
-                np.savez(path, points=p, segmentation=s, classes=np.array(cfg.classes, dtype=object))
+            #     np.savez(path, points=p, segmentation=s, classes=np.array(cfg.classes, dtype=object))

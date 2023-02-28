@@ -3,7 +3,7 @@ import argparse
 import open3d as o3d
 import numpy as np
 import torch
-from models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder
+from models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder, PN2PosExtractor
 from vision.utils import seg_to_color
 
 parser = argparse.ArgumentParser()
@@ -14,7 +14,7 @@ arg = parser.parse_args()
 def main(model_dir, input_dir):
     # load model
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
-    ae = PN2Autoencoder(2048, in_dim=6, out_dim=4)
+    ae = PN2PosExtractor(6)
     ae.load_state_dict(torch.load(model_dir))
     ae = ae.to(cfg.device)
     ae.eval()
@@ -60,16 +60,28 @@ def main(model_dir, input_dir):
         orig, target = input_set[input_index]
         classes = input_set.file(input_index)['classes']
 
-        pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-        print(ae.embedding)
- 
-        # shift the orig_points and pred points so they don't overlap
-        orig[:, 1] -= 0.6
-        pred[:, 1] += 0.6
+        pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
+
+        # create axis-aligned lines to show the predicted cube coordinate
+        col = np.array([0, 1, 0])
+        # add the color to the predicted points
+        pred = np.concatenate((pred, col.reshape((1, 3))), axis=1)
+
+        res = 50
+        for axis in range(3):
+            for dist in range(res):
+                linepoints = np.zeros((res, 6)) # 10 * [X, Y, Z, R, G, B]
+                offset = np.zeros(3)
+                offset[axis] = -0.2 + dist/res * 0.4
+                linepoints[dist, :3] = pred[0, :3] + offset
+                linepoints[dist, 3:] = col
+
+                pred = np.concatenate((pred, linepoints), axis=0)
+
         
         # merge input and output pointclouds
         points = np.concatenate((orig[:, :3], pred[:, :3]), axis=0)
-        rgb = np.concatenate((orig[:, 3:], seg_to_color(torch.from_numpy(pred[:, 3:]), classes)), axis=0)
+        rgb = np.concatenate((orig[:, 3:], pred[:, 3:]), axis=0)
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.colors = o3d.utility.Vector3dVector(rgb)
         return True

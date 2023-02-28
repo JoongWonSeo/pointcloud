@@ -11,6 +11,20 @@ from .loss.emd.emd_module import emdModule
 
 ########## Segmentation Visualization ##########
 
+def get_class_points(points, seg, cls, N):
+    '''
+    points: (N, D) tensor of points
+    seg: (N, 1) tensor of segmentation labels
+    cls: class index of points to return
+    N: number of total classes in the segmentation
+    '''
+
+    seg = (seg*(N-1)).round().long().squeeze(1) # (N)
+
+    return points[seg == cls, :] # (M, D)
+
+    
+
 def seg_to_color(seg, classes):
     if type(classes[0][1]) is not torch.Tensor:
         classes = [(name, torch.Tensor(col)) for name, col in classes]
