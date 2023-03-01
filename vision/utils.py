@@ -28,6 +28,8 @@ def get_class_points(points, seg, cls, N):
 def seg_to_color(seg, classes):
     if type(classes[0][1]) is not torch.Tensor:
         classes = [(name, torch.Tensor(col)) for name, col in classes]
+    if type(seg) is not torch.Tensor:
+        seg = torch.from_numpy(seg)
 
     color = torch.zeros(seg.shape[0], 3)
     
@@ -120,6 +122,10 @@ class Normalize:
         # normalize points along each axis
         points[:, 0:self.dim] = (points[:, 0:self.dim] - self.min) / (self.max - self.min)
         return points
+
+def mean_cube_pos(Y):
+    return get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes)).mean(dim=0)
+
 
 
 

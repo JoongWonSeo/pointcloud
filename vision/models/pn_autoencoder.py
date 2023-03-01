@@ -8,12 +8,32 @@ from .pointnet2 import PointNet2Encoder
 from .pointmlp import pointMLP, pointMLPElite
 import numpy as np
 
+class PosDecoder(nn.Module):
+    def __init__(self, num_points, out_dim=6):
+        super().__init__()
+
+        self.num_points = num_points
+        self.out_dim = out_dim
+        self.decoder = nn.Sequential(
+            nn.Linear(3, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, self.num_points * self.out_dim),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, X):
+        return self.decoder(X).view(-1, self.num_points, self.out_dim)
+
 class PN2PosExtractor(nn.Module):
     def __init__(self, in_dim=6):
         super().__init__()
 
         self.in_dim = in_dim
-        self.encoder, enc_dim = pointMLPElite(), 256
+        # self.encoder, enc_dim = pointMLPElite(), 256
         self.encoder, enc_dim = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3), 1024
         # self.encoder, enc_dim = PointNetEncoder(in_channels=self.in_dim), 1024
         # self.pos_extractor = nn.Sequential(

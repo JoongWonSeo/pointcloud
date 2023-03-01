@@ -29,10 +29,13 @@ def split_by_class(points, seg, classes):
 if sys.argv[1].endswith('.npz'):
     pointcloud = np.load(sys.argv[1], allow_pickle=True)
     points = torch.Tensor(pointcloud['points']) # (N, 3)
-    seg = torch.Tensor(pointcloud['segmentation'])
     classes = [(name, torch.Tensor(col)) for name, col in pointcloud['classes']]
 
-    pointclouds = split_by_class(points, seg, classes)
+    pointclouds = {}
+
+    if 'segmentation' in pointcloud.files:
+        seg = torch.Tensor(pointcloud['segmentation'])
+        pointclouds |= split_by_class(points, seg, classes)
     if 'rgb' in pointcloud.files:
         pointclouds |= {'rgb': Pointclouds(points=[points], features=[torch.Tensor(pointcloud['rgb'])])}
 

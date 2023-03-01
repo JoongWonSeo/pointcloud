@@ -4,18 +4,13 @@ import open3d as o3d
 import numpy as np
 import torch
 from models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder, PN2PosExtractor
-from vision.utils import seg_to_color, get_class_points
+from vision.utils import seg_to_color, mean_cube_pos
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='weights/PC_AE.pth')
 parser.add_argument('--input', default='input')
 arg = parser.parse_args()
-    
-def mean_cube_pos(Y):
-    mean_points = torch.zeros((Y.shape[0], 3))
-    for i in range(Y.shape[0]):
-        mean_points[i, :] = get_class_points(Y[i, :, :3], Y[i, :, 3:4], 1, len(cfg.classes)).mean(dim=0)
-    return mean_points
+
 
 def aa_lines(pos, col, length=0.4, res=50):
     # create axis-aligned lines to show the predicted cube coordinate
@@ -35,7 +30,7 @@ def aa_lines(pos, col, length=0.4, res=50):
 def main(model_dir, input_dir):
     # load model
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
-    ae = PN2PosExtractor(3)
+    ae = cfg.create_autoencoder()
     ae.load_state_dict(torch.load(model_dir))
     ae = ae.to(cfg.device)
     ae.eval()
@@ -73,27 +68,21 @@ def main(model_dir, input_dir):
     # input pointcloud -> encoder -> latent variable -> decoder -> pointcloud
     input_index = 0
     input_current = None
-    input_set = PointcloudDataset(root_dir=input_dir, in_features=['rgb'], out_features=['segmentation'])
+    input_set = PointcloudDataset(**cfg.get_dataset_args(input_dir))
 
     def update_input():
         nonlocal input_index, input_current
         # load input pointcloud
         orig, target = input_set[input_index]
-        classes = input_set.file(input_index)['classes']
 
-        # create axis-aligned lines to show the ground truth cube coordinate
-        cube_pos = mean_cube_pos(target.unsqueeze(0))
-
-        pred = ae(orig[:, :3].to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
+        pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
 
         # create axis-aligned lines to show the predicted cube coordinate
-        vis = aa_lines(cube_pos, np.array([1, 0, 0]))
-        vis = np.concatenate((vis, aa_lines(pred, np.array([0, 1, 0]))), axis=0)
-
+        vis = aa_lines(orig.unsqueeze(0), np.array([0, 1, 0]), res=50)
         
         # merge input and output pointclouds
-        points = np.concatenate((orig[:, :3], vis[:, :3]), axis=0)
-        rgb = np.concatenate((orig[:, 3:], vis[:, 3:]), axis=0)
+        points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
+        rgb = np.concatenate((seg_to_color(pred[:, 3:], cfg.classes), vis[:, 3:]), axis=0)
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.colors = o3d.utility.Vector3dVector(rgb)
         return True
