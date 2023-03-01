@@ -13,6 +13,7 @@ class PN2PosExtractor(nn.Module):
 
         self.in_dim = in_dim
         self.encoder = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3)
+        # self.encoder = PointNetEncoder(in_channels=self.in_dim)
         self.pos_extractor = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),

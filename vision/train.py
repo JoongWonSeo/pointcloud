@@ -22,14 +22,14 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     writer = SummaryWriter()
 
     # training data
-    dataset = PointcloudDataset(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
+    dataset = PointcloudDataset(root_dir=input_dir, files=None, in_features=[], out_features=['segmentation'])
     train_set, val_set = torch.utils.data.random_split(dataset, [0.8, 0.2])
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # model: XYZRGB -> XYZL (L = segmentation label)
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = PN2PosExtractor(6).to(device)
+    ae = PN2PosExtractor(3).to(device)
 
     # training
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
@@ -122,12 +122,12 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
 
 
     # evaluate
-    eval_set = PointCloudDatasetWithIndex(root_dir=input_dir, files=None, in_features=['rgb'], out_features=['segmentation'])
+    eval_set = PointCloudDatasetWithIndex(root_dir=input_dir, files=None, in_features=[], out_features=['segmentation'])
     eval_loader = DataLoader(eval_set, batch_size=batch_size, shuffle=False)
     loss_fn = torch.nn.MSELoss()
     
     # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = PN2PosExtractor(6).to(device)
+    ae = PN2PosExtractor(3).to(device)
     ae.load_state_dict(torch.load(model_path))
     ae.eval()
 
