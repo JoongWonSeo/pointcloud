@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from .pointnet import PointNetEncoder
 from .pointnet2 import PointNet2Encoder
+from .pointmlp import pointMLP, pointMLPElite
 import numpy as np
 
 class PN2PosExtractor(nn.Module):
@@ -12,10 +13,18 @@ class PN2PosExtractor(nn.Module):
         super().__init__()
 
         self.in_dim = in_dim
-        self.encoder = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3)
-        # self.encoder = PointNetEncoder(in_channels=self.in_dim)
+        self.encoder, enc_dim = pointMLPElite(), 256
+        self.encoder, enc_dim = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3), 1024
+        # self.encoder, enc_dim = PointNetEncoder(in_channels=self.in_dim), 1024
+        # self.pos_extractor = nn.Sequential(
+        #     nn.Linear(enc_dim, 3),
+        #     nn.Sigmoid(),
+        # )
+        # BEST PERFORMER! Why? Maybe because our point cloud is not zero-mean and batchnorm?
+        # or maybe because we DO want the activations to have non-zero mean because it needs
+        # to represent the coordinate, which batchnorm interferes with by shifting it constantly
         self.pos_extractor = nn.Sequential(
-            nn.Linear(1024, 512),
+            nn.Linear(enc_dim, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -24,6 +33,19 @@ class PN2PosExtractor(nn.Module):
             nn.Linear(128, 3),
             nn.Sigmoid(),
         )
+        # self.pos_extractor = nn.Sequential(
+        #     nn.Linear(enc_dim, 512),
+        #     nn.BatchNorm1d(512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 128),
+        #     nn.BatchNorm1d(128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, 3),
+        #     nn.Sigmoid(),
+        # )
     
     def forward(self, X):
         return self.pos_extractor(self.encoder(X))
