@@ -5,14 +5,15 @@ from robosuite.utils.camera_utils import CameraMover, get_real_depth_map
 from robosuite.utils import transform_utils
 from .base import ObservationEncoder
 from vision.models.pn_autoencoder import PN2PosExtractor
+from vision.train import Lit
 from sim.utils import to_pointcloud, multiview_pointcloud
-from vision.utils import FilterBBox, SampleFurthestPoints, Normalize
+from vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
 
-class PointCloudEncoder(ObservationEncoder):
-    def __init__(self, proprioception_keys, cameras, camera_poses, camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=2048, robo_env=None):
+class PointCloudGTPredictor(ObservationEncoder):
+    def __init__(self, proprioception_keys, cameras=list(cfg.camera_poses.keys()), camera_poses=list(cfg.camera_poses.values()), camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=cfg.pc_sample_points, robo_env=None):
         super().__init__(proprioception_keys, robo_env) #TODO add to init args
 
         self.cameras = cameras
@@ -29,34 +30,40 @@ class PointCloudEncoder(ObservationEncoder):
             'camera_segmentations': 'class',
         }
         
-        self.pc_encoder = PN2PosExtractor(3) # segmenting autoencoder
-        self.pc_encoder.load_state_dict(torch.load('../vision/weights/PC_PP.pth'))
-        self.pc_encoder = self.pc_encoder.to('cuda')
+        # self.pc_encoder = PN2PosExtractor(6) # PC[XYZRGB] -> Cube[XYZ]
+        # self.pc_encoder.load_state_dict(torch.load('../vision/weights/PC_PP_RGB.pth')['model'])
+        self.pc_encoder = Lit.load_from_checkpoint('../vision/weights/PC_PP_RGB.ckpt', predictor=PN2PosExtractor(6), loss_fn=None).model
+        self.pc_encoder = self.pc_encoder.to(cfg.device)
         self.pc_encoder.eval()
 
-        self.transform = Compose([
+        self.preprocess = Compose([
             FilterBBox(bbox),
-            SampleFurthestPoints(2048),
+            SampleFurthestPoints(sample_points),
             Normalize(bbox)
         ])
+        self.postprocess = Unnormalize(bbox)
         
     def reset(self, obs):
         # setup cameras and camera poses
         self.camera_movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
         for mover, pose in zip(self.camera_movers, self.camera_poses):
-            mover.set_camera_pose(pose)
+            mover.set_camera_pose(np.array(pose[0]), np.array(pose[1]))
         
-        return self.encode(obs)
+        return self.encode(obs) #TODO: due to cameramovers, the actual is no longer same
     
     def encode_state(self, obs):
         # generate pointcloud from 2.5D observations
-        pc, feats = multiview_pointcloud(self.robo_env.sim, obs, self.cameras, self.transform)
+        pc, feats = multiview_pointcloud(self.robo_env.sim, obs, self.cameras, self.preprocess, ['rgb'])
+        pc = torch.cat((pc, feats['rgb']), dim=1)
         
         # encode pointcloud
-        pc = pc.unsqueeze(0).to('cuda')
-        embedding = self.pc_encoder(pc)
+        pc = pc.unsqueeze(0).to(cfg.device)
+        pred = self.pc_encoder(pc).detach().cpu()
 
-        return embedding.squeeze(0).detach().cpu().numpy()
+        # unnormalize to world coordinates
+        pred = self.postprocess(pred)
+
+        return pred.squeeze(0).numpy()
     
     def get_space(self):
         o = self.robo_env.observation_spec()

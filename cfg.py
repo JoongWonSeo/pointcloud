@@ -125,6 +125,7 @@ elif model == 'PosDecoder':
 vision_training_set = 'vision/input/' + env + '/train'
 vision_validation_set = 'vision/input/' + env + '/val'
 vision_output = 'vision/output/' + env
+vision_dataloader_workers = 6
 
 vision_batch_size = 25 # can be overwritten by args
 vision_epochs = 100 # can be overwritten by args
@@ -140,5 +141,5 @@ emd_iterations = 5000
 ########## Sim Settings ##########
 
 dense_reward = False # dense or sparse reward, requires retraining the agent
-renderer_camera = 'agentview'
+renderer_camera = 'agentview' #'sideview' # TODO: when using multiple cameras, just spectate one of them
 renderer_default_pose = [1.1, 0, 1.6], [0.35, 0.35, 0.60, 0.60]

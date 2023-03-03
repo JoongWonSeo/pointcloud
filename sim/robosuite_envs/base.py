@@ -2,7 +2,7 @@
 # More specificially, it is to be used like a Gymnasium-Robotics GoalEnv (https://robotics.farama.org/content/multi-goal_api/)
 # Meaning that the observation space is a dictionary with keys 'observation', 'desired_goal' and 'achieved_goal'
 
-import cfg
+import cfg # TODO: since this is a library, we should not import cfg here
 import numpy as np
 import gymnasium as gym
 from gymnasium_robotics.core import GoalEnv
@@ -15,11 +15,23 @@ from abc import ABC, abstractmethod
 
 # ObservationEncoder transforms the raw Robosuite observation into a single vector (i.e. image encoder or ground truth encoder)
 class ObservationEncoder(ABC):
+    '''
+    Abstract class for robosuite observation encoders
+
+    Inheriting classes must implement the following:
+        - encode_state(self, observation): returns the encoded state of the observation
+        - get_space(self): observation space of the encoder (Gym Space)
+
+    Inheriting classes may implement the following (optional):
+        - env_kwargs: kwargs when initializing robosuite env, e.g. camera settings
+        - reset(self, observation): called when the environment is reset
+        - encode_proprioception(self, observation): returns the encoded proprioception of the observation
+    '''
+
     def __init__(self, proprioception_keys, robo_env=None):
         self.proprioception_keys = [proprioception_keys] if type(proprioception_keys) == str else list(proprioception_keys)
-        self.all_keys = self.proprioception_keys.copy()
         self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
-        self.env_kwargs = {}
+        self.env_kwargs = {} # kwargs for the robosuite env, e.g. camera settings
 
     def reset(self, observation):
         return self.encode(observation)
@@ -36,10 +48,16 @@ class ObservationEncoder(ABC):
 
     @abstractmethod
     def encode_state(self, observation):
+        '''
+        Returns the encoded state of the observation, excluding the proprioception
+        '''
         pass
 
     @abstractmethod
     def get_space(self):
+        '''
+        Returns the observation space of the encoder
+        '''
         pass
 
 
@@ -48,7 +66,7 @@ class GroundTruthEncoder(ObservationEncoder):
     def __init__(self, proprioception_keys, state_keys, robo_env=None):
         super().__init__(proprioception_keys, robo_env)
         self.state_keys = [state_keys] if type(state_keys) == str else list(state_keys)
-        self.all_keys += self.state_keys
+        self.all_keys = self.proprioception_keys + self.state_keys
 
     def encode_state(self, obs):
         obs_list = [obs[key] for key in self.state_keys]
@@ -68,11 +86,11 @@ class GroundTruthEncoder(ObservationEncoder):
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_env, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, encoder=GroundTruthEncoder('robot0_proprio-state', 'object-state'), render_mode=None, render_info=None):
+    def __init__(self, robo_env, encoder, achieved_goal, desired_goal, check_success, compute_reward=None, compute_truncated=None, compute_terminated=None, render_mode=None, render_info=None):
         '''
         robo_env: Robosuite environment
         achieved_goal: function that takes the *encoded* state+proprioception observations and returns the achieved goal
-        desired_goal: function that takes the *raw Robosuite* observation and returns the desired goal
+        desired_goal: function that takes the *initial Robosuite* observation and returns the desired goal
         check_success: function that takes (achieved_goal, desired_goal, info) and returns True if the task is completed
         compute_reward: function that takes (achieved_goal, desired_goal, info) and returns the reward
         compute_truncated: function that takes (achieved_goal, desired_goal, info) and returns True if the episode should be truncated
@@ -197,11 +215,13 @@ class RobosuiteGoalEnv(GoalEnv):
         
         if reset or self.renderer is None:
             # create camera mover
-            self.camera = camera_utils.CameraMover(self.robo_env, camera=cfg.renderer_camera)
-            self.camera.set_camera_pose(*self.cam_pose)
-            if self.renderer is not None:
-                # update camera
-                self.renderer.camera = self.camera
+            # self.camera = camera_utils.CameraMover(self.robo_env, camera=cfg.renderer_camera)
+            # self.camera.set_camera_pose(*self.cam_pose)
+            # if self.renderer is not None:
+            #     # update camera
+            #     self.renderer.camera = self.camera
+            # TEMPORARY: just watch agentview
+            self.camera = self.encoder.camera_movers[2]
 
         if self.renderer is None: #init renderer
             self.renderer = UI('Robosuite', self.camera)

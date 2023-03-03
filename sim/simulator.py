@@ -4,18 +4,19 @@ import numpy as np
 import torch
 import gymnasium as gym
 import robosuite_envs
-from robosuite_envs import PointCloudEncoder
+from robosuite_envs import PointCloudGTPredictor
 from sim.utils import *
 from rl import core
 
 # global variables
-horizon = 100
+horizon = 1000
 
 # setup environment and agent
-cube_encoder = PointCloudEncoder(cameras = ['frontview', 'agentview', 'birdview'], camera_poses=[], bbox=cfg.bbox)
+cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
 # env = gym.make('FetchReach-v3', render_mode='human', max_episode_steps=horizon)
-env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
+# env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon)
+env = gym.make('RobosuiteLift-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
 # env = gym.make('RobosuitePickAndPlace-v0', render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]

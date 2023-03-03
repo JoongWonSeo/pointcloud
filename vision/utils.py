@@ -123,10 +123,32 @@ class Normalize:
         points[:, 0:self.dim] = (points[:, 0:self.dim] - self.min) / (self.max - self.min)
         return points
 
+class Unnormalize:
+    def __init__(self, bbox, dim=3):
+        '''
+        bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+        '''
+        bbox = torch.Tensor(bbox)
+        self.min = bbox[:, 0]
+        self.max = bbox[:, 1]
+        self.dim = dim
+
+    def __call__(self, points):
+        # unnormalize points along each axis
+        points[:, 0:self.dim] = points[:, 0:self.dim] * (self.max - self.min) + self.min
+        return points
+
 def mean_cube_pos(Y):
     if type(Y) is not torch.Tensor:
         Y = torch.from_numpy(Y)
-    return get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes)).mean(dim=0)
+    cube_points = get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes))
+
+    if cfg.debug:
+        if cube_points.shape[0] == 0:
+            print("DEBUG: no cube points found")
+            return torch.zeros(3)
+
+    return cube_points.mean(dim=0)
 
 
 
