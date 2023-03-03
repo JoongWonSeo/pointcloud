@@ -6,12 +6,28 @@ from .base import RobosuiteGoalEnv, GroundTruthEncoder
 class RobosuiteReach(RobosuiteGoalEnv):
     def __init__(self, render_mode=None, encoder=None):
         # create robosuite env
+        # robo_env = suite.make(
+        #     env_name="Lift", # try with other tasks like "Stack" and "Door"
+        #     robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
+        #     controller_configs=load_controller_config(default_controller="OSC_POSITION"),
+        #     reward_shaping=False, # sparse reward
+        #     ignore_done=True, # unlimited horizon (use gym's TimeLimit wrapper instead)
+        # )
+        
+        if encoder is None:
+            encoder = GroundTruthEncoder('robot0_eef_pos', []) # observation is only end-effector position
+
+        # create environment instance
         robo_env = suite.make(
             env_name="Lift", # try with other tasks like "Stack" and "Door"
             robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
+            has_renderer=False,
+            has_offscreen_renderer=True,
+            render_gpu_device_id=0,
             controller_configs=load_controller_config(default_controller="OSC_POSITION"),
             reward_shaping=False, # sparse reward
             ignore_done=True, # unlimited horizon (use gym's TimeLimit wrapper instead)
+            **encoder.env_kwargs
         )
 
         # define environment feedback functions
@@ -20,11 +36,11 @@ class RobosuiteReach(RobosuiteGoalEnv):
         
         def desired_goal(robo_obs):
             # goal is the cube position and end-effector position close to cube
-            cube_pos = robo_obs['cube_pos']
+            cube_pos = encoder.encode_state(robo_obs)
             # add random noise to the cube position
-            cube_pos[0] += np.random.uniform(-0.2, 0.2)
-            cube_pos[1] += np.random.uniform(-0.2, 0.2)
-            cube_pos[2] += np.random.uniform(0.01, 0.2)
+            # cube_pos[0] += np.random.uniform(-0.2, 0.2)
+            # cube_pos[1] += np.random.uniform(-0.2, 0.2)
+            # cube_pos[2] += np.random.uniform(0.01, 0.2)
             return cube_pos # end-effector should be close to the cube
 
         def check_success(achieved, desired, info):
@@ -37,9 +53,6 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
         def render_goal(env, robo_obs):
             return np.array([env.episode_goal]), np.array([[1, 0, 0]])
-
-        if encoder is None:
-            encoder = GroundTruthEncoder('robot0_eef_pos', []) # observation is only end-effector position
 
         super().__init__(
             robo_env=robo_env,

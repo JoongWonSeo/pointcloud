@@ -1,9 +1,10 @@
 # This assumes the gym environment is a GoalEnv as defined by gymnasium_robotics.
-
+import cfg
 import numpy as np
 import torch
 import gymnasium as gym
 import robosuite_envs
+from robosuite_envs import PointCloudEncoder
 from sim.utils import *
 from rl import core
 
@@ -11,8 +12,10 @@ from rl import core
 horizon = 100
 
 # setup environment and agent
+cube_encoder = PointCloudEncoder(cameras = ['frontview', 'agentview', 'birdview'], camera_poses=[], bbox=cfg.bbox)
+
 # env = gym.make('FetchReach-v3', render_mode='human', max_episode_steps=horizon)
-env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon)
+env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
 # env = gym.make('RobosuitePickAndPlace-v0', render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
@@ -21,7 +24,7 @@ assert all(-env.action_space.low == env.action_space.high)
 agent_action_limit = env.action_space.high
 
 agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
-agent.load_state_dict(torch.load('../rl/weights/agent.pth'))
+# agent.load_state_dict(torch.load('../rl/weights/agent.pth'))
 
 
 # simulation

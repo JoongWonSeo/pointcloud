@@ -2,6 +2,7 @@
 # More specificially, it is to be used like a Gymnasium-Robotics GoalEnv (https://robotics.farama.org/content/multi-goal_api/)
 # Meaning that the observation space is a dictionary with keys 'observation', 'desired_goal' and 'achieved_goal'
 
+import cfg
 import numpy as np
 import gymnasium as gym
 from gymnasium_robotics.core import GoalEnv
@@ -14,10 +15,11 @@ from abc import ABC, abstractmethod
 
 # ObservationEncoder transforms the raw Robosuite observation into a single vector (i.e. image encoder or ground truth encoder)
 class ObservationEncoder(ABC):
-    def __init__(self, proprioception_keys, robo_env = None):
+    def __init__(self, proprioception_keys, robo_env=None):
         self.proprioception_keys = [proprioception_keys] if type(proprioception_keys) == str else list(proprioception_keys)
         self.all_keys = self.proprioception_keys.copy()
         self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
+        self.env_kwargs = {}
 
     def reset(self, observation):
         return self.encode(observation)
@@ -130,7 +132,7 @@ class RobosuiteGoalEnv(GoalEnv):
         if self.render_mode == 'human':
             if self.renderer is None:
                 # default camera pose
-                self.cam_pose = [1.1, 0, 1.6], np.array([0.35, 0.35, 0.60, 0.60])
+                self.cam_pose = cfg.renderer_default_pose
             else:
                 #remember the camera pose
                 pos, quat = self.camera.get_camera_pose()
@@ -195,7 +197,7 @@ class RobosuiteGoalEnv(GoalEnv):
         
         if reset or self.renderer is None:
             # create camera mover
-            self.camera = camera_utils.CameraMover(self.robo_env, camera='agentview')
+            self.camera = camera_utils.CameraMover(self.robo_env, camera=cfg.renderer_camera)
             self.camera.set_camera_pose(*self.cam_pose)
             if self.renderer is not None:
                 # update camera
@@ -213,11 +215,11 @@ class RobosuiteGoalEnv(GoalEnv):
         self.request_truncate = self.renderer.is_pressed('r')
 
         # render
-        camera_image = robo_obs['agentview_image'] / 255
+        camera_image = robo_obs[self.camera.camera + '_image'] / 255
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)
-            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, 'agentview', camera_h, camera_w)
+            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, self.camera.camera, camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
         self.renderer.show(to_cv2_img(camera_image))
     
