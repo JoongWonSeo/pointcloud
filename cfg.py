@@ -94,14 +94,14 @@ elif model == 'PN2Autoencoder':
 elif model == 'PN2PosExtractor':
     def create_vision_module():
         from vision.models.pn_autoencoder import PN2PosExtractor
-        return PN2PosExtractor(3)
+        return PN2PosExtractor(6)
 
     def get_dataset_args(input_dir):
         from vision.utils import mean_cube_pos
         return {
             'root_dir': input_dir,
             'out_transform': mean_cube_pos,
-            'in_features': [], # too easy to predict with color
+            'in_features': ['rgb'], # too easy to predict with color
             'out_features': ['segmentation'] # for mean cube pos
         }
 
