@@ -9,28 +9,31 @@ from vision.utils import Normalize, EarthMoverDistance, mean_cube_pos
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
+def train(train_dir, val_dir, model_path, num_epochs, batch_size):
     device = cfg.device
 
     # tensorboard
     writer = SummaryWriter()
 
     # training data
-    dataset = PointcloudDataset(**cfg.get_dataset_args(input_dir))
-    train_set, val_set = torch.utils.data.random_split(dataset, [0.8, 0.2])
+    train_set = PointcloudDataset(**cfg.get_dataset_args(train_dir))
+    if val_dir is not None and os.path.exists(val_dir):
+        val_set = PointcloudDataset(**cfg.get_dataset_args(val_dir))
+    else:
+        print('Using 20% of training data for validation')
+        train_set, val_set = torch.utils.data.random_split(train_set, [0.8, 0.2])
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
-    # model: XYZRGB -> XYZL (L = segmentation label)
-    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = cfg.create_autoencoder().to(device)
+    # model
+    ae = cfg.create_vision_module().to(device)
 
     # training
     # TODO: find a more balanced ep and it so that it doesn't take forever to train but also matches the cube
     # alternatively, figure out a way to guarantee that the cube points get matched in the auction algoirthm
     # number of points must be the same and a multiple of 1024
-    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=cfg.class_weights)
-    optimizer = torch.optim.Adam(ae.parameters(), lr=1e-4)
+    loss_fn = EarthMoverDistance(eps=cfg.emd_eps, iterations=cfg.emd_iterations, classes=cfg.class_weights)
+    optimizer = torch.optim.Adam(ae.parameters(), lr=cfg.vision_lr)
 
     # training loop
     loss_min = np.inf
@@ -52,9 +55,9 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
 
             loss_training += loss.item()
 
-            # validate every 4 batches (every 100 inputs)
-            eval_every = 4
-            if i % eval_every == eval_every - 1:
+            # validation
+            if i % cfg.val_every == cfg.val_every - 1:
+                # TODO: unload X and Y?
                 loss_validation = 0.0
                 ae.train(False)
                 with torch.no_grad():
@@ -65,7 +68,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
                         loss_validation += loss_fn(pred_val, Y_val).item()
                 ae.train(True)
 
-                loss_training = loss_training / eval_every
+                loss_training = loss_training / cfg.val_every
                 loss_validation = loss_validation / len(val_loader)
 
                 # log to tensorboard
@@ -94,7 +97,7 @@ def train(input_dir, model_path, num_epochs, batch_size, eps, iterations):
     writer.flush()
 
 
-def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10000):
+def eval(model_path, val_dir, output_dir, batch_size):
     device = cfg.device
 
     # in order to get the indices of the data in each batch, we wrap the dataloader in a special class
@@ -104,7 +107,6 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
         Modifies the given Dataset class to return a tuple data, target, index
         instead of just data, target.
         """
-
         def __getitem__(self, index):
             data, target = cls.__getitem__(self, index)
             return data, target, index
@@ -116,12 +118,11 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
 
 
     # evaluate
-    eval_set = PointCloudDatasetWithIndex(**cfg.get_dataset_args(input_dir))
+    eval_set = PointCloudDatasetWithIndex(**cfg.get_dataset_args(val_dir))
     eval_loader = DataLoader(eval_set, batch_size=batch_size, shuffle=False)
-    loss_fn = EarthMoverDistance(eps=eps, iterations=iterations, classes=cfg.class_weights)
+    loss_fn = EarthMoverDistance(eps=cfg.emd_eps, iterations=cfg.emd_iterations, classes=cfg.class_weights)
     
-    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4).to(device)
-    ae = cfg.create_autoencoder().to(device)
+    ae = cfg.create_vision_module().to(device)
     ae.load_state_dict(torch.load(model_path))
     ae.eval()
 
@@ -131,7 +132,7 @@ def eval(model_path, input_dir, output_dir, batch_size, eps=0.002, iterations=10
             Y = Y.to(device)
 
             pred = ae(X)
-            print(f"pred = {pred}", f"Y = {Y}")
+            # print(f"pred = {pred}", f"Y = {Y}")
 
             # eval
             loss = loss_fn(pred, Y)

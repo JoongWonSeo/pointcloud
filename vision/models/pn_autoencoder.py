@@ -26,7 +26,7 @@ class PosDecoder(nn.Module):
         )
     
     def forward(self, X):
-        return self.decoder(X).view(-1, self.num_points, self.out_dim)
+        return self.decoder(X).reshape((-1, self.num_points, self.out_dim))
 
 class PN2PosExtractor(nn.Module):
     def __init__(self, in_dim=6):
@@ -36,10 +36,7 @@ class PN2PosExtractor(nn.Module):
         # self.encoder, enc_dim = pointMLPElite(), 256
         self.encoder, enc_dim = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3), 1024
         # self.encoder, enc_dim = PointNetEncoder(in_channels=self.in_dim), 1024
-        # self.pos_extractor = nn.Sequential(
-        #     nn.Linear(enc_dim, 3),
-        #     nn.Sigmoid(),
-        # )
+
         # BEST PERFORMER! Why? Maybe because our point cloud is not zero-mean and batchnorm?
         # or maybe because we DO want the activations to have non-zero mean because it needs
         # to represent the coordinate, which batchnorm interferes with by shifting it constantly
@@ -53,19 +50,6 @@ class PN2PosExtractor(nn.Module):
             nn.Linear(128, 3),
             nn.Sigmoid(),
         )
-        # self.pos_extractor = nn.Sequential(
-        #     nn.Linear(enc_dim, 512),
-        #     nn.BatchNorm1d(512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 128),
-        #     nn.BatchNorm1d(128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, 3),
-        #     nn.Sigmoid(),
-        # )
     
     def forward(self, X):
         return self.pos_extractor(self.encoder(X))
@@ -83,9 +67,7 @@ class PNAutoencoder(nn.Module):
             pe,
             nn.ReLU(),
             nn.Linear(pe.out_channels, self.emb_dim),
-            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
         )
-        # self.encoder = pe
         self.decoder = nn.Sequential(
             nn.Linear(self.emb_dim, 512),
             nn.ReLU(),
@@ -115,9 +97,7 @@ class PN2Autoencoder(nn.Module):
             pe,
             nn.ReLU(),
             nn.Linear(1024, self.emb_dim),
-            # nn.Tanh(), # normalize the embedding to [-1, 1] # DO NOT DO TANH
         )
-        # self.encoder = pe
         self.decoder = nn.Sequential(
             nn.Linear(self.emb_dim, 512),
             nn.ReLU(),

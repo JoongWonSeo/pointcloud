@@ -8,11 +8,11 @@ from sim.utils import *
 from vision.utils import SampleRandomPoints, SampleFurthestPoints, FilterClasses, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
+parser.add_argument('dir', type=str)
 parser.add_argument('--horizon', type=int, default=100)
 parser.add_argument('--runs', type=int, default=5)
 parser.add_argument('--width', type=int, default=128)
 parser.add_argument('--height', type=int, default=128)
-parser.add_argument('--dir', default='input')
 arg = parser.parse_args()
 
 # global variables
@@ -20,13 +20,13 @@ horizon = arg.horizon
 runs = arg.runs
 total_steps = horizon * runs
 camera_w, camera_h = arg.width, arg.height
-cameras = ['frontview', 'agentview', 'birdview']
+cameras = list(cfg.camera_poses.keys())
 num_classes = len(cfg.classes)
 
 # create environment instance
 env = suite.make(
-    env_name="Lift", # try with other tasks like "Stack" and "Door"
-    robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
+    env_name=cfg.env, # try with other tasks like "Stack" and "Door"
+    robots=cfg.robot,  # try with other robots like "Sawyer" and "Jaco"
     has_renderer=False,
     has_offscreen_renderer=True,
     render_gpu_device_id=0,
@@ -44,27 +44,17 @@ robot = env.robots[0]
 
 # define transform to apply to pointcloud
 bbox = np.array(cfg.bbox)
-transform = Compose([
-    # FilterClasses(whitelist=[0, 1], seg_dim=6), # only keep table and cube
-    FilterBBox(bbox),
-    # SampleRandomPoints(2048),
-    SampleFurthestPoints(2048),
-    Normalize(bbox)
-])
+transform = cfg.pc_preprocessor()
 
 # simulation
 step = 0
 for r in range(runs):
     env.reset()
 
-    # create camera mover
-    camera_l = camera_utils.CameraMover(env, camera=cameras[0])
-    camera_r = camera_utils.CameraMover(env, camera=cameras[1])
-    camera_t = camera_utils.CameraMover(env, camera=cameras[2])
-    camera_l.set_camera_pose([0, -1.2, 1.8], transform_utils.axisangle2quat([0.817, 0, 0]))
-    camera_r.set_camera_pose([0, 1.2, 1.8], transform_utils.axisangle2quat([-0.817, 0, 0]))
-    camera_r.rotate_camera(None, (0, 0, 1), 180)
-    camera_t.set_camera_pose([1.1, 0, 1.6], np.array([0.35, 0.35, 0.60, 0.60]))
+    # setup cameras (it's important to first create the camera mover objects and then set the camera poses, because the environment is reset every time a mover is created)
+    movers = {cam: camera_utils.CameraMover(env, camera=cam) for cam in cameras}
+    for camera_name, camera_pose in cfg.camera_poses.items():
+        movers[camera_name].set_camera_pose(np.array(camera_pose[0]), np.array(camera_pose[1]))
     
     for t in range(horizon):        
         set_obj_pos(env.sim, joint='cube_joint0')

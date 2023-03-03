@@ -46,14 +46,14 @@ if sys.argv[1].endswith('.npz'):
 else:
 
     # Load point cloud
-    pointcloud1 = np.load(f'input/{sys.argv[1]}.npz', allow_pickle=True)
+    pointcloud1 = np.load(f'{cfg.vision_validation_set}/{sys.argv[1]}.npz', allow_pickle=True)
     points1 = torch.Tensor(pointcloud1['points'])
     rgb1 = torch.Tensor(pointcloud1['rgb'])
     feat1 = torch.Tensor(pointcloud1['segmentation'])
     classes1 = [(name, torch.Tensor(col)) for name, col in pointcloud1['classes']]
 
 
-    pointcloud2 = np.load(f'output/{sys.argv[1]}.npz', allow_pickle=True)
+    pointcloud2 = np.load(f'{cfg.vision_output}/{sys.argv[1]}.npz', allow_pickle=True)
     points2 = torch.Tensor(pointcloud2['points'])
     feat2 = torch.Tensor(pointcloud2['segmentation'])
     classes2 = [(name, torch.Tensor(col)) for name, col in pointcloud2['classes']]

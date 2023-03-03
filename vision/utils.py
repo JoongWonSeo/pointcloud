@@ -11,7 +11,7 @@ from .loss.emd.emd_module import emdModule
 
 ########## Segmentation Visualization ##########
 
-def get_class_points(points, seg, cls, N):
+def get_class_points(points, seg, cls, N=len(cfg.classes)):
     '''
     points: (N, D) tensor of points
     seg: (N, 1) tensor of segmentation labels
@@ -25,7 +25,7 @@ def get_class_points(points, seg, cls, N):
 
     
 
-def seg_to_color(seg, classes):
+def seg_to_color(seg, classes=cfg.classes):
     if type(classes[0][1]) is not torch.Tensor:
         classes = [(name, torch.Tensor(col)) for name, col in classes]
     if type(seg) is not torch.Tensor:
@@ -124,6 +124,8 @@ class Normalize:
         return points
 
 def mean_cube_pos(Y):
+    if type(Y) is not torch.Tensor:
+        Y = torch.from_numpy(Y)
     return get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes)).mean(dim=0)
 
 
