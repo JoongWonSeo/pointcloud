@@ -3,6 +3,7 @@
 
 # model weights
 *.pth
+*.ckpt
 
 # slides
 *.html
@@ -10,6 +11,7 @@
 
 # training logs for tensorboard
 runs/
+lightning_logs/
 
 # mujoco error logs
 MUJOCO_LOG.txt

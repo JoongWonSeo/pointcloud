@@ -19,15 +19,15 @@ class Lit(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.model(x)
-        loss = self.loss_fn(y_hat, y)
+        prediction = self.model(x)
+        loss = self.loss_fn(prediction, y)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.model(x)
-        loss = self.loss_fn(y_hat, y)
+        prediction = self.model(x)
+        loss = self.loss_fn(prediction, y)
         self.log('val_loss', loss)
         return loss
 
@@ -38,6 +38,24 @@ class Lit(pl.LightningModule):
 def train(model_type, dataset, epochs, batch_size):
     model, train, val = None, None, None
 
+    if model_type == 'PNAutoencoder':
+        model = Lit(
+            PNAutoencoder(cfg.pc_sample_points, in_dim=6, out_dim=6),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=cfg.class_weights)
+        )
+        train, val = (
+            DataLoader(
+                PointcloudDataset(
+                    root_dir=f'vision/input/{dataset}/{split}',
+                    in_features=['rgb'],
+                    out_features=['rgb']
+                ),
+                batch_size=batch_size,
+                shuffle=(split == 'train'),
+                num_workers=cfg.vision_dataloader_workers
+            )
+            for split in ['train', 'val']
+        )
     if model_type == 'GTPredictor':
         model = Lit(PN2PosExtractor(6), F.mse_loss)
         train, val = [
@@ -49,7 +67,7 @@ def train(model_type, dataset, epochs, batch_size):
                     out_transform=mean_cube_pos
                 ),
                 batch_size=batch_size,
-                shuffle=True if split == 'train' else False,
+                shuffle=(split == 'train'),
                 num_workers=cfg.vision_dataloader_workers
             )
             for split in ['train', 'val']
@@ -59,8 +77,8 @@ def train(model_type, dataset, epochs, batch_size):
         trainer = pl.Trainer(
             max_epochs=epochs,
             log_every_n_steps=cfg.val_every,
-            accelerator='gpu',
-            detect_anomaly=True
+            accelerator=cfg.accelerator,
+            detect_anomaly=cfg.debug
         )
         trainer.fit(model, train, val)
     else:

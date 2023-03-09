@@ -7,8 +7,9 @@
 
 ########## General Settings ##########
 
-# device to use for PyTorch
+# device to use for PyTorch and Lightning
 device = 'cuda'
+accelerator = 'gpu'
 
 # this enables more verbose output and more sanity checks (performance impact)
 debug = True

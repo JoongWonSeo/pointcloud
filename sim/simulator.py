@@ -42,9 +42,11 @@ def main():
             # env.episode_goal[0] += 0.01 * (env.renderer.is_pressed('l') - env.renderer.is_pressed('j'))
             # env.episode_goal[1] += 0.01 * (env.renderer.is_pressed('i') - env.renderer.is_pressed('k'))
             # env.episode_goal[2] += 0.01 * (env.renderer.is_pressed('9') - env.renderer.is_pressed(','))
+            set_obj_pos(env.robo_env.sim, joint='cube_joint0')
 
             # Simulation
-            action = agent.noisy_action(obs, 0) # sample agent action
+            # action = agent.noisy_action(obs, 0) # sample agent action
+            action = np.random.rand((agent_output_dim)) # sample random action
             obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
             obs = np.concatenate((obs['observation'], obs['desired_goal']))
 

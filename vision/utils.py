@@ -165,10 +165,10 @@ class ChamferDistance:
             return self.loss_fn(pred, target)[0]
 
 class EarthMoverDistance:
-    def __init__(self, eps = 0.002, iterations = 10000, feature_loss=MSELoss(), classes=None):
+    def __init__(self, eps = 0.002, its = 10000, feature_loss=MSELoss(), classes=None):
         self.loss_fn = emdModule()
         self.eps = eps
-        self.iterations = iterations
+        self.iterations = its
         self.feature_loss = feature_loss
         self.classes = classes
     
