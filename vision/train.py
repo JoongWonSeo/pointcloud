@@ -6,12 +6,16 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
-from vision.models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder, PN2PosExtractor
-from vision.utils import Normalize, EarthMoverDistance, mean_cube_pos
+from vision.models.pn_autoencoder import PNAutoencoder, PN2Autoencoder, PN2GTPredictor
+from vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, EarthMoverDistance, mean_cube_pos
 from torch.utils.tensorboard import SummaryWriter
 
 
 class Lit(pl.LightningModule):
+    '''
+    A very generic LightningModule to use for training any model.
+    '''
+
     def __init__(self, predictor, loss_fn):
         super().__init__()
         self.model = predictor
@@ -35,54 +39,64 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def train(model_type, dataset, epochs, batch_size):
-    model, train, val = None, None, None
+def train(model_type, dataset_name, epochs, batch_size, ckpt_path=None):
+    model, dataset = None, None
 
     if model_type == 'PNAutoencoder':
         model = Lit(
             PNAutoencoder(cfg.pc_sample_points, in_dim=6, out_dim=6),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=cfg.class_weights)
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
         )
+        dataset = lambda input_dir: \
+            PointCloudDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                out_features=['rgb']
+            )
+    if model_type == 'PNAutoencoder':
+        model = Lit(
+            PNAutoencoder(cfg.pc_sample_points, in_dim=6, out_dim=6),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
+        )
+        dataset = lambda input_dir: \
+            PointCloudDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                out_features=['rgb']
+            )
+    if model_type == 'PN2GTPredictor':
+        model = Lit(
+            PN2GTPredictor(6, 3),
+            F.mse_loss
+        )
+        dataset = lambda input_dir: \
+            PointCloudGTDataset(
+                root_dir=input_dir,
+                in_features=['rgb']
+            )
+
+    if model and dataset:
+        # load training and validation data
         train, val = (
             DataLoader(
-                PointcloudDataset(
-                    root_dir=f'vision/input/{dataset}/{split}',
-                    in_features=['rgb'],
-                    out_features=['rgb']
-                ),
+                dataset(f'vision/input/{dataset_name}/{split}'),
                 batch_size=batch_size,
                 shuffle=(split == 'train'),
                 num_workers=cfg.vision_dataloader_workers
             )
             for split in ['train', 'val']
         )
-    if model_type == 'GTPredictor':
-        model = Lit(PN2PosExtractor(6), F.mse_loss)
-        train, val = [
-            DataLoader(
-                PointcloudDataset(
-                    root_dir=f'vision/input/{dataset}/{split}',
-                    in_features=['rgb'],
-                    out_features=['segmentation'],
-                    out_transform=mean_cube_pos
-                ),
-                batch_size=batch_size,
-                shuffle=(split == 'train'),
-                num_workers=cfg.vision_dataloader_workers
-            )
-            for split in ['train', 'val']
-        ]
 
-    if model:
         trainer = pl.Trainer(
             max_epochs=epochs,
             log_every_n_steps=cfg.val_every,
             accelerator=cfg.accelerator,
-            detect_anomaly=cfg.debug
+            detect_anomaly=cfg.debug,
+            default_root_dir=f'vision/output/{dataset_name}/{model_type}'
         )
-        trainer.fit(model, train, val)
+        trainer.fit(model, train, val, ckpt_path=ckpt_path)
     else:
-        print('Invalid model type')
+        print('The model or dataset was not created!', model, dataset)
 
 
 

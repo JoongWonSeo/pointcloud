@@ -42,9 +42,10 @@ env = suite.make(
 robot = env.robots[0]
 
 
-# define transform to apply to pointcloud
+# define transform to apply to pointcloud and ground truth state
 bbox = np.array(cfg.bbox)
 transform = cfg.pc_preprocessor()
+gt_transform = cfg.gt_preprocessor()
 
 # simulation
 step = 0
@@ -67,7 +68,15 @@ for r in range(runs):
         obs, _, _, _ = env.step(action)  # take action in the environment
 
         pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'], num_classes)
-        np.savez(f'{arg.dir}/{step}.npz', points=pc, **feats, boundingbox=bbox, classes=np.array(cfg.classes, dtype=object))
+        ground_truth = np.concatenate([t(obs[key]) for key, t in gt_transform.items()], axis=0)
+        np.savez(
+            f'{arg.dir}/{step}.npz',
+            points=pc,
+            **feats,
+            ground_truth=ground_truth,
+            boundingbox=bbox,
+            classes=np.array(cfg.classes, dtype=object)
+        )
 
         step += 1
         

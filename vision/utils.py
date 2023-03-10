@@ -1,8 +1,11 @@
 import cfg
-from functools import reduce
+from functools import reduce, wraps
+import os
+import numpy as np
 import torch
 import torch.nn
 from torch.nn import MSELoss
+from torch.utils.data import Dataset
 from pytorch3d.ops import sample_farthest_points
 from pytorch3d import loss as pytorch3d_loss
 from .loss.emd.emd_module import emdModule
@@ -51,6 +54,19 @@ def seg_to_color(seg, classes=cfg.classes):
 
 
 ########## Point Cloud Transformations for PyTorch Datasets ##########
+
+# but first, a simple decorator to automatically convert numpy arrays to tensors and back
+def support_numpy(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        has_numpy = any([type(arg) is np.ndarray for arg in args]) or any([type(v) is np.ndarray for v in kwargs.values()])
+        args = [torch.from_numpy(arg) if type(arg) is np.ndarray else arg for arg in args]
+        kwargs = {k: torch.from_numpy(v) if type(v) is np.ndarray else v for k, v in kwargs.items()}
+
+        result = func(*args, **kwargs)
+        return result.numpy() if has_numpy else result
+    return wrapper
+
 
 class SampleRandomPoints:
     def __init__(self, K):
@@ -118,10 +134,13 @@ class Normalize:
         self.max = bbox[:, 1]
         self.dim = dim
 
+    @support_numpy
     def __call__(self, points):
+        orig_shape = points.shape
+        points = points.reshape(-1, points.shape[-1])
         # normalize points along each axis
         points[:, 0:self.dim] = (points[:, 0:self.dim] - self.min) / (self.max - self.min)
-        return points
+        return points.reshape(orig_shape)
 
 class Unnormalize:
     def __init__(self, bbox, dim=3):
@@ -133,14 +152,14 @@ class Unnormalize:
         self.max = bbox[:, 1]
         self.dim = dim
 
+    @support_numpy
     def __call__(self, points):
         # unnormalize points along each axis
         points[:, 0:self.dim] = points[:, 0:self.dim] * (self.max - self.min) + self.min
         return points
 
+@support_numpy
 def mean_cube_pos(Y):
-    if type(Y) is not torch.Tensor:
-        Y = torch.from_numpy(Y)
     cube_points = get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes))
 
     if cfg.debug:
@@ -210,3 +229,96 @@ class EarthMoverDistance:
         point_l = (dists.sqrt() * weights).sum() / weights.sum()
 
         return point_l + feature_l
+
+
+
+########## PyTorch Datasets ##########
+
+class PointCloudDataset(Dataset):
+    '''
+    Dataset for point cloud to point cloud pairs, e.g. for training a point cloud autoencoder
+    '''
+
+    def __init__(self, root_dir, files=None, in_features=['rgb'], out_features=['rgb'], in_transform=None, out_transform=None):
+        self.root_dir = root_dir
+
+        # you can either pass a list of files or None for all files in the root_dir
+        self.files = files if files is not None else os.listdir(root_dir)
+        self.files = [f for f in self.files if f.endswith('.npz')] # get only npz files
+        
+        self.in_transform = in_transform
+        self.out_transform = out_transform
+
+        self.in_features = in_features
+        self.out_features = out_features
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        pointcloud = self.get_file(idx)
+
+        if self.in_features == self.out_features:
+            features = [pointcloud[f] for f in self.in_features]
+            in_pc = out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *features), axis=1))
+        else:
+            in_features = [pointcloud[f] for f in self.in_features]
+            out_features = [pointcloud[f] for f in self.out_features]
+
+            in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
+            out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *out_features), axis=1))
+
+        if self.in_transform:
+            in_pc = self.in_transform(in_pc)
+        if self.out_transform:
+            out_pc = self.out_transform(out_pc)
+
+        return in_pc, out_pc
+    
+    def filename(self, idx):
+        return self.files[idx]
+
+    def get_file(self, idx):
+        return np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
+    
+
+class PointCloudGTDataset(Dataset):
+    '''
+    Dataset for point cloud to ground truth pairs, e.g. for training a point cloud to ground truth predictor
+    '''
+
+    def __init__(self, root_dir, files=None, in_features=['rgb'], in_transform=None, out_transform=None):
+        self.root_dir = root_dir
+
+        # you can either pass a list of files or None for all files in the root_dir
+        self.files = files if files is not None else os.listdir(root_dir)
+        self.files = [f for f in self.files if f.endswith('.npz')] # get only npz files
+        
+        self.in_transform = in_transform
+        self.out_transform = out_transform
+
+        self.in_features = in_features
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        pointcloud = self.get_file(idx)
+
+        in_features = [pointcloud[f] for f in self.in_features]
+        out_data = torch.from_numpy(pointcloud['ground_truth']).float()
+
+        in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
+
+        if self.in_transform:
+            in_pc = self.in_transform(in_pc)
+        if self.out_transform:
+            out_data = self.out_transform(out_data)
+
+        return in_pc, out_data
+    
+    def filename(self, idx):
+        return self.files[idx]
+
+    def get_file(self, idx):
+        return np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)

@@ -52,6 +52,7 @@ camera_size = (128, 128) # width, height
 # number of points to sample from the raw point cloud
 pc_sample_points = 2048
 
+# Preprocessing transforms for the point clouds
 def pc_preprocessor():
     from torchvision.transforms import Compose
     from vision.utils import FilterClasses, FilterBBox, SampleRandomPoints, SampleFurthestPoints, Normalize
@@ -63,62 +64,71 @@ def pc_preprocessor():
         Normalize(bbox)
     ])
 
+# ground truth state keys and their transforms
+def gt_preprocessor():
+    from vision.utils import Normalize
+    return {
+        'cube_pos': Normalize(bbox)
+    }
+
 
 ########## Vision: Model and Training Settings ##########
 
-model = ['PNAutoencoder', 'PN2Autoencoder', 'PN2PosExtractor', 'PosDecoder'][1]
+models = ['PN_Autoencoder', 'PN2_Autoencoder', 'PMLP_Autoencoder', 'PMLPEAutoencoder', 'PN2GTPredictor', 'PMLPEGTPredictor']
+# encoders = ['PointNet', 'PointNet2', 'PointMLP', 'PointMLPE']
+# decoders = ['PCDecoder', 'GTDecoder']
 
-if model == 'PNAutoencoder':
-    def create_vision_module():
-        from vision.models.pn_autoencoder import PNAutoencoder
-        return PNAutoencoder(2048, in_dim=6, out_dim=4)
+# if model == 'PNAutoencoder':
+#     def create_vision_module():
+#         from vision.models.pn_autoencoder import PNAutoencoder
+#         return PNAutoencoder(2048, in_dim=6, out_dim=4)
 
-    def get_dataset_args(input_dir):
-        return {
-            'root_dir': input_dir,
-            'in_features': ['rgb'],
-            'out_features': ['segmentation'] # for weighted EMD
-        }
+#     def get_dataset_args(input_dir):
+#         return {
+#             'root_dir': input_dir,
+#             'in_features': ['rgb'],
+#             'out_features': ['segmentation'] # for weighted EMD
+#         }
 
-elif model == 'PN2Autoencoder':
-    def create_vision_module():
-        from vision.models.pn_autoencoder import PN2Autoencoder
-        return PN2Autoencoder(pc_sample_points, in_dim=6, out_dim=4)
+# elif model == 'PN2Autoencoder':
+#     def create_vision_module():
+#         from vision.models.pn_autoencoder import PN2Autoencoder
+#         return PN2Autoencoder(pc_sample_points, in_dim=6, out_dim=4)
 
-    def get_dataset_args(input_dir):
-        return {
-            'root_dir': input_dir,
-            'in_features': ['rgb'],
-            'out_features': ['segmentation'] # for weighted EMD
-        }
+#     def get_dataset_args(input_dir):
+#         return {
+#             'root_dir': input_dir,
+#             'in_features': ['rgb'],
+#             'out_features': ['segmentation'] # for weighted EMD
+#         }
 
-elif model == 'PN2PosExtractor':
-    def create_vision_module():
-        from vision.models.pn_autoencoder import PN2PosExtractor
-        return PN2PosExtractor(6)
+# elif model == 'PN2PosExtractor':
+#     def create_vision_module():
+#         from vision.models.pn_autoencoder import PN2PosExtractor
+#         return PN2PosExtractor(6)
 
-    def get_dataset_args(input_dir):
-        from vision.utils import mean_cube_pos
-        return {
-            'root_dir': input_dir,
-            'out_transform': mean_cube_pos,
-            'in_features': ['rgb'], # too easy to predict with color
-            'out_features': ['segmentation'] # for mean cube pos
-        }
+#     def get_dataset_args(input_dir):
+#         from vision.utils import mean_cube_pos
+#         return {
+#             'root_dir': input_dir,
+#             'out_transform': mean_cube_pos,
+#             'in_features': ['rgb'], # too easy to predict with color
+#             'out_features': ['segmentation'] # for mean cube pos
+#         }
 
-elif model == 'PosDecoder':
-    def create_vision_module():
-        from vision.models.pn_autoencoder import PosDecoder
-        return PosDecoder(pc_sample_points, 4) 
+# elif model == 'PosDecoder':
+#     def create_vision_module():
+#         from vision.models.pn_autoencoder import PosDecoder
+#         return PosDecoder(pc_sample_points, 4) 
 
-    def get_dataset_args(input_dir):
-        from vision.utils import mean_cube_pos
-        return {
-            'root_dir': input_dir,
-            'in_transform': mean_cube_pos,
-            'in_features': ['segmentation'], # for mean cube pos
-            'out_features': ['segmentation'] # for weighted EMD
-        }
+#     def get_dataset_args(input_dir):
+#         from vision.utils import mean_cube_pos
+#         return {
+#             'root_dir': input_dir,
+#             'in_transform': mean_cube_pos,
+#             'in_features': ['segmentation'], # for mean cube pos
+#             'out_features': ['segmentation'] # for weighted EMD
+#         }
 
 
 

@@ -70,4 +70,3 @@ class PointCloudGTPredictor(ObservationEncoder):
         dim = 3 + sum([o[key].shape[0] for key in self.proprioception_keys])
         return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(dim,))
 
-

@@ -1,162 +1,96 @@
-import os
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset
 from .pointnet import PointNetEncoder
 from .pointnet2 import PointNet2Encoder
 from .pointmlp import pointMLP, pointMLPElite
-import numpy as np
 
-class PosDecoder(nn.Module):
-    def __init__(self, num_points, out_dim=6):
+class PCEncoderDecoder(nn.Module):
+    def __init__(self, encoder, decoder):
         super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.encoding = None
 
-        self.num_points = num_points
-        self.out_dim = out_dim
-        self.decoder = nn.Sequential(
-            nn.Linear(3, 512),
+    def forward(self, X):
+        self.encoding = self.encoder(X)
+        return self.decoder(self.encoding)
+
+
+def PCDecoder(encoding_dim, out_points, out_dim):
+    return nn.Sequential(
+            nn.Linear(encoding_dim, 512),
             nn.ReLU(),
             nn.Linear(512, 1024),
             nn.ReLU(),
             nn.Linear(1024, 2048),
             nn.ReLU(),
-            nn.Linear(2048, self.num_points * self.out_dim),
+            nn.Linear(2048, out_points * out_dim),
             nn.Sigmoid(),
-        )
-    
-    def forward(self, X):
-        return self.decoder(X).reshape((-1, self.num_points, self.out_dim))
+            nn.Unflatten(1, (out_points, out_dim))
+    )
 
-class PN2PosExtractor(nn.Module):
-    def __init__(self, in_dim=6):
-        super().__init__()
-
-        self.in_dim = in_dim
-        # self.encoder, enc_dim = pointMLPElite(), 256
-        self.encoder, enc_dim = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3), 1024
-        # self.encoder, enc_dim = PointNetEncoder(in_channels=self.in_dim), 1024
-
-        # BEST PERFORMER! Why? Maybe because our point cloud is not zero-mean and batchnorm?
-        # or maybe because we DO want the activations to have non-zero mean because it needs
-        # to represent the coordinate, which batchnorm interferes with by shifting it constantly
-        self.pos_extractor = nn.Sequential(
-            nn.Linear(enc_dim, 512),
+def GTDecoder(encoding_dim, out_dim):
+    return nn.Sequential(
+            nn.Linear(encoding_dim, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, 3),
+            nn.Linear(128, out_dim),
             nn.Sigmoid(),
-        )
-    
-    def forward(self, X):
-        return self.pos_extractor(self.encoder(X))
+    )
 
-class PNAutoencoder(nn.Module):
-    def __init__(self, out_points=2048, in_dim=6, out_dim=6):
-        super().__init__()
-
-        self.out_points = out_points
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.emb_dim = 16 #self.encoder.out_channels
-        pe = PointNetEncoder(in_channels=self.in_dim)
-        self.encoder = nn.Sequential(
-            pe,
-            nn.ReLU(),
-            nn.Linear(pe.out_channels, self.emb_dim),
-        )
-        self.decoder = nn.Sequential(
-            nn.Linear(self.emb_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 2048),
-            nn.ReLU(),
-            nn.Linear(2048, out_points * self.out_dim),
-            nn.Sigmoid(),
-        )
-    
-    def forward(self, X):
-        self.embedding = self.encoder(X)
-        return self.decoder(self.embedding).reshape((-1, self.out_points, self.out_dim))
-
-        
-class PN2Autoencoder(nn.Module):
-    def __init__(self, out_points=2048, in_dim=6, out_dim=6):
-        super().__init__()
-
-        self.out_points = out_points
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.emb_dim = 16 #self.encoder.out_channels
-        pe = PointNet2Encoder(space_dims=3, feature_dims=self.in_dim-3)
-        self.encoder = nn.Sequential(
-            pe,
-            nn.ReLU(),
-            nn.Linear(1024, self.emb_dim),
-        )
-        self.decoder = nn.Sequential(
-            nn.Linear(self.emb_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 2048),
-            nn.ReLU(),
-            nn.Linear(2048, out_points * self.out_dim),
-            nn.Sigmoid(),
-        )
-    
-    def forward(self, X):
-        self.embedding = self.encoder(X)
-        return self.decoder(self.embedding).reshape((-1, self.out_points, self.out_dim))
+def Bottleneck(encoder_dim, bottleneck_dim):
+    return nn.Sequential(
+        nn.Linear(encoder_dim, bottleneck_dim),
+        nn.ReLU()
+    )
 
 
-class PointcloudDataset(Dataset):
-    def __init__(self, root_dir, files=None, in_features=['rgb'], out_features=['rgb'], in_transform=None, out_transform=None):
-        self.root_dir = root_dir
+# pre-defined model factories, pretends to be a class, hence the PascalCase
+def PNAutoencoder(out_points=2048, in_dim=6, out_dim=6, bottleneck=16):
+    encoder = nn.Sequential(
+        PointNetEncoder(in_channels=in_dim),
+        Bottleneck(1024, bottleneck)
+    )
+    decoder = PCDecoder(bottleneck, out_points, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
 
-        # you can either pass a list of files or None for all files in the root_dir
-        self.files = files if files is not None else os.listdir(root_dir)
-        self.files = [f for f in self.files if f.endswith('.npz')] # get only npz files
-        
-        self.in_transform = in_transform
-        self.out_transform = out_transform
+def PN2Autoencoder(out_points=2048, in_dim=6, out_dim=6, bottleneck=16):
+    encoder = nn.Sequential(
+        PointNet2Encoder(space_dims=3, feature_dims=in_dim-3),
+        Bottleneck(1024, bottleneck)
+    )
+    decoder = PCDecoder(bottleneck, out_points, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
 
-        self.in_features = in_features
-        self.out_features = out_features
+def PMLPAutoencoder(out_points=2048, out_dim=6, bottleneck=16):
+    encoder = nn.Sequential(
+        pointMLP(points=out_points),
+        Bottleneck(1024, bottleneck)
+    )
+    decoder = PCDecoder(bottleneck, out_points, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
 
-    def __len__(self):
-        return len(self.files)
+def PMLPEAutoencoder(out_points=2048, out_dim=6, bottleneck=16):
+    encoder = nn.Sequential(
+        pointMLPElite(points=out_points),
+        Bottleneck(1024, bottleneck)
+    )
+    decoder = PCDecoder(bottleneck, out_points, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
 
-    def __getitem__(self, idx):
-        pointcloud = np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
+def PN2GTPredictor(in_dim=6, out_dim=3, bottleneck=16):
+    # encoder = PointNet2Encoder(space_dims=3, feature_dims=in_dim-3)
+    encoder = nn.Sequential(
+        PointNet2Encoder(space_dims=3, feature_dims=in_dim-3),
+        Bottleneck(1024, bottleneck)
+    )
+    decoder = GTDecoder(bottleneck, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
 
-        if self.in_features == self.out_features:
-            features = [pointcloud[f] for f in self.in_features]
-            in_pc = out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *features), axis=1))
-        else:
-            in_features = [pointcloud[f] for f in self.in_features]
-            out_features = [pointcloud[f] for f in self.out_features]
-
-            in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
-            out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *out_features), axis=1))
-
-        if self.in_transform:
-            in_pc = self.in_transform(in_pc)
-        if self.out_transform:
-            out_pc = self.out_transform(out_pc)
-
-        return in_pc, out_pc
-    
-    def filename(self, idx):
-        return self.files[idx]
-
-    def file(self, idx):
-        return np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
-    
-    # def save(self, idx, path):
-    #     pointcloud = self[idx]
-    #     np.savez(os.path.join(path, self.files[idx]), points=pointcloud[:, :3], features=pointcloud[:, 3:])
+def PMLPEGTPredictor(out_points=2048, out_dim=3):
+    encoder = pointMLPElite(points=out_points)
+    decoder = GTDecoder(1024, out_dim)
+    return PCEncoderDecoder(encoder, decoder)
