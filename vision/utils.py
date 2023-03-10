@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 import torch.nn
+import torch.nn.functional as F
 from torch.nn import MSELoss
 from torch.utils.data import Dataset
 from pytorch3d.ops import sample_farthest_points
@@ -14,16 +15,15 @@ from .loss.emd.emd_module import emdModule
 
 ########## Segmentation Visualization ##########
 
-def get_class_points(points, seg, cls, N=len(cfg.classes)):
+def get_class_points(points, seg, cls):
     '''
     points: (N, D) tensor of points
-    seg: (N, 1) tensor of segmentation labels
+    seg: (N, 1) LongTensor of segmentation labels (integer encoded)
     cls: class index of points to return
     N: number of total classes in the segmentation
     '''
 
-    seg = (seg*(N-1)).round().long().squeeze(1) # (N)
-
+    seg = seg.long().squeeze(1) # (N)
     return points[seg == cls, :] # (M, D)
 
     
@@ -37,17 +37,16 @@ def seg_to_color(seg, classes=cfg.classes):
     color = torch.zeros(seg.shape[0], 3)
     
     N = len(classes)
-    seg = seg.squeeze(1)
-    seg = (seg*(N-1)).round().long()
+    seg = seg.squeeze(1).long()
     
     for i, (name, c) in enumerate(classes):
         color[seg == i, :] = c
 
-    if cfg.debug: # DEBUG: show class distribution
-        points_per_class = [(seg == i).sum() for i in range(N)]
-        num_points = seg.shape[0]
-        for i in range(N):
-            print(f"DEBUG: class {classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
+    # if cfg.debug: # DEBUG: show class distribution
+    #     points_per_class = [(seg == i).sum() for i in range(N)]
+    #     num_points = seg.shape[0]
+    #     for i in range(N):
+    #         print(f"DEBUG: class {classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
 
     return color
 
@@ -107,20 +106,18 @@ class FilterBBox:
         return points[mask]
 
 class FilterClasses:
-    def __init__(self, whitelist, seg_dim, num_classes=len(cfg.classes)):
+    def __init__(self, whitelist, seg_dim):
         '''
         whitelist: list of classes to remove
         num_classes: number of classes in the dataset
         seg_dim: dimension index of the segmentation label in the point cloud
         '''
         self.whitelist = whitelist
-        self.num_classes = num_classes
         self.seg_dim = seg_dim
     
     def __call__(self, points):
         # only keep points that are in the whitelist
-        seg = points[:, self.seg_dim] # (N,)
-        seg = (seg*(self.num_classes-1)).round().long() # (N,)
+        seg = points[:, self.seg_dim].long() # (N,)
         mask = reduce(torch.logical_or, [seg == v for v in self.whitelist])
         return points[mask, :]
 
@@ -157,6 +154,34 @@ class Unnormalize:
         # unnormalize points along each axis
         points[:, 0:self.dim] = points[:, 0:self.dim] * (self.max - self.min) + self.min
         return points
+    
+class OneHotEncode:
+    '''
+    Convert integer encoded segmentation labels to one-hot encoded labels
+    '''
+    def __init__(self, num_classes=len(cfg.classes), seg_dim=3):
+        self.C = num_classes
+        self.d = seg_dim
+    
+    def __call__(self, points):
+        # convert segmentation label to one-hot encoding
+        labels = points[:, self.d].long() # (N,)
+        labels = F.one_hot(labels, self.C).float() # (N, C)
+        return torch.cat([points[:, :self.d], labels, points[:, self.d+1:]], dim=1)
+
+class IntegerEncode:
+    '''
+    Convert one-hot encoded segmentation labels to integer encoded labels
+    '''
+    def __init__(self, num_classes=len(cfg.classes), seg_dim=3):
+        self.C = num_classes
+        self.d = seg_dim
+    
+    def __call__(self, points):
+        # convert one-hot encoded segmentation label to integer encoding
+        labels = points[:, self.d:self.d+self.C].argmax(dim=1).float() # (N,)
+        labels = labels.unsqueeze(1) # (N, 1)
+        return torch.cat([points[:, :self.d], labels, points[:, self.d+self.C:]], dim=1)
 
 @support_numpy
 def mean_cube_pos(Y):
@@ -215,7 +240,7 @@ class EarthMoverDistance:
         weights = torch.ones_like(dists)
         if self.classes is not None:
             N = len(self.classes)
-            target_classes = (target[:, :, 3]*(N-1)).round()
+            target_classes = target[:, :, 3:3+N].argmax(dim=2) # (B, N)
             for idx, (_, w) in enumerate(self.classes):
                 weights[target_classes == idx] = w
             
@@ -240,6 +265,17 @@ class PointCloudDataset(Dataset):
     '''
 
     def __init__(self, root_dir, files=None, in_features=['rgb'], out_features=['rgb'], in_transform=None, out_transform=None):
+        '''
+        root_dir: directory containing the point cloud files
+        files: list of files to use, if None, all files in root_dir are used
+        in_features: list of features to be added to the input point cloud
+        out_features: list of features to be added to the output point cloud
+        in_transform: transform to apply to the input point cloud
+        out_transform: transform to apply to the output point cloud
+
+        Note: features in ['rgb', 'segmentation']
+        '''
+
         self.root_dir = root_dir
 
         # you can either pass a list of files or None for all files in the root_dir

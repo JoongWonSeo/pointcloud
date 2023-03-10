@@ -41,6 +41,9 @@ class_weights = [ # (name, weight)
     ('gripper', 15.0),
 ]
 
+# ground truth state for the task
+gt_dim = 3
+
 # RGBD sensors to generate pointclouds from
 camera_poses = { # name: (position, quaternion)
     'frontview': ([0, -1.2, 1.8], [0.3972332, 0, 0, 0.9177177]),
@@ -74,9 +77,10 @@ def gt_preprocessor():
 
 ########## Vision: Model and Training Settings ##########
 
-models = ['PN_Autoencoder', 'PN2_Autoencoder', 'PMLP_Autoencoder', 'PMLPEAutoencoder', 'PN2GTPredictor', 'PMLPEGTPredictor']
-# encoders = ['PointNet', 'PointNet2', 'PointMLP', 'PointMLPE']
-# decoders = ['PCDecoder', 'GTDecoder']
+models = ['Autoencoder', 'Segmenter', 'GTEncoder']
+encoder_backbones = ['PointNet', 'PointNet2', 'PointMLP', 'PointMLPE']
+
+bottleneck_size = 16 # should depend on the env and the model
 
 # if model == 'PNAutoencoder':
 #     def create_vision_module():
@@ -133,9 +137,6 @@ models = ['PN_Autoencoder', 'PN2_Autoencoder', 'PMLP_Autoencoder', 'PMLPEAutoenc
 
 
 # Training settings
-vision_training_set = 'vision/input/' + env + '/train'
-vision_validation_set = 'vision/input/' + env + '/val'
-vision_output = 'vision/output/' + env
 vision_dataloader_workers = 6
 
 vision_batch_size = 25 # can be overwritten by args

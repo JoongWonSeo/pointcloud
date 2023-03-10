@@ -275,13 +275,15 @@ class PosExtraction(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, points=1024, class_num=40, embed_dim=64, groups=1, res_expansion=1.0,
+    # class constants
+    ENCODING_DIM = 1024
+
+    def __init__(self, points=1024, embed_dim=64, groups=1, res_expansion=1.0,
                  activation="relu", bias=True, use_xyz=True, normalize="center",
                  dim_expansion=[2, 2, 2, 2], pre_blocks=[2, 2, 2, 2], pos_blocks=[2, 2, 2, 2],
                  k_neighbors=[32, 32, 32, 32], reducers=[2, 2, 2, 2], **kwargs):
         super(Model, self).__init__()
         self.stages = len(pre_blocks)
-        self.class_num = class_num
         self.points = points
         self.embedding = ConvBNReLU1D(3, embed_dim, bias=bias, activation=activation)
         assert len(pre_blocks) == len(k_neighbors) == len(reducers) == len(pos_blocks) == len(dim_expansion), \
@@ -314,17 +316,7 @@ class Model(nn.Module):
             last_channel = out_channel
 
         self.act = get_activation(activation)
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(last_channel, 512),
-        #     nn.BatchNorm1d(512),
-        #     self.act,
-        #     nn.Dropout(0.5),
-        #     nn.Linear(512, 256),
-        #     nn.BatchNorm1d(256),
-        #     self.act,
-        #     nn.Dropout(0.5),
-        #     nn.Linear(256, self.class_num)
-        # )
+
 
     def forward(self, x):
         xyz = x
@@ -339,21 +331,20 @@ class Model(nn.Module):
             x = self.pos_blocks_list[i](x)  # [b,d,g]
 
         x = F.adaptive_max_pool1d(x, 1).squeeze(dim=-1)
-        # x = self.classifier(x)
         return x
 
 
 
 
-def pointMLP(num_classes=40, points=2048, **kwargs) -> Model:
-    return Model(points=points, class_num=num_classes, embed_dim=64, groups=1, res_expansion=1.0,
+def PointMLP(points=2048, **kwargs) -> Model:
+    return Model(points=points, embed_dim=64, groups=1, res_expansion=1.0,
                    activation="relu", bias=False, use_xyz=False, normalize="anchor",
                    dim_expansion=[2, 2, 2, 2], pre_blocks=[2, 2, 2, 2], pos_blocks=[2, 2, 2, 2],
                    k_neighbors=[24, 24, 24, 24], reducers=[2, 2, 2, 2], **kwargs)
 
 
-def pointMLPElite(num_classes=40, points=2048, **kwargs) -> Model:
-    return Model(points=points, class_num=num_classes, embed_dim=32, groups=1, res_expansion=0.25,
+def PointMLPElite(points=2048, **kwargs) -> Model:
+    return Model(points=points, embed_dim=32, groups=1, res_expansion=0.25,
                    activation="relu", bias=False, use_xyz=False, normalize="anchor",
                    dim_expansion=[2, 2, 2, 1], pre_blocks=[1, 1, 2, 1], pos_blocks=[1, 1, 2, 1],
                    k_neighbors=[24,24,24,24], reducers=[2, 2, 2, 2], **kwargs)
@@ -361,6 +352,6 @@ def pointMLPElite(num_classes=40, points=2048, **kwargs) -> Model:
 if __name__ == '__main__':
     data = torch.rand(2, 2048, 3)
     print("===> testing pointMLP ...")
-    model = pointMLPElite()
+    model = PointMLPElite()
     out = model(data)
     print(out.shape)

@@ -93,12 +93,14 @@ class PointNetEncoder(nn.Module):
     Args:
         nn (_type_): _description_
     """
+    # class constants
+    ENCODING_DIM = 1024
 
     def __init__(self,
-                 in_channels: int,
+                 space_dims: int=3,
+                 feature_dims: int=3,
                  input_transform: bool=True,
                  feature_transform: bool=True,
-                 is_seg: bool=False,  
                  **kwargs
                  ):
         """_summary_
@@ -107,9 +109,10 @@ class PointNetEncoder(nn.Module):
             in_channels (int): feature size of input 
             input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
             feature_transform (bool, optional): whether to use transformation for features. Defaults to True.
-            is_seg (bool, optional): for segmentation or classification. Defaults to False.
         """
         super().__init__()
+
+        in_channels = space_dims + feature_dims
 
         self.stn = STN3d(in_channels) if input_transform else None
         self.conv0_1 = torch.nn.Conv1d(in_channels, 64, 1)
@@ -125,7 +128,7 @@ class PointNetEncoder(nn.Module):
         self.bn3 = nn.BatchNorm1d(1024)
         # self.bn0_1 = self.bn0_2 = self.bn1 = self.bn2 = self.bn3 = nn.Identity()
         self.fstn = STNkd(k=64) if feature_transform else None
-        self.out_channels = 1024 + 64 if is_seg else 1024 
+        self.out_channels = 1024 
          
     def forward_cls_features(self, pos, x=None):
         if hasattr(pos, 'keys'):

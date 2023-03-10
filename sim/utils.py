@@ -131,7 +131,7 @@ def to_pointcloud(sim, feature_maps, depth_map, camera):
     return points, features
 
 
-def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], num_seg_classes=2):
+def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
     """
     Generates a combined pointcloud from multiple 2.5D camera observations.
 
@@ -148,7 +148,7 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], nu
     """
     feature_getter = {
         'rgb': lambda o, c: o[c + '_image'] / 255,
-        'segmentation': lambda o, c: o[c + '_segmentation_class'] / (num_seg_classes - 1)
+        'segmentation': lambda o, c: o[c + '_segmentation_class']
     }
 
     # combine multiple 2.5D observations into a single pointcloud
@@ -162,7 +162,7 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], nu
         pcs.append(torch.from_numpy(pc))
         # gather by feature type
         for feat_type, new_feat in zip(feats, feat):
-            feat_type.append(torch.from_numpy(new_feat))
+            feat_type.append(torch.from_numpy(new_feat).float())
     
     pcs = torch.cat(pcs, dim=0)
     feats = [torch.cat(f, dim=0) for f in feats]

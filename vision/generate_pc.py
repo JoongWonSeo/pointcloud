@@ -21,7 +21,6 @@ runs = arg.runs
 total_steps = horizon * runs
 camera_w, camera_h = arg.width, arg.height
 cameras = list(cfg.camera_poses.keys())
-num_classes = len(cfg.classes)
 
 # create environment instance
 env = suite.make(
@@ -67,7 +66,7 @@ for r in range(runs):
         action = random_action(env) # sample random action
         obs, _, _, _ = env.step(action)  # take action in the environment
 
-        pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'], num_classes)
+        pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'])
         ground_truth = np.concatenate([t(obs[key]) for key, t in gt_transform.items()], axis=0)
         np.savez(
             f'{arg.dir}/{step}.npz',

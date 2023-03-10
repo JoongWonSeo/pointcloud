@@ -11,7 +11,7 @@
 
 # training logs for tensorboard
 runs/
-lightning_logs/
+output/
 
 # mujoco error logs
 MUJOCO_LOG.txt

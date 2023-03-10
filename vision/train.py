@@ -1,14 +1,15 @@
 import cfg
 import os
+import re
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
-from vision.models.pn_autoencoder import PNAutoencoder, PN2Autoencoder, PN2GTPredictor
-from vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, EarthMoverDistance, mean_cube_pos
-from torch.utils.tensorboard import SummaryWriter
+from pytorch_lightning.loggers import TensorBoardLogger
+from vision.models.pn_autoencoder import AE, SegAE, GTEncoder, backbone_factory
+from vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, OneHotEncode, EarthMoverDistance, seg_to_color
 
 
 class Lit(pl.LightningModule):
@@ -33,18 +34,30 @@ class Lit(pl.LightningModule):
         prediction = self.model(x)
         loss = self.loss_fn(prediction, y)
         self.log('val_loss', loss)
+        # log sample PC
+        # TODO: only do this for autoencoders
+        logger = self.trainer.logger.experiment # raw tensorboard SummaryWriter
+        pc = prediction[0, :, :3]
+        col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
+        gt = y[0, :, :3]
+        gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
+        pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
+        col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
+        logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
         return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def train(model_type, dataset_name, epochs, batch_size, ckpt_path=None):
+def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None):
+    # create the model and dataset
     model, dataset = None, None
+    encoder_backbone = backbone_factory[backbone](feature_dims=3)
 
-    if model_type == 'PNAutoencoder':
+    if model_type == 'Autoencoder':
         model = Lit(
-            PNAutoencoder(cfg.pc_sample_points, in_dim=6, out_dim=6),
+            AE(encoder_backbone, out_points=cfg.pc_sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
         )
         dataset = lambda input_dir: \
@@ -53,20 +66,24 @@ def train(model_type, dataset_name, epochs, batch_size, ckpt_path=None):
                 in_features=['rgb'],
                 out_features=['rgb']
             )
-    if model_type == 'PNAutoencoder':
+
+    if model_type == 'Segmenter':
+        C = len(cfg.classes)
         model = Lit(
-            PNAutoencoder(cfg.pc_sample_points, in_dim=6, out_dim=6),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
+            SegAE(encoder_backbone, num_classes=C, out_points=cfg.pc_sample_points, bottleneck=cfg.bottleneck_size),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=cfg.class_weights)
         )
         dataset = lambda input_dir: \
             PointCloudDataset(
                 root_dir=input_dir,
                 in_features=['rgb'],
-                out_features=['rgb']
+                out_features=['segmentation'],
+                out_transform=OneHotEncode(C, seg_dim=3)
             )
-    if model_type == 'PN2GTPredictor':
+
+    if model_type == 'GTEncoder':
         model = Lit(
-            PN2GTPredictor(6, 3),
+            GTEncoder(encoder_backbone, out_dim=cfg.gt_dim),
             F.mse_loss
         )
         dataset = lambda input_dir: \
@@ -75,11 +92,21 @@ def train(model_type, dataset_name, epochs, batch_size, ckpt_path=None):
                 in_features=['rgb']
             )
 
+    # Train the created model and dataset
     if model and dataset:
+        input_dir = f'vision/input/{dataset_name}'
+        output_dir = f'vision/output/{dataset_name}/{model_type}_{backbone}'
+        if ckpt_path:
+            # use simple regex to extract the number X from str like 'version_X'
+            version = int(re.search(r'version_(\d+)', ckpt_path).group(1))
+            print('detected version number from ckpt path:', version)
+        else:
+            version = None
+
         # load training and validation data
         train, val = (
             DataLoader(
-                dataset(f'vision/input/{dataset_name}/{split}'),
+                dataset(f'{input_dir}/{split}'),
                 batch_size=batch_size,
                 shuffle=(split == 'train'),
                 num_workers=cfg.vision_dataloader_workers
@@ -87,12 +114,15 @@ def train(model_type, dataset_name, epochs, batch_size, ckpt_path=None):
             for split in ['train', 'val']
         )
 
+        logger = TensorBoardLogger(output_dir, name=None, version=version)
+
         trainer = pl.Trainer(
+            logger=logger,
             max_epochs=epochs,
             log_every_n_steps=cfg.val_every,
             accelerator=cfg.accelerator,
             detect_anomaly=cfg.debug,
-            default_root_dir=f'vision/output/{dataset_name}/{model_type}'
+            default_root_dir=output_dir
         )
         trainer.fit(model, train, val, ckpt_path=ckpt_path)
     else:

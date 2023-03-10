@@ -5,6 +5,9 @@ from .pointnet2_utils import PointNetSetAbstraction
 
 
 class PointNet2Encoder(nn.Module):
+    # class constants
+    ENCODING_DIM = 1024
+    
     def __init__(self, space_dims=3, feature_dims=3):
         super(PointNet2Encoder, self).__init__()
         
