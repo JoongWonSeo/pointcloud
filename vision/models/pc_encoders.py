@@ -13,6 +13,8 @@ backbone_factory = {
     'PointMLPE': PointMLPElite
 }
 
+
+
 # some are pre-defined model factories, pretends to be a class, hence the PascalCase
 
 
@@ -107,26 +109,4 @@ class PCSegmenter(nn.Module):
         seg = F.softmax(seg, dim=2)
         return torch.cat((xyz, seg), dim=2)
 
-
-
-
-# def PNAutoencoder(out_points=2048, in_dim=6, out_dim=6, bottleneck=16):
-#     encoder = Bottle(PointNetEncoder(in_channels=in_dim), 1024, bottleneck)
-#     decoder = PCDecoder(bottleneck, out_points, out_dim)
-#     return PCEncoderDecoder(encoder, decoder)
-
-# def PN2Autoencoder(out_points=2048, in_dim=6, out_dim=6, bottleneck=16):
-#     encoder = Bottle(PointNet2Encoder(space_dims=3, feature_dims=in_dim-3), 1024, bottleneck)
-#     decoder = PCDecoder(bottleneck, out_points, out_dim)
-#     return PCEncoderDecoder(encoder, decoder)
-
-# def PMLPAutoencoder(inout_points=2048, out_dim=6, bottleneck=16):
-#     encoder = Bottle(pointMLP(points=inout_points), 1024, bottleneck)
-#     decoder = PCDecoder(bottleneck, inout_points, out_dim)
-#     return PCEncoderDecoder(encoder, decoder)
-
-# def PMLPEAutoencoder(inout_points=2048, out_dim=6, bottleneck=16):
-#     encoder = Bottle(pointMLPElite(points=inout_points), 1024, bottleneck)
-#     decoder = PCDecoder(bottleneck, inout_points, out_dim)
-#     return PCEncoderDecoder(encoder, decoder)
 

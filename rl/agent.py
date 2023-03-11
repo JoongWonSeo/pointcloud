@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.optim import Adam
 import gymnasium as gym
-import gym_robosuite_envs
+import sim.robosuite_envs
 import time
 from rl import core
 from sim.utils import *
@@ -294,7 +294,7 @@ def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
 
 def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-         steps_per_epoch=4000, num_epochs=100, replay_size=int(1e6), gamma=0.99, 
+         steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
          polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
          update_after=1000, update_every=50, act_noise=0.1, num_test_episodes=10, 
          num_steps=100, logger_kwargs=dict(), save_freq=1):
@@ -408,7 +408,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     global_steps = 0
     num_updates = 0
 
-    for epoch in range(num_epochs):
+    for epoch in range(epochs):
         print('epoch: ', epoch)
         while global_steps < steps_per_epoch * (epoch+1):
             # initialize the environment and task
@@ -470,7 +470,7 @@ def her(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         torch.save(ac.state_dict(), 'weights/agent.pth')
 
         # Progess bar
-        print(('#' * round(epoch/num_epochs * 100)).ljust(100, '-'), end='\n')
+        print(('#' * round(epoch/epochs * 100)).ljust(100, '-'), end='\n')
     print('Done!')
 
 
@@ -498,6 +498,8 @@ if __name__ == '__main__':
     #      ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
     #      gamma=args.gamma, seed=args.seed, epochs=args.epochs)
          
+    # cube_encoder = PointCloudGTPredictor('robot0_eef_pos') # TODO try with AE instead
+
     ddpg(lambda: gym.make('RobosuiteReach-v0'), actor_critic=core.MLPActorCritic,
          ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
          gamma=args.gamma, seed=args.seed, epochs=args.epochs)

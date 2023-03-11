@@ -27,7 +27,8 @@ class RobosuiteReach(RobosuiteGoalEnv):
         
         def desired_goal(robo_obs):
             # goal is the cube position and end-effector position close to cube
-            cube_pos = encoder.encode_state(robo_obs)
+            # cube_pos = encoder.encode_state(robo_obs)
+            cube_pos = robo_obs['cube_pos']
             # add random noise to the cube position
             # cube_pos[0] += np.random.uniform(-0.2, 0.2)
             # cube_pos[1] += np.random.uniform(-0.2, 0.2)

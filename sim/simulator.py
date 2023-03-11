@@ -25,7 +25,7 @@ assert all(-env.action_space.low == env.action_space.high)
 agent_action_limit = env.action_space.high
 
 agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
-# agent.load_state_dict(torch.load('../rl/weights/agent.pth'))
+# agent.load_state_dict(torch.load('../rl/weights/agent_succ.pth'))
 
 
 # simulation

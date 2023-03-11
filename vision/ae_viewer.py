@@ -31,42 +31,11 @@ def interpolate_transition(prev, next, interp):
 
 def main(model_dir, input_dir):
     # load model
-    ae, open_dataset = create_model('Segmenter', 'PointNet2')
-    ae.load_state_dict(torch.load(model_dir)['state_dict'])
+    ae, open_dataset = create_model('Segmenter', 'PointNet2', load_dir=model_dir)
     ae = ae.model
 
     ae = ae.to(cfg.device)
     ae.eval()
-
-
-    # define functions to update pointcloud and change x, y, z
-    # x, y, z = 0, 0, 0
-
-    # def make_xyz_changer(axis, inc):
-    #     def xyz_changer(vis):
-    #         nonlocal x, y, z
-    #         if axis == 'x':
-    #             x += inc
-    #         elif axis == 'y':
-    #             y += inc
-    #         elif axis == 'z':
-    #             z += inc
-    #         else:
-    #             raise ValueError(f'invalid axis: {axis}')
-    #         print(f'{axis} = {x if axis == "x" else y if axis == "y" else z}')
-    #         update_pointcloud()
-    #         return True
-    #     return xyz_changer
-
-    # def update_pointcloud():
-    #     nonlocal x, y, z
-    #     embedding = torch.Tensor([x, y, z]).to(cfg.device)
-    #     decoded =  torch.reshape(ae.decoder(embedding), (-1, ae.out_points, ae.out_dim)).detach().cpu().numpy()
-    #     points = decoded[0, :, :3]
-    #     rgb = decoded[0, :, 3:]
-    #     pcd.points = o3d.utility.Vector3dVector(points)
-    #     pcd.colors = o3d.utility.Vector3dVector(rgb)
-    #     return True
 
     # input pointcloud -> encoder -> latent variable -> decoder -> pointcloud
     input_index = 0
