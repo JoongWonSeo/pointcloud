@@ -11,8 +11,7 @@ def split_by_class(points, seg, classes):
         classes = [(name, torch.Tensor(col)) for name, col in classes]
 
     N = len(classes)
-    seg = seg.squeeze(1)
-    seg = (seg*(N-1)).round().long()
+    seg = seg.squeeze(1).long()
 
     split_points = [points[seg == i, :] for i in range(N)]
     split_colors = [classes[i][1].repeat(split_points[i].shape[0], 1) for i in range(N)]

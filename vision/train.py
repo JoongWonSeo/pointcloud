@@ -36,14 +36,15 @@ class Lit(pl.LightningModule):
         self.log('val_loss', loss)
         # log sample PC
         # TODO: only do this for autoencoders
-        logger = self.trainer.logger.experiment # raw tensorboard SummaryWriter
-        pc = prediction[0, :, :3]
-        col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
-        gt = y[0, :, :3]
-        gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
-        pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
-        col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
-        logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
+        if batch_idx == 0:
+            logger = self.trainer.logger.experiment # raw tensorboard SummaryWriter
+            pc = prediction[0, :, :3]
+            col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
+            gt = y[0, :, :3]
+            gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
+            pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
+            col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
+            logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
         return loss
 
     def configure_optimizers(self):
