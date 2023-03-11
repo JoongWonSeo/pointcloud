@@ -3,8 +3,8 @@ import argparse
 import open3d as o3d
 import numpy as np
 import torch
-from models.pn_autoencoder import PointcloudDataset, PNAutoencoder, PN2Autoencoder, PN2PosExtractor
-from vision.utils import seg_to_color, mean_cube_pos
+from vision.train import create_model
+from vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='weights/PC_AE.pth')
@@ -31,17 +31,10 @@ def interpolate_transition(prev, next, interp):
 
 def main(model_dir, input_dir):
     # load model
-    # ae = PNAutoencoder(2048, in_dim=6, out_dim=4)
-    ae = cfg.create_vision_module()
-    ae.load_state_dict(torch.load(model_dir))
-    # import torch.nn as nn
-    # class cube_copy(nn.Module):
-    #     def forward(self, x):
-    #         b, d = x.shape
-    #         x = torch.cat((x, torch.ones((b, 1)).to(cfg.device) /(len(cfg.classes)-1)), dim=1).repeat(1, 10, 1)
-    #         x = x + torch.randn(x.shape).to(cfg.device) * 0.01
-    #         return x
-    # ae = cube_copy()
+    ae, open_dataset = create_model('Segmenter', 'PointNet2')
+    ae.load_state_dict(torch.load(model_dir)['state_dict'])
+    ae = ae.model
+
     ae = ae.to(cfg.device)
     ae.eval()
 
@@ -78,8 +71,10 @@ def main(model_dir, input_dir):
     # input pointcloud -> encoder -> latent variable -> decoder -> pointcloud
     input_index = 0
     curr_pc, prev_pc = None, None
-    input_set = PointcloudDataset(**cfg.get_dataset_args(input_dir))
+    input_set = open_dataset(input_dir)
     anim_t = 0
+
+    to_label = IntegerEncode()
 
     # PosDecoder
     # def load_pc(index):
@@ -103,6 +98,8 @@ def main(model_dir, input_dir):
         orig, target = input_set[index]
 
         pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+
+        pred, target = to_label(pred), to_label(target)
 
         # create axis-aligned lines to show the predicted cube coordinate
         vis = aa_lines(mean_cube_pos(target), np.array([1, 0, 0]), res=50)

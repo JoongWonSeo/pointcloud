@@ -17,9 +17,9 @@ class Lit(pl.LightningModule):
     A very generic LightningModule to use for training any model.
     '''
 
-    def __init__(self, predictor, loss_fn):
+    def __init__(self, model, loss_fn):
         super().__init__()
-        self.model = predictor
+        self.model = model
         self.loss_fn = loss_fn
 
     def training_step(self, batch, batch_idx):
@@ -51,7 +51,7 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None):
+def create_model(model_type, backbone):
     # create the model and dataset
     model, dataset = None, None
     encoder_backbone = backbone_factory[backbone](feature_dims=3)
@@ -92,11 +92,17 @@ def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None
                 root_dir=input_dir,
                 in_features=['rgb']
             )
+    
+    return model, dataset
+
+
+def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
+    model, open_dataset = create_model(model_type, backbone)
 
     # Train the created model and dataset
-    if model and dataset:
-        input_dir = f'vision/input/{dataset_name}'
-        output_dir = f'vision/output/{dataset_name}/{model_type}_{backbone}'
+    if model and open_dataset:
+        input_dir = f'vision/input/{dataset}'
+        output_dir = f'vision/output/{dataset}/{model_type}_{backbone}'
         if ckpt_path:
             # use simple regex to extract the number X from str like 'version_X'
             version = int(re.search(r'version_(\d+)', ckpt_path).group(1))
@@ -107,7 +113,7 @@ def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None
         # load training and validation data
         train, val = (
             DataLoader(
-                dataset(f'{input_dir}/{split}'),
+                open_dataset(f'{input_dir}/{split}'),
                 batch_size=batch_size,
                 shuffle=(split == 'train'),
                 num_workers=cfg.vision_dataloader_workers
@@ -115,10 +121,8 @@ def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None
             for split in ['train', 'val']
         )
 
-        logger = TensorBoardLogger(output_dir, name=None, version=version)
-
         trainer = pl.Trainer(
-            logger=logger,
+            logger=TensorBoardLogger(output_dir, name=None, version=version),
             max_epochs=epochs,
             log_every_n_steps=cfg.val_every,
             accelerator=cfg.accelerator,
@@ -127,7 +131,7 @@ def train(model_type, backbone, dataset_name, epochs, batch_size, ckpt_path=None
         )
         trainer.fit(model, train, val, ckpt_path=ckpt_path)
     else:
-        print('The model or dataset was not created!', model, dataset)
+        print('The model or dataset was not created!', model, open_dataset)
 
 
 

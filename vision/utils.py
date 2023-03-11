@@ -163,6 +163,7 @@ class OneHotEncode:
         self.C = num_classes
         self.d = seg_dim
     
+    @support_numpy
     def __call__(self, points):
         # convert segmentation label to one-hot encoding
         labels = points[:, self.d].long() # (N,)
@@ -177,6 +178,7 @@ class IntegerEncode:
         self.C = num_classes
         self.d = seg_dim
     
+    @support_numpy
     def __call__(self, points):
         # convert one-hot encoded segmentation label to integer encoding
         labels = points[:, self.d:self.d+self.C].argmax(dim=1).float() # (N,)
@@ -185,7 +187,7 @@ class IntegerEncode:
 
 @support_numpy
 def mean_cube_pos(Y):
-    cube_points = get_class_points(Y[:, :3], Y[:, 3:4], 1, len(cfg.classes))
+    cube_points = get_class_points(Y[:, :3], Y[:, 3:4], 1)
 
     if cfg.debug:
         if cube_points.shape[0] == 0:
@@ -222,7 +224,7 @@ class EarthMoverDistance:
         # compare the features (RGB) OF THE CORRESPONDING POINTS ACCORDING TO assignment
         assignment = assignment.long().unsqueeze(-1)
         target = target.take_along_dim(assignment, 1) # permute target according to assignment, such that matched points are at the same index
-        feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
+        # feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
         # DEBUG: check the number of unassigned points
         if cfg.debug:
@@ -237,7 +239,7 @@ class EarthMoverDistance:
 
         # check if target is in bbox and increase weight of loss
         # now that segmentation is available, use it to assign weights by class
-        weights = torch.ones_like(dists)
+        weights = torch.ones_like(dists) # (B, N)
         if self.classes is not None:
             N = len(self.classes)
             target_classes = target[:, :, 3:3+N].argmax(dim=2) # (B, N)
@@ -252,8 +254,9 @@ class EarthMoverDistance:
 
         
         point_l = (dists.sqrt() * weights).sum() / weights.sum()
+        weighted_feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * len(self.classes)) # compensate for auto broadcasting
 
-        return point_l + feature_l
+        return point_l + weighted_feature_l #feature_l
 
 
 
