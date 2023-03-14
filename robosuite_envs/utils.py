@@ -5,16 +5,6 @@ from robosuite.utils import camera_utils
 from robosuite.utils.camera_utils import get_real_depth_map
 import random
 
-def pprint_dict(d):
-    import json
-    print(json.dumps(d, sort_keys=True, indent=4, default=str))
-
-
-def normalize(array):
-    '''given np array, shift and stretch its elements to 0 and 1 range'''
-    min, max = np.min(array), np.max(array)
-    return (array - min) / (max - min)
-
 
 def to_cv2_img(img):
     '''converts robosuite image to cv2 image'''
@@ -180,26 +170,6 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
     feats = {f_name: f for f_name, f in zip(features, feats)}
 
     return pcs, feats
-
-
-def save_pointcloud(sim, image, depth_map, camera, file='pointcloud.npz'):
-    """
-    Saves a pointcloud to a file.
-
-    Args:
-        sim (MjSim): MjSim instance
-        image (np.array): image of shape [H, W, C]
-        depth_map (np.array): depth map of shape [H, W, 1]
-        camera (str): name of camera
-        file (str): path to save pointcloud to
-
-    Return:
-        None
-    """
-
-    points, rgb = to_pointcloud(sim, image, depth_map, camera)
-    np.savez(file, points=points, rgb=rgb)
-
 
 
 def set_obj_pos(sim, joint, pos=None, quat=None):

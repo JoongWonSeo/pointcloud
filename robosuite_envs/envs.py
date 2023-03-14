@@ -113,7 +113,7 @@ class RobosuiteLift(RobosuiteGoalEnv):
 
         def render_encoded_state(env, robo_obs):
             cube_pos = env.encoder.encode_state(robo_obs)
-            print('encoded cube pos: ', cube_pos)
+            # print('encoded cube pos: ', cube_pos)
             return np.array([cube_pos]), np.array([[0, 1, 0]])
 
         super().__init__(

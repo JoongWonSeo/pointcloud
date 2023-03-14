@@ -1,6 +1,5 @@
 from gymnasium.envs.registration import register
-from .robosuite import RobosuiteReach, RobosuiteLift, RobosuitePickAndPlace
-from .pc_encoder import PointCloudGTPredictor
+from .envs import RobosuiteReach, RobosuiteLift, RobosuitePickAndPlace
 
 register(
     id='RobosuiteReach-v0',

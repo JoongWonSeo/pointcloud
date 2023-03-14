@@ -2,14 +2,14 @@
 # More specificially, it is to be used like a Gymnasium-Robotics GoalEnv (https://robotics.farama.org/content/multi-goal_api/)
 # Meaning that the observation space is a dictionary with keys 'observation', 'desired_goal' and 'achieved_goal'
 
-import cfg # TODO: since this is a library, we should not import cfg here
+# import cfg # TODO: since this is a library, we should not import cfg here
 import numpy as np
 import gymnasium as gym
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
-from sim.utils import UI, to_cv2_img, render
+from .utils import UI, to_cv2_img, render
 
 from abc import ABC, abstractmethod
 
@@ -149,12 +149,14 @@ class RobosuiteGoalEnv(GoalEnv):
         # pre-reset operations
         if self.render_mode == 'human':
             if self.renderer is None:
+                pass
                 # default camera pose
-                self.cam_pose = cfg.renderer_default_pose
+                # self.cam_pose = cfg.renderer_default_pose
             else:
+                pass
                 #remember the camera pose
-                pos, quat = self.camera.get_camera_pose()
-                self.cam_pose = pos.copy(), quat.copy()
+                # pos, quat = self.camera.get_camera_pose()
+                # self.cam_pose = pos.copy(), quat.copy()
 
         super().reset(seed=seed)
 
@@ -215,13 +217,13 @@ class RobosuiteGoalEnv(GoalEnv):
         
         if reset or self.renderer is None:
             # create camera mover
-            # self.camera = camera_utils.CameraMover(self.robo_env, camera=cfg.renderer_camera)
+            self.camera = camera_utils.CameraMover(self.robo_env, camera='agentview')
             # self.camera.set_camera_pose(*self.cam_pose)
-            # if self.renderer is not None:
-            #     # update camera
-            #     self.renderer.camera = self.camera
+            if self.renderer is not None:
+                # update camera
+                self.renderer.camera = self.camera
             # TEMPORARY: just watch agentview
-            self.camera = self.encoder.camera_movers[2]
+            # self.camera = self.encoder.camera_movers[2]
 
         if self.renderer is None: #init renderer
             self.renderer = UI('Robosuite', self.camera)

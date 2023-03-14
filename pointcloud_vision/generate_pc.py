@@ -1,11 +1,11 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 import numpy as np
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
 import argparse
 from torchvision.transforms import Compose
-from sim.utils import *
-from vision.utils import SampleRandomPoints, SampleFurthestPoints, FilterClasses, FilterBBox, Normalize
+from robosuite_envs.utils import *
+from .utils import SampleRandomPoints, SampleFurthestPoints, FilterClasses, FilterBBox, Normalize
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', type=str)

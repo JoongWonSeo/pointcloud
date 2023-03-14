@@ -3,10 +3,10 @@ import numpy as np
 import torch
 from torch.optim import Adam
 import gymnasium as gym
-import sim.robosuite_envs
+import robosuite_envs
 import time
 from rl import core
-from sim.utils import *
+from robosuite_envs.utils import *
 
 
 class ReplayBuffer:

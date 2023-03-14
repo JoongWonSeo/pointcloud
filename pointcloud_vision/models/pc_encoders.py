@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from vision.models.pointnet import PointNetEncoder
-from vision.models.pointnet2 import PointNet2Encoder
-from vision.models.pointmlp import PointMLP, PointMLPElite
+from pointcloud_vision.models.pointnet import PointNetEncoder
+from pointcloud_vision.models.pointnet2 import PointNet2Encoder
+from pointcloud_vision.models.pointmlp import PointMLP, PointMLPElite
 
 # constructors for the different point cloud encoders
 backbone_factory = {

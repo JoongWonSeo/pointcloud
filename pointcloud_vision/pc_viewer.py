@@ -1,4 +1,4 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 import sys
 import torch
 import numpy as np

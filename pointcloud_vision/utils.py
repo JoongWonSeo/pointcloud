@@ -1,4 +1,4 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 from functools import reduce, wraps
 import os
 import numpy as np

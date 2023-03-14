@@ -1,6 +1,6 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 import argparse
-import vision.train as vision
+import pointcloud_vision.train as vision
 
 
 parser = argparse.ArgumentParser(description='Train or evaluate a vision module')

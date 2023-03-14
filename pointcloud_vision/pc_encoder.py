@@ -1,12 +1,12 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 import torch
 import numpy as np
 from robosuite.utils.camera_utils import CameraMover, get_real_depth_map
 from robosuite.utils import transform_utils
-from .base import ObservationEncoder
-from vision.train import create_model
-from sim.utils import to_pointcloud, multiview_pointcloud
-from vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize
+from robosuite_envs.base import ObservationEncoder
+from pointcloud_vision.train import create_model
+from robosuite_envs.utils import to_pointcloud, multiview_pointcloud
+from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
@@ -32,7 +32,7 @@ class PointCloudGTPredictor(ObservationEncoder):
         # self.pc_encoder = PN2PosExtractor(6) # PC[XYZRGB] -> Cube[XYZ]
         # self.pc_encoder.load_state_dict(torch.load('../vision/weights/PC_PP_RGB.pth')['model'])
         # self.pc_encoder = Lit.load_from_checkpoint('../vision/weights/PC_PP_RGB.ckpt', predictor=PN2PosExtractor(6), loss_fn=None).model
-        self.pc_encoder, _ = create_model('GTEncoder', 'PointNet2', load_dir='../vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+        self.pc_encoder, _ = create_model('GTEncoder', 'PointNet2', load_dir='../pointcloud_vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
         self.pc_encoder = self.pc_encoder.model.to(cfg.device)
         self.pc_encoder.eval()
 

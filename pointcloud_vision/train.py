@@ -1,15 +1,13 @@
-import cfg
-import os
+import pointcloud_vision.cfg as cfg
 import re
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from vision.models.pc_encoders import AE, SegAE, GTEncoder, backbone_factory
-from vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, OneHotEncode, EarthMoverDistance, seg_to_color
+from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, backbone_factory
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, OneHotEncode, EarthMoverDistance, seg_to_color
 
 
 class Lit(pl.LightningModule):
@@ -103,8 +101,8 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
 
     # Train the created model and dataset
     if model and open_dataset:
-        input_dir = f'vision/input/{dataset}'
-        output_dir = f'vision/output/{dataset}/{model_type}_{backbone}'
+        input_dir = f'pointcloud_vision/input/{dataset}'
+        output_dir = f'pointcloud_vision/output/{dataset}/{model_type}_{backbone}'
         if ckpt_path:
             # use simple regex to extract the number X from str like 'version_X'
             version = int(re.search(r'version_(\d+)', ckpt_path).group(1))

@@ -1,11 +1,10 @@
+# TODO: move this to root dir and change this to a simple environment demo without any dependencies on rl and pointcloud_vision
+
 # This assumes the gym environment is a GoalEnv as defined by gymnasium_robotics.
-import cfg
 import numpy as np
-import torch
 import gymnasium as gym
-import robosuite_envs
-from robosuite_envs import PointCloudGTPredictor
-from sim.utils import *
+from pointcloud_vision import PointCloudGTPredictor
+from robosuite_envs.utils import *
 from rl import core
 
 # global variables

@@ -1,10 +1,10 @@
-import cfg
+import pointcloud_vision.cfg as cfg
 import argparse
 import open3d as o3d
 import numpy as np
 import torch
-from vision.train import create_model
-from vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
+from pointcloud_vision.train import create_model
+from pointcloud_vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='weights/PC_AE.pth')

@@ -58,7 +58,7 @@ pc_sample_points = 2048
 # Preprocessing transforms for the point clouds
 def pc_preprocessor():
     from torchvision.transforms import Compose
-    from vision.utils import FilterClasses, FilterBBox, SampleRandomPoints, SampleFurthestPoints, Normalize
+    from pointcloud_vision.utils import FilterClasses, FilterBBox, SampleRandomPoints, SampleFurthestPoints, Normalize
     return Compose([
         # FilterClasses(whitelist=[0, 1], seg_dim=6), # only keep table and cube
         FilterBBox(bbox),
@@ -69,7 +69,7 @@ def pc_preprocessor():
 
 # ground truth state keys and their transforms
 def gt_preprocessor():
-    from vision.utils import Normalize
+    from pointcloud_vision.utils import Normalize
     return {
         'cube_pos': Normalize(bbox)
     }
