@@ -14,8 +14,8 @@ horizon = 1000
 cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
 # env = gym.make('FetchReach-v3', render_mode='human', max_episode_steps=horizon)
-# env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon)
-env = gym.make('RobosuiteLift-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
+env = gym.make('RobosuiteReach-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
+# env = gym.make('RobosuiteLift-v0', render_mode='human', max_episode_steps=horizon, encoder=cube_encoder)
 # env = gym.make('RobosuitePickAndPlace-v0', render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
@@ -41,7 +41,7 @@ def main():
             # env.episode_goal[0] += 0.01 * (env.renderer.is_pressed('l') - env.renderer.is_pressed('j'))
             # env.episode_goal[1] += 0.01 * (env.renderer.is_pressed('i') - env.renderer.is_pressed('k'))
             # env.episode_goal[2] += 0.01 * (env.renderer.is_pressed('9') - env.renderer.is_pressed(','))
-            set_obj_pos(env.robo_env.sim, joint='cube_joint0')
+            # set_obj_po(env.robo_env.sim, joint='cube_joint0')
 
             # Simulation
             # action = agent.noisy_action(obs, 0) # sample agent action

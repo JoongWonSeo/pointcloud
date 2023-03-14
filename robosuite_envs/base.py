@@ -19,8 +19,9 @@ class ObservationEncoder(ABC):
     Abstract class for robosuite observation encoders
 
     Inheriting classes must implement the following:
-        - encode_state(self, observation): returns the encoded state of the observation
-        - get_space(self): observation space of the encoder (Gym Space)
+        - encode_state(self, observation): returns the selected proprioception and encoded state of the observation
+        - encode_goal(self, observation): returns the encoded goal of the (initial) observation
+        - get_space(self): observation space of the encoder (Gym Space) TODO: make this into a goal-aware observation space https://robotics.farama.org/envs/fetch/slide/#observation-space
 
     Inheriting classes may implement the following (optional):
         - env_kwargs: kwargs when initializing robosuite env, e.g. camera settings
@@ -54,6 +55,13 @@ class ObservationEncoder(ABC):
         pass
 
     @abstractmethod
+    def encode_goal(self, observation):
+        '''
+        Returns the encoded goal of the (initial) observation
+        '''
+        pass
+
+    @abstractmethod
     def get_space(self):
         '''
         Returns the observation space of the encoder
@@ -63,19 +71,28 @@ class ObservationEncoder(ABC):
 
 # GroundTruthEncoder returns the ground truth observation as a single vector
 class GroundTruthEncoder(ObservationEncoder):
-    def __init__(self, proprioception_keys, state_keys, robo_env=None):
+    def __init__(self, proprioception_keys, state_keys, goal_keys, robo_env=None):
         super().__init__(proprioception_keys, robo_env)
         self.state_keys = [state_keys] if type(state_keys) == str else list(state_keys)
-        self.all_keys = self.proprioception_keys + self.state_keys
+        self.goal_keys = [goal_keys] if type(goal_keys) == str else list(goal_keys)
+        self.all_keys = self.proprioception_keys + self.state_keys + self.goal_keys
 
-    def encode_state(self, obs):
-        obs_list = [obs[key] for key in self.state_keys]
+    def encode_state(self, robo_obs):
+        obs_list = [robo_obs[key] for key in self.state_keys]
+        if len(obs_list) > 0:
+            return np.concatenate(obs_list, dtype=np.float32)
+        else:
+            return np.array([], dtype=np.float32)
+    
+    def encode_goal(self, robo_obs):
+        obs_list = [robo_obs[key] for key in self.goal_keys]
         if len(obs_list) > 0:
             return np.concatenate(obs_list, dtype=np.float32)
         else:
             return np.array([], dtype=np.float32)
 
     def get_space(self):
+        # TODO: make into dict: https://robotics.farama.org/envs/fetch/slide/#observation-space
         o = self.robo_env.observation_spec()
         dim = sum([o[key].shape[0] for key in self.all_keys])
         return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(dim,))

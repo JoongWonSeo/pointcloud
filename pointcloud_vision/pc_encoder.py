@@ -12,6 +12,10 @@ from gymnasium.spaces import Box
 
 
 class PointCloudGTPredictor(ObservationEncoder):
+    '''
+    Cube position predictor from pointcloud
+    Point Cloud {XYZRGB} -> Cube (XYZ)
+    '''
     def __init__(self, proprioception_keys, cameras=list(cfg.camera_poses.keys()), camera_poses=list(cfg.camera_poses.values()), camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=cfg.pc_sample_points, robo_env=None):
         super().__init__(proprioception_keys, robo_env) #TODO add to init args
 
@@ -52,11 +56,14 @@ class PointCloudGTPredictor(ObservationEncoder):
         return self.encode(obs) #TODO: due to cameramovers, the actual is no longer same
     
     def encode_state(self, obs):
+        return np.array([], dtype=np.float32)
+
+    def encode_goal(self, obs):
         # generate pointcloud from 2.5D observations
         pc, feats = multiview_pointcloud(self.robo_env.sim, obs, self.cameras, self.preprocess, ['rgb'])
         pc = torch.cat((pc, feats['rgb']), dim=1)
         
-        # encode pointcloud
+        # encode pointcloud (predict cube position)
         pc = pc.unsqueeze(0).to(cfg.device)
         pred = self.pc_encoder(pc).detach().cpu()
 

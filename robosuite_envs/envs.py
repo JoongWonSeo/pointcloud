@@ -6,7 +6,7 @@ from .base import RobosuiteGoalEnv, GroundTruthEncoder
 class RobosuiteReach(RobosuiteGoalEnv):
     def __init__(self, render_mode=None, encoder=None):
         if encoder is None:
-            encoder = GroundTruthEncoder('robot0_eef_pos', []) # observation is only end-effector position
+            encoder = GroundTruthEncoder('robot0_eef_pos', [], 'cube_pos') # observation is only end-effector position
 
         # create environment instance
         robo_env = suite.make(
@@ -27,8 +27,8 @@ class RobosuiteReach(RobosuiteGoalEnv):
         
         def desired_goal(robo_obs):
             # goal is the cube position and end-effector position close to cube
-            # cube_pos = encoder.encode_state(robo_obs)
-            cube_pos = robo_obs['cube_pos']
+            cube_pos = encoder.encode_goal(robo_obs)
+            # cube_pos = robo_obs['cube_pos']
             # add random noise to the cube position
             # cube_pos[0] += np.random.uniform(-0.2, 0.2)
             # cube_pos[1] += np.random.uniform(-0.2, 0.2)
