@@ -2,13 +2,13 @@
 # More specificially, it is to be used like a Gymnasium-Robotics GoalEnv (https://robotics.farama.org/content/multi-goal_api/)
 # Meaning that the observation space is a dictionary with keys 'observation', 'desired_goal' and 'achieved_goal'
 
-# import cfg # TODO: since this is a library, we should not import cfg here
 import numpy as np
 import gymnasium as gym
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils import camera_utils, transform_utils
+from robosuite.utils.camera_utils import CameraMover
 from .utils import UI, to_cv2_img, render
 
 from abc import ABC, abstractmethod
@@ -29,13 +29,41 @@ class ObservationEncoder(ABC):
         - encode_proprioception(self, observation): returns the encoded proprioception of the observation
     '''
 
-    def __init__(self, proprioception_keys, robo_env=None):
+    def __init__(self, proprioception_keys, cameras, camera_size, robo_env=None):
+        '''
+        proprioception_keys: list of keys to select from the observation dict
+        cameras: dict of camera name to their desired poses (position, rotation) if any
+        camera_size: size of the camera image (width, height)
+        robo_env: robosuite environment, can be overwritten by GoalEnvRobosuite in the constructor
+        '''
         self.proprioception_keys = [proprioception_keys] if type(proprioception_keys) == str else list(proprioception_keys)
         self.robo_env = robo_env # this can be overwritten by GoalEnvRobosuite in the constructor
-        self.env_kwargs = {} # kwargs for the robosuite env, e.g. camera settings
+        self.cameras = cameras
+        self.camera_size = camera_size
+        self.camera_movers = None
+    
+    @property
+    def env_kwargs(self):
+        if len(self.cameras) > 0:
+            return { # kwargs for the robosuite env, e.g. camera settings
+                'use_camera_obs': True,
+                'camera_names': list(self.cameras.keys()),
+                'camera_widths': self.camera_size[0],
+                'camera_heights': self.camera_size[1],
+            }
+        else:
+            return {'use_camera_obs': False}
+    
+    def create_movers(self):
+        self.camera_movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
+        for mover, c in zip(self.camera_movers, self.cameras):
+            if self.cameras[c] is not None:
+                pos, quat = self.cameras[c]
+                mover.set_camera_pose(np.array(pos), np.array(quat))
 
     def reset(self, observation):
-        return self.encode(observation)
+        self.create_movers()
+        return self.encode(observation) #TODO: due to cameramovers, the actual is no longer same
 
     def encode(self, observation):
         return self.encode_proprioception(observation), self.encode_state(observation)
@@ -72,7 +100,7 @@ class ObservationEncoder(ABC):
 # GroundTruthEncoder returns the ground truth observation as a single vector
 class GroundTruthEncoder(ObservationEncoder):
     def __init__(self, proprioception_keys, state_keys, goal_keys, robo_env=None):
-        super().__init__(proprioception_keys, robo_env)
+        super().__init__(proprioception_keys, cameras={}, camera_size=(0, 0), robo_env=robo_env)
         self.state_keys = [state_keys] if type(state_keys) == str else list(state_keys)
         self.goal_keys = [goal_keys] if type(goal_keys) == str else list(goal_keys)
         self.all_keys = self.proprioception_keys + self.state_keys + self.goal_keys
@@ -113,7 +141,7 @@ class RobosuiteGoalEnv(GoalEnv):
         compute_truncated: function that takes (achieved_goal, desired_goal, info) and returns True if the episode should be truncated
         compute_terminated: function that takes (achieved_goal, desired_goal, info) and returns True if the episode should be terminated
         encoder: ObservationEncoder that transforms the raw robosuite observation into a single vector
-        render_mode: str for render mode such as 'human' or 'rgb_array'
+        render_mode: str for render mode such as 'human' or None
         '''
         ###################################################
         # internal variables, not part of the Gym Env API #
@@ -156,6 +184,11 @@ class RobosuiteGoalEnv(GoalEnv):
         low, high = robo_env.action_spec
         self.action_space = Box(low=np.float32(low), high=np.float32(high))
 
+        ###################
+        # for rendering   #
+        ###################
+        self.encoder.create_movers()
+
         self.render_mode = render_mode
         self.render_info = render_info # function that returns points to render
         self.renderer = None
@@ -163,18 +196,6 @@ class RobosuiteGoalEnv(GoalEnv):
 
 
     def reset(self, *, seed=None, options=None):
-        # pre-reset operations
-        if self.render_mode == 'human':
-            if self.renderer is None:
-                pass
-                # default camera pose
-                # self.cam_pose = cfg.renderer_default_pose
-            else:
-                pass
-                #remember the camera pose
-                # pos, quat = self.camera.get_camera_pose()
-                # self.cam_pose = pos.copy(), quat.copy()
-
         super().reset(seed=seed)
 
         self.is_episode_success = False
@@ -231,19 +252,9 @@ class RobosuiteGoalEnv(GoalEnv):
     def render_frame(self, robo_obs, info, reset=False):
         if self.render_mode is None:
             return
-        
-        if reset or self.renderer is None:
-            # create camera mover
-            self.camera = camera_utils.CameraMover(self.robo_env, camera='agentview')
-            # self.camera.set_camera_pose(*self.cam_pose)
-            if self.renderer is not None:
-                # update camera
-                self.renderer.camera = self.camera
-            # TEMPORARY: just watch agentview
-            # self.camera = self.encoder.camera_movers[2]
 
         if self.renderer is None: #init renderer
-            self.renderer = UI('Robosuite', self.camera)
+            self.renderer = UI('Robosuite', self.encoder)
         
         if reset: # dont render the first frame to avoid camera switch
             return
@@ -254,11 +265,12 @@ class RobosuiteGoalEnv(GoalEnv):
         self.request_truncate = self.renderer.is_pressed('r')
 
         # render
-        camera_image = robo_obs[self.camera.camera + '_image'] / 255
+        cam = self.renderer.camera_name
+        camera_image = robo_obs[cam + '_image'] / 255
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)
-            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, self.camera.camera, camera_h, camera_w)
+            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, cam, camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
         self.renderer.show(to_cv2_img(camera_image))
     

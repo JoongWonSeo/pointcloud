@@ -1,7 +1,7 @@
 import pointcloud_vision.cfg as cfg
 import torch
 import numpy as np
-from robosuite.utils.camera_utils import CameraMover, get_real_depth_map
+from robosuite.utils.camera_utils import get_real_depth_map
 from robosuite.utils import transform_utils
 from robosuite_envs.base import ObservationEncoder
 from pointcloud_vision.train import create_model
@@ -16,22 +16,11 @@ class PointCloudGTPredictor(ObservationEncoder):
     Cube position predictor from pointcloud
     Point Cloud {XYZRGB} -> Cube (XYZ)
     '''
-    def __init__(self, proprioception_keys, cameras=list(cfg.camera_poses.keys()), camera_poses=list(cfg.camera_poses.values()), camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=cfg.pc_sample_points, robo_env=None):
-        super().__init__(proprioception_keys, robo_env) #TODO add to init args
+    def __init__(self, proprioception_keys, cameras=cfg.camera_poses, camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=cfg.pc_sample_points, robo_env=None):
+        super().__init__(proprioception_keys, cameras, camera_size, robo_env) #TODO add to init args
 
-        self.cameras = cameras
-        self.camera_poses = camera_poses
         self.bbox = torch.Tensor(bbox) # 3D bounding box [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         self.sample_points = sample_points
-
-        self.env_kwargs = {
-            'use_camera_obs': True,
-            'camera_names': self.cameras,
-            'camera_widths': camera_size[0],
-            'camera_heights': camera_size[1],
-            'camera_depths': True,
-            'camera_segmentations': 'class',
-        }
         
         # self.pc_encoder = PN2PosExtractor(6) # PC[XYZRGB] -> Cube[XYZ]
         # self.pc_encoder.load_state_dict(torch.load('../vision/weights/PC_PP_RGB.pth')['model'])
@@ -46,14 +35,13 @@ class PointCloudGTPredictor(ObservationEncoder):
             Normalize(bbox)
         ])
         self.postprocess = Unnormalize(bbox)
-        
-    def reset(self, obs):
-        # setup cameras and camera poses
-        self.camera_movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
-        for mover, pose in zip(self.camera_movers, self.camera_poses):
-            mover.set_camera_pose(np.array(pose[0]), np.array(pose[1]))
-        
-        return self.encode(obs) #TODO: due to cameramovers, the actual is no longer same
+    
+    @property
+    def env_kwargs(self):
+        return super().env_kwargs | {
+            'camera_depths': True,
+            'camera_segmentations': 'class',
+        }
     
     def encode_state(self, obs):
         return np.array([], dtype=np.float32)

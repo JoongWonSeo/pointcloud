@@ -182,11 +182,17 @@ def random_action(env):
     return np.random.randn(env.action_dim)
 
 
-
 class UI:
-    def __init__(self, window, camera_mover):
+    def __init__(self, window, encoder, selected_camera=0):
+        '''
+        window (str): window name
+        encoder (ObservationEncoder): for the cameras and camera movers
+        selected_camera (int): index of selected camera
+        '''
         self.window = window
-        self.camera = camera_mover
+        self.encoder = encoder
+        self.cameras = list(encoder.cameras.keys())
+        self.camera_index = selected_camera
         
         # mouse & keyboard states
         self.mouse_x = self.mouse_y = 0
@@ -200,6 +206,14 @@ class UI:
         cv2.namedWindow(self.window)
         cv2.setMouseCallback(self.window, lambda e, x, y, f, p: self.mouse_callback(e, x, y, f, p))
     
+    @property
+    def camera_name(self):
+        return self.cameras[self.camera_index]
+    
+    @property
+    def camera_mover(self):
+        return self.encoder.camera_movers[self.camera_index]
+    
     def update(self):
         # update key state
         self.key = cv2.waitKey(10)
@@ -210,18 +224,21 @@ class UI:
         self._mx, self._my = self.mouse_x, self.mouse_y
 
 
-        if self.key == 27: #ESC key
+        if self.key == 27: #ESC key: quit program
             return False
+        
+        if self.key == 9: # tab key: switch camera
+            self.camera_index = (self.camera_index + 1) % len(self.cameras)
 
         # move camera with WASD
-        self.camera.move_camera((1,0,0), ((self.key == ord('d')) - (self.key == ord('a'))) * 0.05) # x axis (right-left)
-        self.camera.move_camera((0,1,0), ((self.key == ord('2')) - (self.key == ord('z'))) * 0.05) # y axis (up-down)
-        self.camera.move_camera((0,0,1), ((self.key == ord('s')) - (self.key == ord('w'))) * 0.05) # z axis (forward-backward)
+        self.camera_mover.move_camera((1,0,0), ((self.key == ord('d')) - (self.key == ord('a'))) * 0.05) # x axis (right-left)
+        self.camera_mover.move_camera((0,1,0), ((self.key == ord('2')) - (self.key == ord('z'))) * 0.05) # y axis (up-down)
+        self.camera_mover.move_camera((0,0,1), ((self.key == ord('s')) - (self.key == ord('w'))) * 0.05) # z axis (forward-backward)
 
         # rotate camera with mouse        
         if self.mouse_clicked:
-            self.camera.rotate_camera(point=None, axis=(0, 1, 0), angle=(self._mx-self._mx_prev)/10)
-            self.camera.rotate_camera(point=None, axis=(1, 0, 0), angle=(self._my-self._my_prev)/10)
+            self.camera_mover.rotate_camera(point=None, axis=(0, 1, 0), angle=(self._mx-self._mx_prev)/10)
+            self.camera_mover.rotate_camera(point=None, axis=(1, 0, 0), angle=(self._my-self._my_prev)/10)
         
         return True
     
@@ -244,3 +261,4 @@ class UI:
             self.mouse_clicked = True
         if event == cv2.EVENT_LBUTTONUP:
             self.mouse_clicked = False
+    

@@ -8,6 +8,10 @@ class RobosuiteReach(RobosuiteGoalEnv):
         if encoder is None:
             encoder = GroundTruthEncoder('robot0_eef_pos', [], 'cube_pos') # observation is only end-effector position
 
+        # default camera for UI
+        if render_mode == 'human' and len(encoder.cameras) == 0:
+            encoder.cameras = {'frontview': None} # default camera with default pose
+
         # create environment instance
         robo_env = suite.make(
             env_name="Lift", # try with other tasks like "Stack" and "Door"
