@@ -33,10 +33,6 @@ class RobosuiteReach(RobosuiteGoalEnv):
             # goal is the cube position and end-effector position close to cube
             cube_pos = encoder.encode_goal(robo_obs)
             # cube_pos = robo_obs['cube_pos']
-            # add random noise to the cube position
-            # cube_pos[0] += np.random.uniform(-0.2, 0.2)
-            # cube_pos[1] += np.random.uniform(-0.2, 0.2)
-            # cube_pos[2] += np.random.uniform(0.01, 0.2)
             return cube_pos # end-effector should be close to the cube
 
         def check_success(achieved, desired, info):
@@ -84,12 +80,15 @@ class RobosuiteLift(RobosuiteGoalEnv):
             return np.concatenate((proprioception, state)) # cube and end-effector position
         
         def desired_goal(robo_obs):
+            print('cube pos: ', robo_obs['cube_pos'])
             # goal is the cube position and end-effector position close to cube
             cube_pos = robo_obs['cube_pos']
             # cube must be lifted up
             cube_pos[2] += 0.4
             # end-effector should be close to the cube (not really necessary)
             eef_pos = cube_pos
+            
+            print('cube pos after: ', robo_obs['cube_pos'])
             return np.concatenate((eef_pos, cube_pos))
             # robo_obs is the initial observation
             # the task defines the desired goal (possibly based on the initial observation)
@@ -133,6 +132,9 @@ class RobosuiteLift(RobosuiteGoalEnv):
 
 class RobosuitePickAndPlace(RobosuiteGoalEnv):
     def __init__(self, render_mode=None, encoder=None):
+        if encoder is None:
+            encoder = GroundTruthEncoder('robot0_eef_pos', 'cube_pos', 'cube_pos')
+
         # create robosuite env
         robo_env = suite.make(
             env_name="Lift", # try with other tasks like "Stack" and "Door"
@@ -148,18 +150,14 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         
         def desired_goal(robo_obs):
             # goal is the cube position and end-effector position close to cube
-            cube_pos = robo_obs['cube_pos']
+            cube_pos = robo_obs['cube_pos'].copy()
             # cube must be moved
             cube_pos[0] += np.random.uniform(-0.2, 0.2)
             cube_pos[1] += np.random.uniform(-0.2, 0.2)
             if np.random.uniform() < 0.5: # cube in the air for 50% of the time
                 cube_pos[2] += np.random.uniform(0.01, 0.2)
             
-            # TODO: encoder should convert the desired goal (ground truth) to the observation space (e.g. embedding space)
-            # e.g. PC encoder would create a dummy robosuite sim, set the cube position, and render a point cloud and encode it
-            # is there a way to do this without creating a dummy sim? e.g. just use the encoder to create a point cloud from the ground truth cube position?
-            # maybe if the decoder is segmenting, then we can decode the initial embedding, and then shift the points labeled as cube and then re-encode? lossy due to re-encoding though
-            # cube_pos = encoder.encode_goal(cube_pos)
+            # encoder.encode_goal()
 
             return cube_pos
 
@@ -182,9 +180,7 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         def render_goal(env, robo_obs):
             cube_goal = env.episode_goal
             return np.array([cube_goal]), np.array([[1, 0, 0]])
-
-        if encoder is None:
-            encoder = GroundTruthEncoder('robot0_eef_pos', 'cube_pos'), # observation is end-effector position and cube position
+            
 
         super().__init__(
             robo_env=robo_env,

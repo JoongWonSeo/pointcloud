@@ -21,7 +21,7 @@ class ObservationEncoder(ABC):
     Inheriting classes must implement the following:
         - encode_state(self, observation): returns the selected proprioception and encoded state of the observation
         - encode_goal(self, observation): returns the encoded goal of the (initial) observation
-        - get_space(self): observation space of the encoder (Gym Space) TODO: make this into a goal-aware observation space https://robotics.farama.org/envs/fetch/slide/#observation-space
+        - get_space(self): observation space of the encoder (Gym Space)
 
     Inheriting classes may implement the following (optional):
         - env_kwargs: kwargs when initializing robosuite env, e.g. camera settings
