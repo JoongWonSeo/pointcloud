@@ -17,17 +17,9 @@ class Sensor(ABC):
     '''
     requires_vision = False
 
-    def __init__(self, cameras={}, camera_size=(128, 128)):
-        '''
-        cameras: dict of camera names and their desired poses, if any
-        camera_size: (width, height) of the camera
-        '''
-        self.robo_env = None # set by the environment after initialization
-        self.cameras = list(cameras.keys())
-        self.poses = list(cameras.values())
-        self.camera_size = camera_size
-
-        self.movers = [None for c in self.cameras] # [CameraMover] in the same order as self.cameras
+    def __init__(self, env):
+        self.env = env
+        self.movers = None # [CameraMover] in the same order as self.cameras
     
     @property
     def env_kwargs(self):
@@ -40,9 +32,21 @@ class Sensor(ABC):
             }
         else:
             return {'use_camera_obs': False}
+    
+    @property
+    def cameras(self):
+        return list(self.env.cameras.keys())
+    
+    @property
+    def poses(self):
+        return list(self.env.cameras.values())
+    
+    @property
+    def camera_size(self):
+        return self.env.camera_size
 
     def create_movers(self):
-        self.movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
+        self.movers = [CameraMover(self.env.robo_env, camera=c) for c in self.cameras]
         for mover, pose in zip(self.movers, self.poses):
             if pose is not None:
                 pos, quat = pose

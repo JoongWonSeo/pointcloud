@@ -6,6 +6,7 @@ from abc import abstractmethod
 import numpy as np
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
+import robosuite as suite
 from robosuite.utils import camera_utils
 from .encoders import GroundTruthEncoder, ObservationEncoder
 from .utils import UI, to_cv2_img, render
@@ -15,9 +16,9 @@ from .utils import UI, to_cv2_img, render
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_env, proprio, sensor, obs_encoder, goal_encoder, render_mode=None, render_info=None):
+    def __init__(self, robo_kwargs, proprio, sensor, obs_encoder, goal_encoder, render_mode=None, render_info=None):
         '''
-        robo_env: Robosuite environment
+        robo_kwargs: keyward arguments for Robosuite environment to be created
         proprio: list of keys for the proprioception
         sensor: Sensor that transforms the ground truth into an observation (T -> O)
         obs_encoder: ObservationEncoder that transforms an observation into an encoding (O -> E)
@@ -28,13 +29,11 @@ class RobosuiteGoalEnv(GoalEnv):
         ###################################################
         # internal variables, not part of the Gym Env API #
         ###################################################
-        self.robo_env = robo_env
-        self.proprio = GroundTruthEncoder(proprio)
+        self.robo_env = suite.make(**(robo_kwargs | sensor.env_kwargs))
+        self.proprio = GroundTruthEncoder(self, proprio) # proprioception does not need to be encoded
         self.sensor = sensor
         self.obs_encoder = obs_encoder
         self.goal_encoder = goal_encoder
-        if self.sensor.robo_env is None:
-            self.sensor.robo_env = self.robo_env
         
         # information about the current episode
         self.is_episode_success = False
@@ -48,7 +47,8 @@ class RobosuiteGoalEnv(GoalEnv):
             'achieved_goal': self.goal_encoder.get_space(self.robo_env),
             'desired_goal': self.goal_encoder.get_space(self.robo_env),
         })
-        self.action_space = Box(np.float32(robo_env.action_spec[0]), np.float32(robo_env.action_spec[1]), dtype=np.float32)
+        low, high = np.float32(self.robo_env.action_spec[0]), np.float32(self.robo_env.action_spec[1])
+        self.action_space = Box(low, high, dtype=np.float32)
 
         ###################
         # for rendering   #
@@ -110,7 +110,7 @@ class RobosuiteGoalEnv(GoalEnv):
         # get the initial ground-truth state (S)
         state = self.robo_env.reset()
         self.sensor.reset()
-        goal_state = self.goal_state(state, rerender=self.sensor.requires_vision)
+        goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
 
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)
@@ -144,8 +144,9 @@ class RobosuiteGoalEnv(GoalEnv):
         # get the next ground-truth state (S)
         state, reward, done, info = self.robo_env.step(action)
 
+        self.episode_goal = None #DEBUG: always regenerate the goal, since initial state is bugged
         if self.episode_goal is None: # for if reset() is not called first
-            goal_state = self.goal_state(state, rerender=self.sensor.requires_vision)
+            goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
             goal_obs = self.sensor.observe(goal_state)
             self.episode_goal = self.goal_encoder.encode(goal_obs)
         

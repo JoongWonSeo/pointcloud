@@ -1,5 +1,6 @@
 import pointcloud_vision.cfg as cfg
 import re
+from types import SimpleNamespace
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -8,6 +9,7 @@ import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, backbone_factory
 from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, OneHotEncode, EarthMoverDistance, seg_to_color
+from robosuite_envs.envs import cfg_vision
 
 
 class Lit(pl.LightningModule):
@@ -49,14 +51,17 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def create_model(model_type, backbone, load_dir=None):
+def create_model(model_type, backbone, env, load_dir=None):
+    if type(env) is str:
+        env = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
+
     # create the model and dataset
     model, dataset = None, None
     encoder_backbone = backbone_factory[backbone](feature_dims=3)
 
     if model_type == 'Autoencoder':
         model = Lit(
-            AE(encoder_backbone, out_points=cfg.pc_sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
+            AE(encoder_backbone, out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
         )
         dataset = lambda input_dir: \
@@ -67,10 +72,10 @@ def create_model(model_type, backbone, load_dir=None):
             )
 
     if model_type == 'Segmenter':
-        C = len(cfg.classes)
+        C = len(env.classes)
         model = Lit(
-            SegAE(encoder_backbone, num_classes=C, out_points=cfg.pc_sample_points, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=cfg.class_weights)
+            SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=env.class_weights)
         )
         dataset = lambda input_dir: \
             PointCloudDataset(
@@ -82,7 +87,7 @@ def create_model(model_type, backbone, load_dir=None):
 
     if model_type == 'GTEncoder':
         model = Lit(
-            GTEncoder(encoder_backbone, out_dim=cfg.gt_dim),
+            GTEncoder(encoder_backbone, out_dim=env.gt_dim),
             F.mse_loss
         )
         dataset = lambda input_dir: \
@@ -97,7 +102,7 @@ def create_model(model_type, backbone, load_dir=None):
 
 
 def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
-    model, open_dataset = create_model(model_type, backbone)
+    model, open_dataset = create_model(model_type, backbone, env=dataset)
 
     # Train the created model and dataset
     if model and open_dataset:

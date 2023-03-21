@@ -1,41 +1,29 @@
 import pointcloud_vision.cfg as cfg
 import torch
 import numpy as np
-from robosuite.utils.camera_utils import get_real_depth_map
-from robosuite.utils import transform_utils
 from robosuite_envs.encoders import ObservationEncoder
-from pointcloud_vision.train import create_model
-from robosuite_envs.utils import to_pointcloud, multiview_pointcloud
-from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize
+from robosuite_envs.sensors import Sensor
+from robosuite_envs.utils import multiview_pointcloud #TODO move to vision module
+from pointcloud_vision.models.pc_encoders import backbone_factory, GTEncoder
+from pointcloud_vision.train import Lit
+from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize, obs_to_pc
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
-
-class PointCloudGTPredictor(ObservationEncoder):
+class PointCloudSensor(Sensor):
     '''
-    Cube position predictor from pointcloud
-    Point Cloud {XYZRGB} -> Cube (XYZ)
+    Sensor that generates a pointcloud from a 2.5D observation
+    observe returns a dict that is compatible with the PointCloudDataset save format,
+    including keys 'points' and features like 'rgb', 'segmentation', and also 'boundingbox' and 'classes'
     '''
-    def __init__(self, proprioception_keys, cameras=cfg.camera_poses, camera_size=cfg.camera_size, bbox=cfg.bbox, sample_points=cfg.pc_sample_points, robo_env=None):
-        super().__init__(proprioception_keys, cameras, camera_size, robo_env) #TODO add to init args
 
-        self.bbox = torch.Tensor(bbox) # 3D bounding box [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
-        self.sample_points = sample_points
-        
-        # self.pc_encoder = PN2PosExtractor(6) # PC[XYZRGB] -> Cube[XYZ]
-        # self.pc_encoder.load_state_dict(torch.load('../vision/weights/PC_PP_RGB.pth')['model'])
-        # self.pc_encoder = Lit.load_from_checkpoint('../vision/weights/PC_PP_RGB.ckpt', predictor=PN2PosExtractor(6), loss_fn=None).model
-        self.pc_encoder, _ = create_model('GTEncoder', 'PointNet2', load_dir='../pointcloud_vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
-        self.pc_encoder = self.pc_encoder.model.to(cfg.device)
-        self.pc_encoder.eval()
+    requires_vision = True
 
-        self.preprocess = Compose([
-            FilterBBox(bbox),
-            SampleFurthestPoints(sample_points),
-            Normalize(bbox)
-        ])
-        self.postprocess = Unnormalize(bbox)
-    
+    def __init__(self, env):
+        super().__init__(env)
+
+        self.features = ['rgb', 'segmentation']
+
     @property
     def env_kwargs(self):
         return super().env_kwargs | {
@@ -43,25 +31,52 @@ class PointCloudGTPredictor(ObservationEncoder):
             'camera_segmentations': 'class',
         }
     
-    def encode_state(self, obs):
-        return np.array([], dtype=np.float32)
-
-    def encode_goal(self, obs):
+    def observe(self, state):
         # generate pointcloud from 2.5D observations
-        pc, feats = multiview_pointcloud(self.robo_env.sim, obs, self.cameras, self.preprocess, ['rgb'])
-        pc = torch.cat((pc, feats['rgb']), dim=1)
+        preprocess = Compose([
+            FilterBBox(self.env.bbox),
+            SampleFurthestPoints(self.env.sample_points),
+            Normalize(self.env.bbox)
+        ])
+        pc, feats = multiview_pointcloud(self.env.robo_env.sim, state, self.env.cameras, preprocess, self.features)
+        # TODO: currently, the original state is also included in the observation, in order to allow GT Encoders to work as well.
+        return state | {'points': pc, 'boundingbox': self.env.bbox} | feats
+
+class PointCloudGTPredictor(ObservationEncoder):
+    '''
+    '''
+    latent_encoding = False
+
+    def __init__(self, env, obs_keys):
+        super().__init__(env, obs_keys)
         
-        # encode pointcloud (predict cube position)
-        pc = pc.unsqueeze(0).to(cfg.device)
+        if self.obs_keys == ['cube_pos']:
+            # Cube position predictor from pointcloud (Point Cloud {XYZRGB} -> Cube (XYZ))
+            self.features = ['rgb']
+            feature_dims = 3
+            self.encoding_dim = 3
+
+            load_dir = '../pointcloud_vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt'
+            self.pc_encoder = GTEncoder(backbone_factory['PointNet2'](feature_dims=feature_dims), self.encoding_dim)
+            self.pc_encoder = Lit(self.pc_encoder, None)
+            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
+            # self.pc_encoder, _ = create_model('GTEncoder', 'PointNet2', load_dir=)
+
+        else:
+            raise NotImplementedError()
+
+        self.pc_encoder = self.pc_encoder.model.to(cfg.device)
+        self.pc_encoder.eval()
+
+    def encode(self, obs):
+        pc = obs_to_pc(obs, self.features).unsqueeze(0).to(cfg.device)
         pred = self.pc_encoder(pc).detach().cpu()
 
         # unnormalize to world coordinates
-        pred = self.postprocess(pred)
+        pred = Unnormalize(obs['boundingbox'])(pred)
 
         return pred.squeeze(0).numpy()
     
-    def get_space(self):
-        o = self.robo_env.observation_spec()
-        dim = 3 + sum([o[key].shape[0] for key in self.proprioception_keys])
-        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(dim,))
+    def get_space(self, robo_env):
+        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))
 

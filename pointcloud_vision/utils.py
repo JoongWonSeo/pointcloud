@@ -28,7 +28,7 @@ def get_class_points(points, seg, cls):
 
     
 
-def seg_to_color(seg, classes=cfg.classes):
+def seg_to_color(seg, classes):
     if type(classes[0][1]) is not torch.Tensor:
         classes = [(name, torch.Tensor(col)) for name, col in classes]
     if type(seg) is not torch.Tensor:
@@ -159,7 +159,7 @@ class OneHotEncode:
     '''
     Convert integer encoded segmentation labels to one-hot encoded labels
     '''
-    def __init__(self, num_classes=len(cfg.classes), seg_dim=3):
+    def __init__(self, num_classes, seg_dim=3):
         self.C = num_classes
         self.d = seg_dim
     
@@ -174,7 +174,7 @@ class IntegerEncode:
     '''
     Convert one-hot encoded segmentation labels to integer encoded labels
     '''
-    def __init__(self, num_classes=len(cfg.classes), seg_dim=3):
+    def __init__(self, num_classes, seg_dim=3):
         self.C = num_classes
         self.d = seg_dim
     
@@ -262,6 +262,10 @@ class EarthMoverDistance:
 
 ########## PyTorch Datasets ##########
 
+def obs_to_pc(obs, features, as_tensor=True):
+    pc = np.concatenate((obs['points'], *(obs[f] for f in features)), axis=1)
+    return torch.from_numpy(pc) if as_tensor else pc
+
 class PointCloudDataset(Dataset):
     '''
     Dataset for point cloud to point cloud pairs, e.g. for training a point cloud autoencoder
@@ -295,17 +299,13 @@ class PointCloudDataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, idx):
-        pointcloud = self.get_file(idx)
+        obs = self.get_file(idx)
 
         if self.in_features == self.out_features:
-            features = [pointcloud[f] for f in self.in_features]
-            in_pc = out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *features), axis=1))
+            in_pc = out_pc = obs_to_pc(obs, self.in_features)
         else:
-            in_features = [pointcloud[f] for f in self.in_features]
-            out_features = [pointcloud[f] for f in self.out_features]
-
-            in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
-            out_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *out_features), axis=1))
+            in_pc = obs_to_pc(obs, self.in_features)
+            out_pc = obs_to_pc(obs, self.out_features)
 
         if self.in_transform:
             in_pc = self.in_transform(in_pc)
@@ -342,12 +342,10 @@ class PointCloudGTDataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, idx):
-        pointcloud = self.get_file(idx)
+        obs = self.get_file(idx)
 
-        in_features = [pointcloud[f] for f in self.in_features]
-        out_data = torch.from_numpy(pointcloud['ground_truth']).float()
-
-        in_pc = torch.from_numpy(np.concatenate((pointcloud['points'], *in_features), axis=1))
+        out_data = torch.from_numpy(obs['ground_truth']).float()
+        in_pc = obs_to_pc(obs, self.in_features)
 
         if self.in_transform:
             in_pc = self.in_transform(in_pc)
@@ -361,3 +359,4 @@ class PointCloudGTDataset(Dataset):
 
     def get_file(self, idx):
         return np.load(os.path.join(self.root_dir, self.files[idx]), allow_pickle=True)
+

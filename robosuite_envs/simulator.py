@@ -3,7 +3,7 @@
 # This assumes the gym environment is a GoalEnv as defined by gymnasium_robotics.
 import numpy as np
 import gymnasium as gym
-from pointcloud_vision import PointCloudGTPredictor
+from pointcloud_vision import PointCloudSensor, PointCloudGTPredictor
 from robosuite_envs.utils import *
 from rl import core
 
@@ -15,7 +15,8 @@ horizon = 1000
 
 # task = 'RobosuitePickAndPlace-v0'
 task = 'RobosuiteReach-v0'
-env = gym.make(task, render_mode='human', max_episode_steps=horizon)
+env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, goal_encoder=PointCloudGTPredictor)
+# env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
 agent_output_dim = env.action_space.shape[0]
@@ -44,7 +45,7 @@ def main():
 
             # Simulation
             # action = agent.noisy_action(obs, 0) # sample agent action
-            action = np.random.rand((agent_output_dim)) # sample random action
+            action = np.random.randn(agent_output_dim) # sample random action
             obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
             obs = np.concatenate((obs['observation'], obs['desired_goal']))
 

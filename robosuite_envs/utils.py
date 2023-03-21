@@ -6,6 +6,16 @@ from robosuite.utils.camera_utils import get_real_depth_map
 import random
 
 
+def apply_preset(obj, preset):
+    '''
+    Assign a preset dictionary of attributes and their values to an object
+    '''
+    for key, value in preset.items():
+        setattr(obj, key, value)
+    return obj
+
+
+
 def to_cv2_img(img):
     '''converts robosuite image to cv2 image'''
     img = np.flip(img, axis=0)
@@ -34,7 +44,6 @@ def render(points, rgb, img, w2c, camera_h, camera_w):
     # draw points on image
     img[points[:, 1], points[:, 0]] = rgb
     
-
 
 
 def pixel_to_world(pixels, depth_map, camera_to_world_transform):

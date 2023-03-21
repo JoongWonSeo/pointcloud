@@ -13,11 +13,13 @@ class ObservationEncoder(ABC):
         - encode(self, observation): returns the encoded state of the given observation
         - get_space(self): observation space of the encoder (Gym Space)
     '''
+    latent_encoding = False # whether the encoder produces a latent encoding or the ground truth state space (either passthrough or predicted)
 
-    def __init__(self, obs_keys):
+    def __init__(self, env, obs_keys):
         '''
         obs_keys: list of keys to select from the observation dict
         '''
+        self.env = env
         self.obs_keys = [obs_keys] if type(obs_keys) == str else list(obs_keys)
 
     @abstractmethod
@@ -47,6 +49,8 @@ class ObservationEncoder(ABC):
 
 # GroundTruthEncoder returns the ground truth observation as a single vector
 class GroundTruthEncoder(ObservationEncoder):
+    latent_encoding = False
+
     def encode(self, obs):
         obs_list = [obs[key] for key in self.obs_keys]
         if len(obs_list) > 0:

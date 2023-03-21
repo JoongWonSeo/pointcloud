@@ -1,1 +1,1 @@
-from .pc_encoder import PointCloudGTPredictor
+from .pc_encoder import PointCloudSensor, PointCloudGTPredictor
