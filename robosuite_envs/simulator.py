@@ -14,8 +14,9 @@ horizon = 1000
 # cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
 # task = 'RobosuitePickAndPlace-v0'
-task = 'RobosuiteReach-v0'
-env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, goal_encoder=PointCloudGTPredictor)
+# task = 'RobosuiteReach-v0'
+task = 'RobosuiteLift-v0'
+env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, obs_encoder=PointCloudGTPredictor)
 # env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
