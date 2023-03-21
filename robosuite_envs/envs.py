@@ -1,18 +1,43 @@
 import numpy as np
 import robosuite as suite
 from robosuite.controllers import load_controller_config
-from .base import RobosuiteGoalEnv, GroundTruthEncoder
+from .base_env import RobosuiteGoalEnv
+from .sensors import GroundTruthSensor
+from .encoders import GroundTruthEncoder
 
 class RobosuiteReach(RobosuiteGoalEnv):
-    def __init__(self, render_mode=None, encoder=None):
-        if encoder is None:
-            encoder = GroundTruthEncoder('robot0_eef_pos', [], 'cube_pos') # observation is only end-effector position
+    def __init__(self, render_mode=None, sensor_type=GroundTruthSensor, encoder_type=GroundTruthEncoder):
+        ###################
+        # Task definition #
+        ###################
+        # configute cameras and their poses
+        if sensor_type.requires_vision:
+            cams = { # name: (position, quaternion)
+                'frontview': ([0, -1.2, 1.8], [0.3972332, 0, 0, 0.9177177]),
+                'agentview': ([0. , 1.2, 1.8], [0, 0.3972332, 0.9177177, 0]),
+                'birdview': ([1.1, 0, 1.6], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
+            }
+            cam_size = (128, 128) # width, height
+        else:
+            # default camera with default pose
+            cams = {'frontview': None} if render_mode == 'human' else {}
+            cam_size = (128, 128) # width, height
 
-        # default camera for UI
-        if render_mode == 'human' and len(encoder.cameras) == 0:
-            encoder.cameras = {'frontview': None} # default camera with default pose
+        # define proprioception, observation and goal keys
+        proprio = ['robot0_eef_pos'] # end-effector position
+        obs_keys = [] # no observation
+        goal_keys = ['cube_pos'] # goal is towards the cube
 
-        # create environment instance
+        # for visualization of the goal
+        def render_goal(env, robo_obs):
+            return np.array([env.episode_goal]), np.array([[1, 0, 0]])
+
+
+        #############################
+        # Environment instanciation #
+        #############################
+        sensor = sensor_type(cameras=cams, camera_size=cam_size)
+
         robo_env = suite.make(
             env_name="Lift", # try with other tasks like "Stack" and "Door"
             robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
@@ -22,38 +47,41 @@ class RobosuiteReach(RobosuiteGoalEnv):
             controller_configs=load_controller_config(default_controller="OSC_POSITION"),
             reward_shaping=False, # sparse reward
             ignore_done=True, # unlimited horizon (use gym's TimeLimit wrapper instead)
-            **encoder.env_kwargs
+            **sensor.env_kwargs
         )
-
-        # define environment feedback functions
-        def achieved_goal(proprioception, state):
-            return proprioception # end-effector position
-        
-        def desired_goal(robo_obs):
-            # goal is the cube position and end-effector position close to cube
-            cube_pos = encoder.encode_goal(robo_obs)
-            # cube_pos = robo_obs['cube_pos']
-            return cube_pos # end-effector should be close to the cube
-
-        def check_success(achieved, desired, info):
-            # batched version
-            if achieved.ndim == 2:
-                return np.linalg.norm(achieved - desired, axis=1) < 0.05
-            else: # single version
-                return np.linalg.norm(achieved - desired) < 0.05
-        
-        def render_goal(env, robo_obs):
-            return np.array([env.episode_goal]), np.array([[1, 0, 0]])
 
         super().__init__(
             robo_env=robo_env,
-            encoder=encoder,
-            achieved_goal=achieved_goal,
-            desired_goal=desired_goal,
-            check_success=check_success,
+            proprio=proprio,
+            sensor=sensor,
+            obs_encoder=encoder_type(obs_keys),
+            goal_encoder=encoder_type(goal_keys),
             render_mode=render_mode,
             render_info=render_goal
         )
+
+    # define environment feedback functions
+    def achieved_goal(self, proprio, obs_encoding):
+        return proprio # end-effector position
+    
+    def goal_state(self, state, rerender=False):
+        desired_state = state.copy() # shallow copy
+        desired_state['robot0_eef_pos'] = desired_state['cube_pos'] #  end-effector should be close to the cube
+
+        if rerender:
+            # create a dummy env, configure it to the desired state, and render it
+            raise NotImplementedError('Rerendering is not implemented for this environment.')
+
+        return desired_state
+
+    def check_success(self, achieved, desired, info):
+        # batched version
+        if achieved.ndim == 2:
+            return np.linalg.norm(achieved - desired, axis=1) < 0.05
+        else: # single version
+            return np.linalg.norm(achieved - desired) < 0.05
+        
+
 
 
 
@@ -121,7 +149,7 @@ class RobosuiteLift(RobosuiteGoalEnv):
 
         super().__init__(
             robo_env=robo_env,
-            encoder=encoder,
+            obs_encoder=encoder,
             achieved_goal=achieved_goal,
             desired_goal=desired_goal,
             check_success=check_success,
@@ -184,7 +212,7 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
 
         super().__init__(
             robo_env=robo_env,
-            encoder=encoder,
+            obs_encoder=encoder,
             achieved_goal=achieved_goal,
             desired_goal=desired_goal,
             check_success=check_success,

@@ -183,15 +183,14 @@ def random_action(env):
 
 
 class UI:
-    def __init__(self, window, encoder, selected_camera=0):
+    def __init__(self, window, sensor, selected_camera=0):
         '''
         window (str): window name
         encoder (ObservationEncoder): for the cameras and camera movers
         selected_camera (int): index of selected camera
         '''
         self.window = window
-        self.encoder = encoder
-        self.cameras = list(encoder.cameras.keys())
+        self.sensor = sensor
         self.camera_index = selected_camera
         
         # mouse & keyboard states
@@ -208,11 +207,11 @@ class UI:
     
     @property
     def camera_name(self):
-        return self.cameras[self.camera_index]
+        return self.sensor.cameras[self.camera_index]
     
     @property
     def camera_mover(self):
-        return self.encoder.camera_movers[self.camera_index]
+        return self.sensor.movers[self.camera_index]
     
     def update(self):
         # update key state
@@ -228,7 +227,7 @@ class UI:
             return False
         
         if self.key == 9: # tab key: switch camera
-            self.camera_index = (self.camera_index + 1) % len(self.cameras)
+            self.camera_index = (self.camera_index + 1) % len(self.sensor.cameras)
 
         # move camera with WASD
         self.camera_mover.move_camera((1,0,0), ((self.key == ord('d')) - (self.key == ord('a'))) * 0.05) # x axis (right-left)

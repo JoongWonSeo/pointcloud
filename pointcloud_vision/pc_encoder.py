@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from robosuite.utils.camera_utils import get_real_depth_map
 from robosuite.utils import transform_utils
-from robosuite_envs.base import ObservationEncoder
+from robosuite_envs.encoders import ObservationEncoder
 from pointcloud_vision.train import create_model
 from robosuite_envs.utils import to_pointcloud, multiview_pointcloud
 from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize
