@@ -57,8 +57,8 @@ class Sensor(ABC):
             if pose is not None:
                 pos, quat = pose
                 mover.set_camera_pose(np.array(pos), np.array(quat))
-        # self.create_movers()
-        #TODO: rerender and return new observation
+        # rerender to show the new observation based on the new camera pose
+        return self.env.robo_env._get_observations(force_update=True)
     
     @abstractmethod
     def observe(self, state):
