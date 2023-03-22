@@ -113,11 +113,11 @@ class RobosuiteGoalEnv(GoalEnv):
         self.is_episode_success = False
 
         # get the initial ground-truth state (S)
-        original_func = self.robo_env._get_obervations
-        self.robo_env._get_obervations = lambda x: None # hack to prevent Robosuite from rendering
+        original_func = self.robo_env._get_observations
+        self.robo_env._get_observations = lambda x: None # hack to prevent Robosuite from rendering
         self.robo_env.reset()
-        self.robo_env._get_obervations = original_func
-        
+        self.robo_env._get_observations = original_func
+
         state = self.sensor.reset()
         goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
 
