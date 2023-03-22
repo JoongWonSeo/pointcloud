@@ -181,7 +181,6 @@ class RobosuiteGoalEnv(GoalEnv):
         # get the next ground-truth state (S)
         state, reward, done, info = self.robo_env.step(action)
 
-        self.episode_goal_encoding = None #DEBUG: always regenerate the goal, since initial state is bugged
         if self.episode_goal_encoding is None: # for if reset() is not called first
             goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
             goal_obs = self.sensor.observe(goal_state)

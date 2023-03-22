@@ -26,6 +26,7 @@ assert all(-env.action_space.low == env.action_space.high)
 agent_action_limit = env.action_space.high
 
 agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
+# agent.load_state_dict(torch.load('../rl/weights/agent_succ.pth'))
 
 
 # simulation
@@ -35,14 +36,22 @@ def main():
         obs, info = env.reset()
         obs = np.concatenate((obs['observation'], obs['desired_goal']))
 
+        total_reward = 0
         for t in range(horizon):
-            # randomize env
-            set_obj_pos(env.robo_env.sim, joint='cube_joint0')
-            env.robo_env.robots[0].set_robot_joint_positions(np.random.randn(7))
-            # render
-            obs = env.robo_env._get_observations(force_update=True)
-            env.render_frame(obs, info)
+            # Simulation
+            action = agent.noisy_action(obs, 0) # sample agent action
+            # action = np.random.randn(agent_output_dim) # sample random action
+            obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
+            obs = np.concatenate((obs['observation'], obs['desired_goal']))
 
+            total_reward += reward
+            if info['is_success']:
+                print('s', end='')
+
+            if terminated or truncated:
+                break
+    
+        print(f"\ntotal_reward = {total_reward}")
 
 
 if __name__ == '__main__':
