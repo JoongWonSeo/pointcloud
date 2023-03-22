@@ -128,7 +128,7 @@ class RobosuiteLift(RobosuiteGoalEnv):
         # define proprioception, observation and goal keys
         proprio_keys = ['robot0_eef_pos'] # end-effector position
         obs_keys = ['cube_pos'] # observe the cube position
-        goal_keys = proprio_keys + obs_keys # goal is eef and cube position
+        goal_keys = ['cube_pos'] # we only care about cube position
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
@@ -140,6 +140,12 @@ class RobosuiteLift(RobosuiteGoalEnv):
             # INEFFICIENT!
             encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
             return np.array([encoded_cube]), np.array([[0, 1, 0]])
+        
+        # for cube-only goal
+        def render_goal_obs(env, robo_obs):
+            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            cube_goal = env.episode_goal
+            return np.array([encoded_cube, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
@@ -149,13 +155,13 @@ class RobosuiteLift(RobosuiteGoalEnv):
             obs_encoder=obs_encoder(self, obs_keys),
             goal_encoder=goal_encoder(self, goal_keys),
             render_mode=render_mode,
-            render_info=render_obs
+            render_info=render_goal_obs
         )
  
 
     # define environment feedback functions
     def achieved_goal(self, proprio, obs_encoding):
-        return np.concatenate((proprio, obs_encoding)) # cube and end-effector position
+        return obs_encoding # only cube position
     
     def goal_state(self, state, rerender=False):
         desired_state = state.copy() # shallow copy
@@ -163,8 +169,8 @@ class RobosuiteLift(RobosuiteGoalEnv):
         # goal is the cube position and end-effector position close to cube
         desired_state['cube_pos'] = state['cube_pos'].copy() # cube position
         desired_state['cube_pos'][2] += 0.2 # cube must be lifted up
-        desired_state['robot0_eef_pos'] = desired_state['cube_pos'].copy() # end-effector should be close to the cube (not really necessary)
-        desired_state['robot0_eef_pos'][2] += 0.05
+        # desired_state['robot0_eef_pos'] = desired_state['cube_pos'].copy() # end-effector should be close to the cube (not really necessary)
+        # desired_state['robot0_eef_pos'][2] += 0.05
 
         if rerender:
             raise NotImplementedError('Rerendering is not implemented for this environment.')

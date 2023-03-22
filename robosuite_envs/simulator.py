@@ -16,6 +16,8 @@ horizon = 1000
 # task = 'RobosuitePickAndPlace-v0'
 # task = 'RobosuiteReach-v0'
 task = 'RobosuiteLift-v0'
+# TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
+# env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, obs_encoder=PointCloudGTPredictor, goal_encoder=PointCloudGTPredictor)
 env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, obs_encoder=PointCloudGTPredictor)
 # env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
