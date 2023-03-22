@@ -14,12 +14,10 @@ horizon = 1000
 # cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
 # task = 'RobosuitePickAndPlace-v0'
-# task = 'RobosuiteReach-v0'
-task = 'RobosuiteLift-v0'
+# task = 'VisionReach-v0'
+task = 'VisionLift-v0'
 # TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
-# env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, obs_encoder=PointCloudGTPredictor, goal_encoder=PointCloudGTPredictor)
-env = gym.make(task, render_mode='human', max_episode_steps=horizon, sensor=PointCloudSensor, obs_encoder=PointCloudGTPredictor)
-# env = gym.make(task, render_mode='human', max_episode_steps=horizon)
+env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
 agent_output_dim = env.action_space.shape[0]

@@ -1,3 +1,4 @@
+import os
 import pointcloud_vision.cfg as cfg
 import torch
 import numpy as np
@@ -56,7 +57,8 @@ class PointCloudGTPredictor(ObservationEncoder):
             feature_dims = 3
             self.encoding_dim = 3
 
-            load_dir = '../pointcloud_vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt'
+            # load_dir = '../pointcloud_vision/output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt'
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Lift/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
             self.pc_encoder = GTEncoder(backbone_factory['PointNet2'](feature_dims=feature_dims), self.encoding_dim)
             self.pc_encoder = Lit(self.pc_encoder, None)
             self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
