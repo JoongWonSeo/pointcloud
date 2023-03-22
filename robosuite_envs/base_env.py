@@ -29,15 +29,20 @@ class RobosuiteGoalEnv(GoalEnv):
         ###################################################
         # internal variables, not part of the Gym Env API #
         ###################################################
-        self.robo_env = suite.make(**(robo_kwargs | sensor.env_kwargs))
+        self.robo_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs))
         self.proprio = GroundTruthEncoder(self, proprio) # proprioception does not need to be encoded
         self.sensor = sensor
         self.obs_encoder = obs_encoder
         self.goal_encoder = goal_encoder
         
-        # information about the current episode
+        # cached information about the current episode that is not returned by step()
+        self.raw_state = None # raw state from the Robosuite environment
+        self.observation = None # observation from the sensor
+        self.proprioception = None # proprioception from the robot
+        self.encoding = None # encoding from the observation encoder
+        self.episode_goal_state = None # raw goal state from goal_state() function
+        self.episode_goal_encoding = None # encoding from the goal encoder
         self.is_episode_success = False
-        self.episode_goal = None
 
         #######################
         # for Gym GoalEnv API #
@@ -130,8 +135,13 @@ class RobosuiteGoalEnv(GoalEnv):
             'desired_goal': goal_encoding,
         }
 
-        # current episode information
-        self.episode_goal = goal_encoding
+        # cache current episode information
+        self.raw_state = state
+        self.observation = obs
+        self.proprioception = proprio
+        self.encoding = obs_encoding
+        self.episode_goal_state = goal_state
+        self.episode_goal_encoding = goal_encoding
         info = {'is_success': self.is_episode_success}
 
         if self.render_mode == 'human':
@@ -144,11 +154,14 @@ class RobosuiteGoalEnv(GoalEnv):
         # get the next ground-truth state (S)
         state, reward, done, info = self.robo_env.step(action)
 
-        self.episode_goal = None #DEBUG: always regenerate the goal, since initial state is bugged
-        if self.episode_goal is None: # for if reset() is not called first
+        self.episode_goal_encoding = None #DEBUG: always regenerate the goal, since initial state is bugged
+        if self.episode_goal_encoding is None: # for if reset() is not called first
             goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
             goal_obs = self.sensor.observe(goal_state)
-            self.episode_goal = self.goal_encoder.encode(goal_obs)
+            
+            # cache current episode information
+            self.episode_goal_state = goal_state
+            self.episode_goal_encoding = self.goal_encoder.encode(goal_obs)
         
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)
@@ -163,7 +176,7 @@ class RobosuiteGoalEnv(GoalEnv):
         peg = {
             'observation': np.concatenate((proprio, obs_encoding), dtype=np.float32),
             'achieved_goal': self.achieved_goal(proprio, obs_encoding),
-            'desired_goal': self.episode_goal,
+            'desired_goal': self.episode_goal_encoding,
         }
         if self.is_episode_success:
             info['is_success'] = True
@@ -174,6 +187,12 @@ class RobosuiteGoalEnv(GoalEnv):
         reward = self.compute_reward(peg['achieved_goal'], peg['desired_goal'], info)
         terminated = self.compute_terminated(peg['achieved_goal'], peg['desired_goal'], info)
         truncated = done or self.request_truncate or self.compute_truncated(peg['achieved_goal'], peg['desired_goal'], info)
+
+        # cache current episode information
+        self.raw_state = state
+        self.observation = obs
+        self.proprioception = proprio
+        self.encoding = obs_encoding
 
         if self.render_mode == 'human':
             self.render_frame(state, info)

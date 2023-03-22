@@ -53,7 +53,11 @@ class Sensor(ABC):
                 mover.set_camera_pose(np.array(pos), np.array(quat))
     
     def reset(self):
-        self.create_movers()
+        for mover, pose in zip(self.movers, self.poses):
+            if pose is not None:
+                pos, quat = pose
+                mover.set_camera_pose(np.array(pos), np.array(quat))
+        # self.create_movers()
         #TODO: rerender and return new observation
     
     @abstractmethod

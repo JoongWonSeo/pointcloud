@@ -1,11 +1,10 @@
-import pointcloud_vision.cfg as cfg
-import numpy as np
-import robosuite as suite
-from robosuite.utils import camera_utils, transform_utils
 import argparse
-from torchvision.transforms import Compose
-from robosuite_envs.utils import *
-from .utils import SampleRandomPoints, SampleFurthestPoints, FilterClasses, FilterBBox, Normalize
+import numpy as np
+import torch
+import gymnasium as gym
+import robosuite_envs
+from robosuite_envs.utils import set_obj_pos, random_action
+from pointcloud_vision.pc_encoder import PointCloudSensor
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', type=str)
@@ -19,62 +18,40 @@ arg = parser.parse_args()
 horizon = arg.horizon
 runs = arg.runs
 total_steps = horizon * runs
-camera_w, camera_h = arg.width, arg.height
-cameras = list(cfg.camera_poses.keys())
 
-# create environment instance
-env = suite.make(
-    env_name=cfg.env, # try with other tasks like "Stack" and "Door"
-    robots=cfg.robot,  # try with other robots like "Sawyer" and "Jaco"
-    has_renderer=False,
-    has_offscreen_renderer=True,
-    render_gpu_device_id=0,
-    use_camera_obs=True,
-    camera_names=cameras,
-    camera_widths=camera_w,
-    camera_heights=camera_h,
-    camera_depths=True,
-    camera_segmentations='class',
-    horizon=horizon,
-)
+env = gym.make('RobosuitePickAndPlace-v0', max_episode_steps=horizon, sensor=PointCloudSensor)
 
-robot = env.robots[0]
-
-
-# define transform to apply to pointcloud and ground truth state
-bbox = np.array(cfg.bbox)
-transform = cfg.pc_preprocessor()
-gt_transform = cfg.gt_preprocessor()
 
 # simulation
 step = 0
 for r in range(runs):
     env.reset()
-
-    # setup cameras (it's important to first create the camera mover objects and then set the camera poses, because the environment is reset every time a mover is created)
-    movers = {cam: camera_utils.CameraMover(env, camera=cam) for cam in cameras}
-    for camera_name, camera_pose in cfg.camera_poses.items():
-        movers[camera_name].set_camera_pose(np.array(camera_pose[0]), np.array(camera_pose[1]))
     
     for t in range(horizon):        
-        set_obj_pos(env.sim, joint='cube_joint0')
+        set_obj_pos(env.robo_env.sim, joint='cube_joint0')
         #robot.set_robot_joint_positions(np.random.randn(7))
         #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
         # Simulation
         #action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
         action = random_action(env) # sample random action
-        obs, _, _, _ = env.step(action)  # take action in the environment
+        env.step(action)  # take action in the environment
 
-        pc, feats = multiview_pointcloud(env.sim, obs, cameras, transform, ['rgb', 'segmentation'])
-        ground_truth = np.concatenate([t(obs[key]) for key, t in gt_transform.items()], axis=0)
+        # convert all torch tensors to numpy arrays
+        obs = env.observation.copy()
+        # remove all state information
+        for k in env.raw_state:
+            obs.pop(k)
+        for k, v in obs.items():
+            if isinstance(v, torch.Tensor):
+                obs[k] = v.cpu().numpy()
+        
+        ground_truth = env.encoding # proprioception is not included
         np.savez(
             f'{arg.dir}/{step}.npz',
-            points=pc,
-            **feats,
             ground_truth=ground_truth,
-            boundingbox=bbox,
-            classes=np.array(cfg.classes, dtype=object)
+            classes=np.array(env.classes, dtype=object),
+            **obs
         )
 
         step += 1

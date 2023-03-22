@@ -1,8 +1,7 @@
 import numpy as np
 import torch
 import cv2
-from robosuite.utils import camera_utils
-from robosuite.utils.camera_utils import get_real_depth_map
+from robosuite.utils.camera_utils import get_real_depth_map, get_camera_transform_matrix
 import random
 
 
@@ -46,50 +45,52 @@ def render(points, rgb, img, w2c, camera_h, camera_w):
     
 
 
-def pixel_to_world(pixels, depth_map, camera_to_world_transform):
+def pixel_to_world(depth_map, camera_to_world_transform):
     """
     Helper function to take a batch of pixel locations and the corresponding depth image
     and transform these points from the camera coordinate system to the world coords.
 
     Args:
-        pixels (np.array): N pixel coordinates of shape [N, 2]
-        depth_map (np.array): depth image of shape [H, W, 1]
-        camera_to_world_transform (np.array): 4x4 matrix to go from pixel coordinates to world
+        depth_map (Tensor): depth image of shape [H, W, 1]
+        camera_to_world_transform (Tensor): 4x4 matrix to go from pixel coordinates to world
             coordinates.
 
     Return:
-        points (np.array): N 3D points in robot frame of shape [N, 3]
+        points (Tensor): N 3D points in robot frame of shape [N, 3]
     """
-
+    device = depth_map.device
+    h, w, _ = depth_map.shape
     # sample from the depth map using the pixel locations
-    z = np.array([depth_map[-y, x, 0] for x, y in pixels])
-    x, y = pixels.T
+    # z = np.array([depth_map[-y, x, 0] for x, y in pixels])
+    z = depth_map.reshape((-1)) # (H*W,), with coords (x, y) = (i%W, i//W)
+    x = torch.arange(w).repeat(h).to(device) # [0, 1, 2, 0, 1, 2, ...] if W=3
+    y = torch.arange(start=h-1, end=-1, step=-1).repeat_interleave(w).to(device) # [2, 2, 2, 1, 1, 1, ...] if H=3, W=3
 
     # form 4D homogenous camera vector to transform - [x * z, y * z, z, 1]
-    homogenous = np.vstack((x*z, y*z, z, np.ones_like(z)))
-    #homogenous = np.vstack((y, x, z, np.ones_like(z)))
+    homogenous = torch.vstack((x*z, y*z, z, torch.ones_like(z)))
 
     # batch matrix multiplication of 4 x 4 matrix and 4 x N vectors to do camera to robot frame transform
     points = camera_to_world_transform @ homogenous
-    # points = points[:3] / points[3]
     points = points[:3]
     return points.T
 
-def pixel_to_feature(pixels, feature_map):
+def pixel_to_feature(feature_map):
     """
     Helper function to take a batch of pixel locations and the corresponding feature map (image)
     and return the feature vector for each of the pixel location.
 
     Args:
-        pixels (np.array): N pixel coordinates of shape [N, 2]
-        feature_map (np.array): feature image of shape [H, W, C]
+        pixels (Tensor): N pixel coordinates of shape [N, 2]
+        feature_map (Tensor): feature image of shape [H, W, C]
 
     Return:
-        points (np.array): N 3D points in robot frame of shape [N, C]
+        points (Tensor): N 3D points in robot frame of shape [N, C]
     """
 
     # sample from the feature map using the pixel locations
-    features = np.array([feature_map[-y, x] for x, y in pixels])
+    # features = np.array([feature_map[-y, x] for x, y in pixels])
+    h, w, c = feature_map.shape
+    features = feature_map.reshape((-1, c)) # (H*W, C), with coords (x, y) = (i%W, i//W)
 
     return features
 
@@ -100,37 +101,34 @@ def to_pointcloud(sim, feature_maps, depth_map, camera):
 
     Args:
         sim (MjSim): MjSim instance
-        feature_maps (np.array or list of np.array): feature maps of shape [H, W, C]
-        depth_map (np.array): depth map of shape [H, W, 1]
+        feature_maps (Tensor or [Tensor]): feature maps of shape [H, W, C]
+        depth_map (Tensor): depth map of shape [H, W, 1]
         camera (str): name of camera
 
     Return:
-        points (np.array): N 3D points in robot frame of shape [N, 3]
-        features (np.array or list of np.array): N feature vectors of shape [N, C]
+        points (Tensor): N 3D points in robot frame of shape [N, 3]
+        features (Tensor or [Tensor]): N feature vectors of shape [N, C]
     """
+    device = depth_map.device
 
     is_multifeature = type(feature_maps) is list
     if not is_multifeature:
         feature_maps = [feature_maps]
-    w, h = depth_map.shape[1], depth_map.shape[0]
-
-    # pixel coordinates of which to sample world position
-    all_pixels = np.array([[x, y] for x in range(w) for y in range(h)])
-    # np.savez('input/maps.npz', depth=depth_map, rgb=feature_maps[0], seg=feature_maps[1])
+    h, w, _ = depth_map.shape
 
     # transformation matrix (pixel coord -> world coord) TODO: optimizable without inverse?
-    world_to_pix = camera_utils.get_camera_transform_matrix(sim, camera, h, w)
-    pix_to_world = np.linalg.inv(world_to_pix)
+    world_to_pix = torch.as_tensor(get_camera_transform_matrix(sim, camera, h, w), dtype=torch.float32, device=device)
+    pix_to_world = torch.inverse(world_to_pix)
 
-    points = pixel_to_world(all_pixels, depth_map, pix_to_world)
-    features = [pixel_to_feature(all_pixels, fm) for fm in feature_maps]
+    points = pixel_to_world(depth_map, pix_to_world)
+    features = [pixel_to_feature(fm) for fm in feature_maps]
 
     if not is_multifeature:
         features = features[0]
     return points, features
 
 
-def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
+def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], device='cuda'):
     """
     Generates a combined pointcloud from multiple 2.5D camera observations.
 
@@ -142,7 +140,7 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
         features (list of str): list of features to include in pointcloud
 
     Return:
-        pcs (torch.Tensor): N 3D points in robot frame of shape [N, 3]
+        pcs (Tensor): N 3D points in robot frame of shape [N, 3]
         feats (dict): feature vectors of shape [N, C] (keyed by feature name)
     """
     feature_getter = {
@@ -154,14 +152,14 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb']):
     pcs = []
     feats = [[] for _ in features] # [feat0, feat1, ...]
     for c in cameras:
-        feature_maps = [feature_getter[f](obs, c) for f in features]
-        depth_map = get_real_depth_map(sim, obs[c + '_depth'])
+        feature_maps = [torch.from_numpy(feature_getter[f](obs, c)).to(device) for f in features]
+        depth_map = torch.from_numpy(get_real_depth_map(sim, obs[c + '_depth'])).to(device)
 
         pc, feat = to_pointcloud(sim, feature_maps, depth_map, c)
-        pcs.append(torch.from_numpy(pc))
+        pcs.append(pc)
         # gather by feature type
         for feat_type, new_feat in zip(feats, feat):
-            feat_type.append(torch.from_numpy(new_feat).float())
+            feat_type.append(new_feat)
     
     pcs = torch.cat(pcs, dim=0)
     feats = [torch.cat(f, dim=0) for f in feats]
@@ -188,7 +186,7 @@ def set_obj_pos(sim, joint, pos=None, quat=None):
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
     
 def random_action(env):
-    return np.random.randn(env.action_dim)
+    return np.random.randn(env.action_space.shape[0])
 
 
 class UI:

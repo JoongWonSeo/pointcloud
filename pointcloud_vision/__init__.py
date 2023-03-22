@@ -27,4 +27,8 @@ register(
     id='VisionPickAndPlace-v0',
     entry_point=RobosuitePickAndPlace,
     max_episode_steps=100,
+    kwargs={
+        'sensor':PointCloudSensor,
+        'obs_encoder':PointCloudGTPredictor,
+    }
 )

@@ -24,6 +24,12 @@ class PointCloudSensor(Sensor):
         super().__init__(env)
 
         self.features = ['rgb', 'segmentation']
+        self.bbox = torch.Tensor(env.bbox).to(cfg.device)
+        self.preprocess = Compose([
+            FilterBBox(self.bbox),
+            SampleFurthestPoints(self.env.sample_points),
+            Normalize(self.bbox),
+        ])
 
     @property
     def env_kwargs(self):
@@ -34,14 +40,9 @@ class PointCloudSensor(Sensor):
     
     def observe(self, state):
         # generate pointcloud from 2.5D observations
-        preprocess = Compose([
-            FilterBBox(self.env.bbox),
-            SampleFurthestPoints(self.env.sample_points),
-            Normalize(self.env.bbox)
-        ])
-        pc, feats = multiview_pointcloud(self.env.robo_env.sim, state, self.env.cameras, preprocess, self.features)
+        pc, feats = multiview_pointcloud(self.env.robo_env.sim, state, self.env.cameras, self.preprocess, self.features, cfg.device)
         # TODO: currently, the original state is also included in the observation, in order to allow GT Encoders to work as well.
-        return state | {'points': pc, 'boundingbox': self.env.bbox} | feats
+        return state | {'points': pc, 'boundingbox': self.bbox} | feats
 
 class PointCloudGTPredictor(ObservationEncoder):
     '''
@@ -71,13 +72,13 @@ class PointCloudGTPredictor(ObservationEncoder):
         self.pc_encoder.eval()
 
     def encode(self, obs):
-        pc = obs_to_pc(obs, self.features).unsqueeze(0).to(cfg.device)
-        pred = self.pc_encoder(pc).detach().cpu()
+        pc = obs_to_pc(obs, self.features).unsqueeze(0)
+        pred = self.pc_encoder(pc).detach()
 
         # unnormalize to world coordinates
         pred = Unnormalize(obs['boundingbox'])(pred)
 
-        return pred.squeeze(0).numpy()
+        return pred.squeeze(0).cpu().numpy()
     
     def get_space(self, robo_env):
         return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))

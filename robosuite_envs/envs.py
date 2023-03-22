@@ -29,7 +29,7 @@ cfg_vision['Lift'] = {
         'birdview': ([1.1, 0, 1.6], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
     },
     'camera_size': (128, 128), # width, height
-    'bbox': [[-0.5, 0.5], [-0.5, 0.5], [0, 1.5]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
+    'bbox': [[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
     'sample_points': 2048,
     'classes': [ # (name, RGB_for_visualization)
         ('env', [0, 0, 0]),
@@ -65,21 +65,21 @@ class RobosuiteReach(RobosuiteGoalEnv):
             self.camera_size = (128, 128) # width, height
 
         # define proprioception, observation and goal keys
-        proprio_keys = ['robot0_eef_pos'] # end-effector position
-        obs_keys = [] # no observation
-        goal_keys = ['cube_pos'] # goal is towards the cube
+        self.proprio_keys = ['robot0_eef_pos'] # end-effector position
+        self.obs_keys = [] # no observation
+        self.goal_keys = ['cube_pos'] # goal is towards the cube
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
-            return np.array([env.episode_goal]), np.array([[0, 1, 0]])
+            return np.array([env.episode_goal_encoding]), np.array([[0, 1, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
-            proprio=proprio_keys,
+            proprio=self.proprio_keys,
             sensor=sensor(env=self),
-            obs_encoder=obs_encoder(self, obs_keys),
-            goal_encoder=goal_encoder(self, goal_keys),
+            obs_encoder=obs_encoder(self, self.obs_keys),
+            goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
             render_info=render_goal
         )
@@ -126,14 +126,14 @@ class RobosuiteLift(RobosuiteGoalEnv):
             self.camera_size = (128, 128) # width, height
         
         # define proprioception, observation and goal keys
-        proprio_keys = ['robot0_eef_pos'] # end-effector position
-        obs_keys = ['cube_pos'] # observe the cube position
-        goal_keys = ['cube_pos'] # we only care about cube position
+        self.proprio_keys = ['robot0_eef_pos'] # end-effector position
+        self.obs_keys = ['cube_pos'] # observe the cube position
+        self.goal_keys = ['cube_pos'] # we only care about cube position
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
-            eef_goal = env.episode_goal[:3]
-            cube_goal = env.episode_goal[3:]
+            eef_goal = env.episode_goal_encoding[:3]
+            cube_goal = env.episode_goal_encoding[3:]
             return np.array([eef_goal, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
         
         def render_obs(env, robo_obs):
@@ -144,16 +144,16 @@ class RobosuiteLift(RobosuiteGoalEnv):
         # for cube-only goal
         def render_goal_obs(env, robo_obs):
             encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
-            cube_goal = env.episode_goal
-            return np.array([encoded_cube, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
+            cube_goal = env.episode_goal_encoding
+            return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
-            proprio=proprio_keys,
+            proprio=self.proprio_keys,
             sensor=sensor(env=self),
-            obs_encoder=obs_encoder(self, obs_keys),
-            goal_encoder=goal_encoder(self, goal_keys),
+            obs_encoder=obs_encoder(self, self.obs_keys),
+            goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
             render_info=render_goal_obs
         )
@@ -191,63 +191,83 @@ class RobosuiteLift(RobosuiteGoalEnv):
 
 
 class RobosuitePickAndPlace(RobosuiteGoalEnv):
-    def __init__(self, render_mode=None, encoder=None):
-        if encoder is None:
-            encoder = GroundTruthEncoder('robot0_eef_pos', 'cube_pos', 'cube_pos')
-
-        # create robosuite env
-        robo_env = suite.make(
-            env_name="Lift", # try with other tasks like "Stack" and "Door"
-            robots="Panda",  # try with other robots like "Sawyer" and "Jaco"
-            controller_configs=load_controller_config(default_controller="OSC_POSITION"),
-            reward_shaping=False, # sparse reward
-            ignore_done=True, # unlimited horizon (use gym's TimeLimit wrapper instead)
-        )
-
-        # define environment feedback functions
-        def achieved_goal(proprioception, state):
-            return state # cube position
+    def __init__(
+        self,
+        render_mode=None,
+        sensor=GroundTruthSensor,
+        obs_encoder=GroundTruthEncoder,
+        goal_encoder=GroundTruthEncoder
+        ):
+        # configure cameras and their poses
+        if sensor.requires_vision:
+            apply_preset(self, cfg_vision['Lift'])
+        else:
+            # default camera with default pose
+            self.cameras = {'frontview': None} if render_mode == 'human' else {}
+            self.camera_size = (128, 128) # width, height
         
-        def desired_goal(robo_obs):
-            # goal is the cube position and end-effector position close to cube
-            cube_pos = robo_obs['cube_pos'].copy()
-            # cube must be moved
-            cube_pos[0] += np.random.uniform(-0.2, 0.2)
-            cube_pos[1] += np.random.uniform(-0.2, 0.2)
-            if np.random.uniform() < 0.5: # cube in the air for 50% of the time
-                cube_pos[2] += np.random.uniform(0.01, 0.2)
-            
-            # encoder.encode_goal()
+        # define proprioception, observation and goal keys
+        self.proprio_keys = ['robot0_eef_pos'] # end-effector position
+        self.obs_keys = ['cube_pos'] # observe the cube position
+        self.goal_keys = ['cube_pos'] # we only care about cube position
 
-            return cube_pos
-
-        def check_success(achieved, desired, info):
-            # TODO: encoder should 'decode' the goal from the observation space (e.g. embedding space) to the ground truth space, so that we can compare the achieved goal with the desired goal using sane metrics
-            # so the PC encoder would for example run the decoder to create a point cloud from the embedding, and extract the cube position from the point cloud
-            # idea: so should the PC autoencoder be a segmenting autoencoder? i.e. input: XYZRGB, output XYZL where L is label e.g. 0 for background, 1 for cube, 2 for table, 3 for robot, etc.
-            # or even a segmenting and filtering autoencoder, where the robot is filtered out
-
-            # achieved = encoder.decode_goal(achieved)
-            # desired = encoder.decode_goal(desired)
-
-            # batched version
-            if achieved.ndim == 2:
-                return np.linalg.norm(achieved - desired, axis=1) < 0.05
-            else: # single version
-                return np.linalg.norm(achieved - desired) < 0.05
-        
-
+        # for visualization of the goal
         def render_goal(env, robo_obs):
-            cube_goal = env.episode_goal
-            return np.array([cube_goal]), np.array([[1, 0, 0]])
-            
+            eef_goal = env.episode_goal_encoding[:3]
+            cube_goal = env.episode_goal_encoding[3:]
+            return np.array([eef_goal, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
+        
+        def render_obs(env, robo_obs):
+            # INEFFICIENT!
+            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            return np.array([encoded_cube]), np.array([[0, 1, 0]])
+        
+        # for cube-only goal
+        def render_goal_obs(env, robo_obs):
+            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            cube_goal = env.episode_goal_encoding
+            return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
+        # initialize RobosuiteGoalEnv
         super().__init__(
-            robo_env=robo_env,
-            obs_encoder=encoder,
-            achieved_goal=achieved_goal,
-            desired_goal=desired_goal,
-            check_success=check_success,
+            robo_kwargs=robo_kwargs['Lift'],
+            proprio=self.proprio_keys,
+            sensor=sensor(env=self),
+            obs_encoder=obs_encoder(self, self.obs_keys),
+            goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal
+            render_info=render_goal_obs
         )
+ 
+
+    # define environment feedback functions
+    def achieved_goal(self, proprio, obs_encoding):
+        return obs_encoding # only cube position
+    
+    def goal_state(self, state, rerender=False):
+        desired_state = state.copy() # shallow copy
+
+        # goal is the cube position and end-effector position close to cube
+        desired_state['cube_pos'] = state['cube_pos'].copy() # cube position
+         # cube must be moved
+        desired_state['cube_pos'][0] += np.random.uniform(-0.2, 0.2)
+        desired_state['cube_pos'][1] += np.random.uniform(-0.2, 0.2)
+        if np.random.uniform() < 0.5: # cube in the air for 50% of the time
+            desired_state['cube_pos'][2] += np.random.uniform(0.01, 0.2)
+
+        if rerender:
+            raise NotImplementedError('Rerendering is not implemented for this environment.')
+        
+        return desired_state
+
+    def check_success(self, achieved, desired, info):
+        # TODO: experiment only check the cube position, ignore the end-effector position
+        # also experiment with goal of moving the eef away from the cube
+
+        # batched version
+        if achieved.ndim == 2:
+            return np.linalg.norm(achieved - desired, axis=1) < 0.1
+        else: # single version
+            return np.linalg.norm(achieved - desired) < 0.1
+
+    
