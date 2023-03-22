@@ -190,14 +190,14 @@ def random_action(env):
 
 
 class UI:
-    def __init__(self, window, sensor, selected_camera=0):
+    def __init__(self, window, env, selected_camera=0):
         '''
         window (str): window name
         encoder (ObservationEncoder): for the cameras and camera movers
         selected_camera (int): index of selected camera
         '''
         self.window = window
-        self.sensor = sensor
+        self.env = env
         self.camera_index = selected_camera
         
         # mouse & keyboard states
@@ -213,12 +213,8 @@ class UI:
         cv2.setMouseCallback(self.window, lambda e, x, y, f, p: self.mouse_callback(e, x, y, f, p))
     
     @property
-    def camera_name(self):
-        return self.sensor.cameras[self.camera_index]
-    
-    @property
     def camera_mover(self):
-        return self.sensor.movers[self.camera_index]
+        return self.env.movers[self.camera_index]
     
     def update(self):
         # update key state
@@ -234,7 +230,7 @@ class UI:
             return False
         
         if self.key == 9: # tab key: switch camera
-            self.camera_index = (self.camera_index + 1) % len(self.sensor.cameras)
+            self.camera_index = (self.camera_index + 1) % len(self.env.cameras)
 
         # move camera with WASD
         self.camera_mover.move_camera((1,0,0), ((self.key == ord('d')) - (self.key == ord('a'))) * 0.05) # x axis (right-left)

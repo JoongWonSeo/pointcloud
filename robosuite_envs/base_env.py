@@ -7,7 +7,7 @@ import numpy as np
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
-from robosuite.utils import camera_utils
+from robosuite.utils.camera_utils import CameraMover, get_camera_transform_matrix
 from .encoders import GroundTruthEncoder, ObservationEncoder
 from .utils import UI, to_cv2_img, render
 
@@ -29,6 +29,22 @@ class RobosuiteGoalEnv(GoalEnv):
         ###################################################
         # internal variables, not part of the Gym Env API #
         ###################################################
+        if not hasattr(self, 'cameras'):
+            self.cameras = {}
+            self.camera_size = (0, 0)
+        self.poses = list(self.cameras.values())
+        self.cameras = list(self.cameras.keys())
+
+        if len(self.cameras) > 0:
+            robo_kwargs |= { # kwargs for the robosuite env, e.g. camera settings
+                'use_camera_obs': True,
+                'camera_names': self.cameras,
+                'camera_widths': self.camera_size[0],
+                'camera_heights': self.camera_size[1],
+            }
+        else:
+            robo_kwargs |= {'use_camera_obs': False}
+
         self.robo_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs))
         self.proprio = GroundTruthEncoder(self, proprio) # proprioception does not need to be encoded
         self.sensor = sensor
@@ -63,7 +79,11 @@ class RobosuiteGoalEnv(GoalEnv):
 
         self.renderer = None
         self.request_truncate = False # from the UI
-        self.sensor.create_movers()
+
+        # create CameraMovers and set their initial poses
+        self.movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
+        self.set_camera_poses()
+        
     
 
     ###################################
@@ -113,12 +133,15 @@ class RobosuiteGoalEnv(GoalEnv):
         self.is_episode_success = False
 
         # get the initial ground-truth state (S)
-        original_func = self.robo_env._get_observations
-        self.robo_env._get_observations = lambda x: None # hack to prevent Robosuite from rendering
+        backup = self.robo_env._get_observations
+        self.robo_env._get_observations = lambda force_update: None # hack to prevent Robosuite from rendering
         self.robo_env.reset()
-        self.robo_env._get_observations = original_func
+        self.set_camera_poses() # reset the camera poses
+        self.robo_env._get_observations = backup
+        state = self.robo_env._get_observations(force_update=True)
 
-        state = self.sensor.reset()
+        self.sensor.reset()
+
         goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
 
         # convert the state into an observation (O)
@@ -207,17 +230,23 @@ class RobosuiteGoalEnv(GoalEnv):
     def close(self):
         if self.renderer is not None:
             self.renderer.close()
-            
+
+
+    #################
+    # for rendering #
+    #################
+    def set_camera_poses(self):
+        for mover, pose in zip(self.movers, self.poses):
+            if pose is not None:
+                pos, quat = pose
+                mover.set_camera_pose(np.array(pos), np.array(quat))
 
     def render_frame(self, robo_obs, info, reset=False):
         if self.render_mode is None:
             return
 
         if self.renderer is None: #init renderer
-            self.renderer = UI('Robosuite', self.sensor)
-        
-        # if reset: # dont render the first frame to avoid camera switch
-        #     return
+            self.renderer = UI('Robosuite', self)
         
         # update UI
         if not self.renderer.update(): # if user closes the window
@@ -225,12 +254,12 @@ class RobosuiteGoalEnv(GoalEnv):
         self.request_truncate = self.renderer.is_pressed('r')
 
         # render
-        cam = self.renderer.camera_name
+        cam = self.cameras[self.renderer.camera_index]
         camera_image = robo_obs[cam + '_image'] / 255
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)
-            w2c = camera_utils.get_camera_transform_matrix(self.robo_env.sim, cam, camera_h, camera_w)
+            w2c = get_camera_transform_matrix(self.robo_env.sim, cam, camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
         self.renderer.show(to_cv2_img(camera_image))
     
