@@ -20,6 +20,7 @@ register(
     kwargs={
         'sensor':PointCloudSensor,
         'obs_encoder':PointCloudGTPredictor,
+        'goal_encoder':PointCloudGTPredictor,
     }
 )
 
@@ -30,5 +31,6 @@ register(
     kwargs={
         'sensor':PointCloudSensor,
         'obs_encoder':PointCloudGTPredictor,
+        'goal_encoder':PointCloudGTPredictor,
     }
 )

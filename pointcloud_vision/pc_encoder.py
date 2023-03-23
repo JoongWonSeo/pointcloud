@@ -47,6 +47,7 @@ class PointCloudSensor(Sensor):
 class PointCloudGTPredictor(ObservationEncoder):
     '''
     '''
+    requires_vision = True
     latent_encoding = False
 
     def __init__(self, env, obs_keys):

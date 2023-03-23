@@ -13,6 +13,7 @@ class ObservationEncoder(ABC):
         - encode(self, observation): returns the encoded state of the given observation
         - get_space(self): observation space of the encoder (Gym Space)
     '''
+    requires_vision = False # whether the encoder requires vision (rendering) or not
     latent_encoding = False # whether the encoder produces a latent encoding or the ground truth state space (either passthrough or predicted)
 
     def __init__(self, env, obs_keys):
@@ -49,6 +50,7 @@ class ObservationEncoder(ABC):
 
 # GroundTruthEncoder returns the ground truth observation as a single vector
 class GroundTruthEncoder(ObservationEncoder):
+    requires_vision = False # whether the encoder requires vision (rendering) or not
     latent_encoding = False
 
     def encode(self, obs):

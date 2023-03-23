@@ -142,7 +142,7 @@ class RobosuiteGoalEnv(GoalEnv):
 
         self.sensor.reset()
 
-        goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
+        goal_state = self.goal_state(state, rerender=self.goal_encoder.requires_vision)
 
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)
@@ -182,7 +182,7 @@ class RobosuiteGoalEnv(GoalEnv):
         state, reward, done, info = self.robo_env.step(action)
 
         if self.episode_goal_encoding is None: # for if reset() is not called first
-            goal_state = self.goal_state(state, rerender=self.goal_encoder.latent_encoding)
+            goal_state = self.goal_state(state, rerender=self.goal_encoder.requires_vision)
             goal_obs = self.sensor.observe(goal_state)
             
             # cache current episode information
