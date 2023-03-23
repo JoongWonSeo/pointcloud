@@ -62,7 +62,7 @@ def GTEncoder(preencoder, out_dim):
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, out_dim),
-            nn.Sigmoid(), # TODO: GT has no garantee to be in [0, 1], even dim-wise! Solution: normalize GT to [0, 1] before training
+            nn.Sigmoid(),
     )
 
 

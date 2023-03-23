@@ -96,9 +96,7 @@ class FilterBBox:
         '''
         bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         '''
-        if type(bbox) is not torch.Tensor:
-            bbox = torch.Tensor(bbox)
-        self.bbox = bbox
+        self.bbox = torch.as_tensor(bbox)
     
     def __call__(self, points):
         # filter points outside of bounding box
@@ -128,8 +126,7 @@ class Normalize:
         '''
         bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         '''
-        if type(bbox) is not torch.Tensor:
-            bbox = torch.Tensor(bbox)
+        bbox = torch.as_tensor(bbox)
         self.min = bbox[:, 0]
         self.max = bbox[:, 1]
         self.dim = dim
@@ -147,8 +144,7 @@ class Unnormalize:
         '''
         bbox: 3D bounding box of the point cloud [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         '''
-        if type(bbox) is not torch.Tensor:
-            bbox = torch.Tensor(bbox)
+        bbox = torch.as_tensor(bbox)
         self.min = bbox[:, 0]
         self.max = bbox[:, 1]
         self.dim = dim
@@ -267,7 +263,7 @@ class EarthMoverDistance:
 ########## PyTorch Datasets ##########
 
 def obs_to_pc(obs, features):
-    pc = torch.cat((obs['points'], *(obs[f] for f in features)), dim=1)
+    pc = torch.cat((torch.as_tensor(obs['points']), *(torch.as_tensor(obs[f]) for f in features)), dim=1)
     return pc
 
 class PointCloudDataset(Dataset):

@@ -44,7 +44,8 @@ cfg_vision['Lift'] = {
         ('arm', 5.0),
         ('base', 10.0),
         ('gripper', 15.0),
-    ]
+    ],
+    'gt_dim': 3, # dimension of the ground-truth encoding, i.e. cube_pos
 }
 
 

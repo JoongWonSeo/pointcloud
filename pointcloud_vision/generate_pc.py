@@ -19,38 +19,38 @@ horizon = arg.horizon
 runs = arg.runs
 total_steps = horizon * runs
 
-env = gym.make('RobosuitePickAndPlace-v0', max_episode_steps=horizon, sensor=PointCloudSensor)
+env_name = gym.make('RobosuitePickAndPlace-v0', max_episode_steps=horizon, sensor=PointCloudSensor)
 
 
 # simulation
 step = 0
 for r in range(runs):
-    env.reset()
+    env_name.reset()
     
     for t in range(horizon):        
-        set_obj_pos(env.robo_env.sim, joint='cube_joint0')
+        set_obj_pos(env_name.robo_env.sim, joint='cube_joint0')
         #robot.set_robot_joint_positions(np.random.randn(7))
         #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
         # Simulation
         #action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        action = random_action(env) # sample random action
-        env.step(action)  # take action in the environment
+        action = random_action(env_name) # sample random action
+        env_name.step(action)  # take action in the environment
 
         # convert all torch tensors to numpy arrays
-        obs = env.observation.copy()
+        obs = env_name.observation.copy()
         # remove all state information
-        for k in env.raw_state:
+        for k in env_name.raw_state:
             obs.pop(k)
         for k, v in obs.items():
             if isinstance(v, torch.Tensor):
                 obs[k] = v.cpu().numpy()
         
-        ground_truth = env.encoding # proprioception is not included
+        ground_truth = env_name.encoding # proprioception is not included
         np.savez(
             f'{arg.dir}/{step}.npz',
             ground_truth=ground_truth,
-            classes=np.array(env.classes, dtype=object),
+            classes=np.array(env_name.classes, dtype=object),
             **obs
         )
 

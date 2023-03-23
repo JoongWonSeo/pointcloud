@@ -18,12 +18,12 @@ horizon = 1000
 # task = 'VisionLift-v0'
 task = 'VisionPickAndPlace-v0'
 # TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
-env = gym.make(task, render_mode='human', max_episode_steps=horizon)
+env_name = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
-agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
-agent_output_dim = env.action_space.shape[0]
-assert all(-env.action_space.low == env.action_space.high)
-agent_action_limit = env.action_space.high
+agent_input_dim = env_name.observation_space['observation'].shape[0] + env_name.observation_space['desired_goal'].shape[0]
+agent_output_dim = env_name.action_space.shape[0]
+assert all(-env_name.action_space.low == env_name.action_space.high)
+agent_action_limit = env_name.action_space.high
 
 agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
 # agent.load_state_dict(torch.load('../rl/weights/agent_succ.pth'))
@@ -33,7 +33,7 @@ agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limi
 def main():
     run = True
     while run:
-        obs, info = env.reset()
+        obs, info = env_name.reset()
         obs = np.concatenate((obs['observation'], obs['desired_goal']))
 
         total_reward = 0
@@ -41,15 +41,15 @@ def main():
             # Simulation
             action = agent.noisy_action(obs, 0) # sample agent action
             # action = np.random.randn(agent_output_dim) # sample random action
-            obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
+            obs, reward, terminated, truncated, info = env_name.step(action)  # take action in the environment
             obs = np.concatenate((obs['observation'], obs['desired_goal']))
 
             total_reward += reward
             if info['is_success']:
                 print('s', end='')
             
-            if env.viewer.is_pressed('g'):
-                env.show_frame(env.episode_goal_state, None)
+            if env_name.viewer.is_pressed('g'):
+                env_name.show_frame(env_name.episode_goal_state, None)
 
             if terminated or truncated:
                 break

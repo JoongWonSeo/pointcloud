@@ -8,7 +8,8 @@ from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, backbone_factory
-from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, OneHotEncode, EarthMoverDistance, seg_to_color
+import pointcloud_vision.pc_encoder as pc_encoder
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_vision
 
 
@@ -51,13 +52,12 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def create_model(model_type, backbone, env, load_dir=None):
-    if type(env) is str:
-        env = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
+def create_model(model_type, backbone, env_name, load_dir=None):
+    env = SimpleNamespace(**cfg_vision[env_name]) # dot notation rather than dict notation
 
     # create the model and dataset
     model, dataset = None, None
-    encoder_backbone = backbone_factory[backbone](feature_dims=3)
+    encoder_backbone = backbone_factory[backbone](feature_dims=3) # RGB input
 
     if model_type == 'Autoencoder':
         model = Lit(
@@ -68,7 +68,9 @@ def create_model(model_type, backbone, env, load_dir=None):
             PointCloudDataset(
                 root_dir=input_dir,
                 in_features=['rgb'],
-                out_features=['rgb']
+                out_features=['rgb'],
+                in_transform=Normalize(env.bbox),
+                out_transform=Normalize(env.bbox),
             )
 
     if model_type == 'Segmenter':
@@ -82,7 +84,8 @@ def create_model(model_type, backbone, env, load_dir=None):
                 root_dir=input_dir,
                 in_features=['rgb'],
                 out_features=['segmentation'],
-                out_transform=OneHotEncode(C, seg_dim=3)
+                in_transform=Normalize(env.bbox),
+                out_transform=Compose([Normalize(env.bbox), OneHotEncode(C, seg_dim=3)])
             )
 
     if model_type == 'GTEncoder':
@@ -93,7 +96,9 @@ def create_model(model_type, backbone, env, load_dir=None):
         dataset = lambda input_dir: \
             PointCloudGTDataset(
                 root_dir=input_dir,
-                in_features=['rgb']
+                in_features=['rgb'],
+                in_transform=Normalize(env.bbox),
+                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox)
             )
     
     if load_dir:
@@ -102,7 +107,7 @@ def create_model(model_type, backbone, env, load_dir=None):
 
 
 def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
-    model, open_dataset = create_model(model_type, backbone, env=dataset)
+    model, open_dataset = create_model(model_type, backbone, env_name=dataset)
 
     # Train the created model and dataset
     if model and open_dataset:
@@ -121,7 +126,8 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
                 open_dataset(f'{input_dir}/{split}'),
                 batch_size=batch_size,
                 shuffle=(split == 'train'),
-                num_workers=cfg.vision_dataloader_workers
+                num_workers=cfg.vision_dataloader_workers,
+                # pin_memory=True # TODO: try enabling?
             )
             for split in ['train', 'val']
         )
