@@ -5,7 +5,7 @@ from robosuite.controllers import load_controller_config
 from .base_env import RobosuiteGoalEnv
 from .encoders import GroundTruthEncoder
 from .sensors import GroundTruthSensor
-from .utils import apply_preset
+from .utils import apply_preset, set_obj_pos, set_robot_pose
 
 robo_kwargs = {} # keyward arguments for Robosuite environment to be created
 cfg_vision = {} # RobosuiteGoalEnv attributes to be set for vision-based sensors
@@ -94,6 +94,10 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
         if rerender:
             # create a dummy env, configure it to the desired state, and render it
+            # set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=desired_state['cube_pos'])
+            # set_robot_pose(robo_env.sim, robo_env.robots[0], np.random.randn(7))
+            # desired_state = self.robo_env._get_observations(force_update=True)
+
             raise NotImplementedError('Rerendering is not implemented for this environment.')
 
         return desired_state
@@ -164,17 +168,16 @@ class RobosuiteLift(RobosuiteGoalEnv):
         return obs_encoding # only cube position
     
     def goal_state(self, state, rerender=False):
-        desired_state = state.copy() # shallow copy
-
-        # goal is the cube position and end-effector position close to cube
-        desired_state['cube_pos'] = state['cube_pos'].copy() # cube position
-        desired_state['cube_pos'][2] += 0.2 # cube must be lifted up
-        # desired_state['robot0_eef_pos'] = desired_state['cube_pos'].copy() # end-effector should be close to the cube (not really necessary)
-        # desired_state['robot0_eef_pos'][2] += 0.05
+        cube_pos = state['cube_pos'].copy()
+        cube_pos[2] += 0.2 # cube must be lifted up
 
         if rerender:
-            raise NotImplementedError('Rerendering is not implemented for this environment.')
-        
+            print('rerendering goal')
+            desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
+        else:
+            desired_state = state.copy()
+            desired_state['cube_pos'] = cube_pos
+
         return desired_state
 
     def check_success(self, achieved, desired, info):
@@ -245,19 +248,20 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         return obs_encoding # only cube position
     
     def goal_state(self, state, rerender=False):
-        desired_state = state.copy() # shallow copy
-
-        # goal is the cube position and end-effector position close to cube
-        desired_state['cube_pos'] = state['cube_pos'].copy() # cube position
-         # cube must be moved
-        desired_state['cube_pos'][0] += np.random.uniform(-0.2, 0.2)
-        desired_state['cube_pos'][1] += np.random.uniform(-0.2, 0.2)
+        # goal is the cube position
+        cube_pos = state['cube_pos'].copy() # cube position
+        cube_pos[0] += np.random.uniform(-0.2, 0.2)
+        cube_pos[1] += np.random.uniform(-0.2, 0.2)
         if np.random.uniform() < 0.5: # cube in the air for 50% of the time
-            desired_state['cube_pos'][2] += np.random.uniform(0.01, 0.2)
+            cube_pos[2] += np.random.uniform(0.01, 0.2)
 
         if rerender:
-            raise NotImplementedError('Rerendering is not implemented for this environment.')
-        
+            print('rerendering goal')
+            desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
+        else:
+            desired_state = state.copy()
+            desired_state['cube_pos'] = cube_pos
+
         return desired_state
 
     def check_success(self, achieved, desired, info):

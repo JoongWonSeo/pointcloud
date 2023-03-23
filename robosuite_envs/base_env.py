@@ -77,7 +77,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.render_mode = render_mode
         self.render_info = render_info # function that returns points to render
 
-        self.renderer = None
+        self.viewer = None
         self.request_truncate = False # from the UI
 
         # create CameraMovers and set their initial poses
@@ -172,7 +172,7 @@ class RobosuiteGoalEnv(GoalEnv):
         info = {'is_success': self.is_episode_success}
 
         if self.render_mode == 'human':
-            self.render_frame(state, info, reset=True)
+            self.show_frame(state, info)
 
         return peg, info
     
@@ -221,14 +221,14 @@ class RobosuiteGoalEnv(GoalEnv):
         self.encoding = obs_encoding
 
         if self.render_mode == 'human':
-            self.render_frame(state, info)
+            self.show_frame(state, info)
 
         return peg, reward, terminated, truncated, info
     
 
     def close(self):
-        if self.renderer is not None:
-            self.renderer.close()
+        if self.viewer is not None:
+            self.viewer.close()
 
 
     #################
@@ -239,27 +239,44 @@ class RobosuiteGoalEnv(GoalEnv):
             if pose is not None:
                 pos, quat = pose
                 mover.set_camera_pose(np.array(pos), np.array(quat))
+                
+    def render_state(self, state_setter):
+        '''
+        Render the given robosuite env state without affecting the actual state
+        useful for rendering goal states or any 'imaginary' states
+        '''
+        backup = self.robo_env.sim.get_state()
 
-    def render_frame(self, robo_obs, info, reset=False):
+        # set the state and render
+        state_setter(self.robo_env)
+        self.robo_env.sim.forward() # propagate the state
+        state = self.robo_env._get_observations(force_update=True)
+
+        # restore the original state
+        self.robo_env.sim.set_state(backup)
+
+        return state
+
+    def show_frame(self, robo_obs, info):
         if self.render_mode is None:
             return
 
-        if self.renderer is None: #init renderer
-            self.renderer = UI('Robosuite', self)
+        if self.viewer is None: #init renderer
+            self.viewer = UI('Robosuite', self)
         
         # update UI
-        if not self.renderer.update(): # if user closes the window
+        if not self.viewer.update(): # if user closes the window
             quit() # force quit program
-        self.request_truncate = self.renderer.is_pressed('r')
+        self.request_truncate = self.viewer.is_pressed('r')
 
         # render
-        cam = self.cameras[self.renderer.camera_index]
+        cam = self.cameras[self.viewer.camera_index]
         camera_image = robo_obs[cam + '_image'] / 255
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)
             w2c = get_camera_transform_matrix(self.robo_env.sim, cam, camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
-        self.renderer.show(to_cv2_img(camera_image))
+        self.viewer.show(to_cv2_img(camera_image))
     
     

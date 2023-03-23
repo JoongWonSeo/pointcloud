@@ -182,8 +182,10 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], de
 def set_obj_pos(sim, joint, pos=None, quat=None):
     pos = np.array([random.uniform(-0.3, 0.3), random.uniform(-0.3, 0.3), random.uniform(0.8, 1.4)]) if pos is None else pos
     quat = np.array([0, 0, 0, 0]) if quat is None else quat
-
     sim.data.set_joint_qpos(joint, np.concatenate([pos, quat]))
+
+def set_robot_pose(sim, robot, pose):
+    sim.data.qpos[robot._ref_joint_pos_indexes] = pose
     
 def random_action(env):
     return np.random.randn(env.action_space.shape[0])

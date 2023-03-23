@@ -13,10 +13,10 @@ horizon = 1000
 # setup environment and agent
 # cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
-# task = 'RobosuitePickAndPlace-v0'
+task = 'RobosuitePickAndPlace-v0'
 # task = 'VisionReach-v0'
 # task = 'VisionLift-v0'
-task = 'VisionPickAndPlace-v0'
+# task = 'VisionPickAndPlace-v0'
 # TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
 env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
@@ -47,9 +47,25 @@ def main():
             total_reward += reward
             if info['is_success']:
                 print('s', end='')
+            
+            if env.viewer.is_pressed('g'):
+                env.show_frame(env.episode_goal_state, None)
 
             if terminated or truncated:
                 break
+
+
+            # change state to however we want
+            # def change_state(robo_env):
+            #     set_obj_pos(robo_env.sim, joint='cube_joint0')
+            #     set_robot_pose(robo_env.sim, robo_env.robots[0], np.random.randn(7))
+            
+            # fake_state = env.render_state(change_state)
+            # env.show_frame(fake_state, None)
+
+            # env.show_frame(env.robo_env._get_observations(force_update=True), None)
+
+
     
         print(f"\ntotal_reward = {total_reward}")
 
