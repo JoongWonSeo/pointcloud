@@ -1,14 +1,16 @@
 # 3D Point Cloud Autoencoder
 
+Info: This implementation is currently a WORK IN PROGRESS and INCOMPLETE. However, since it's part of my Bachelor's Thesis, it is due by April 2023.
+
 ## Packages and Features
 
 This installable package provides two main features:
 
 1. `robosuite_envs` are robosuite-based environments for gymnasium-robotics API (more specifically, the Multi-Goal Env API / `GoalEnv` Interface):
     - Basically plug-and-play for any RL algorithms based on Gym, including DDPG, HER, HGG, etc.
-    - Additionally, it provides a ObservationEncoder interface which can be used to modularly plug in a vision module (see below) into any robosuite environment. Concrete implementations of this is only provided in the vision module (simple ground-truth observer included)
+    - Additionally, it provides a ObservationEncoder interface which can be used to modularly plug in a vision module (see below) into any robosuite environment. Concrete implementations of this is only provided in the vision module (simple ground-truth observer included that work as a passthrough)
 
-2. `vision` package contains the vision module:
+2. `pointcloud_vision` package contains the vision module:
     - The underlying PyTorch model and training procedure, including training data generation and training script (TODO: move sim.utils PC generation to vision)
     - Some point cloud loss functions (Chamfer Distance, Weighted Earth Mover Distance)
     - various utilities for visualization, PyTorch Dataset for point clouds, point cloud transformations in `torchvision.transforms` style (downsampling, filtering, normalization, etc.)
