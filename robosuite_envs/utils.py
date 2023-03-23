@@ -60,11 +60,10 @@ def pixel_to_world(depth_map, camera_to_world_transform):
     """
     device = depth_map.device
     h, w, _ = depth_map.shape
-    # sample from the depth map using the pixel locations
-    # z = np.array([depth_map[-y, x, 0] for x, y in pixels])
+    # convert to a list of (x, y, z) points in camera space
+    x = torch.arange(w, device=device).repeat(h) # [0, 1, 2, 0, 1, 2, ...] if W=3
+    y = torch.arange(start=h-1, end=-1, step=-1, device=device).repeat_interleave(w) # [2, 2, 2, 1, 1, 1, ...] if H=3, W=3
     z = depth_map.reshape((-1)) # (H*W,), with coords (x, y) = (i%W, i//W)
-    x = torch.arange(w).repeat(h).to(device) # [0, 1, 2, 0, 1, 2, ...] if W=3
-    y = torch.arange(start=h-1, end=-1, step=-1).repeat_interleave(w).to(device) # [2, 2, 2, 1, 1, 1, ...] if H=3, W=3
 
     # form 4D homogenous camera vector to transform - [x * z, y * z, z, 1]
     homogenous = torch.vstack((x*z, y*z, z, torch.ones_like(z)))
