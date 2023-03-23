@@ -68,7 +68,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
         # define proprioception, observation and goal keys
         self.proprio_keys = ['robot0_eef_pos'] # end-effector position
         self.obs_keys = [] # no observation
-        self.goal_keys = ['cube_pos'] # goal is towards the cube
+        self.goal_keys = ['robot0_eef_pos'] # goal is a specific end-effector position
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
