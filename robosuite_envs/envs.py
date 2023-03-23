@@ -141,13 +141,12 @@ class RobosuiteLift(RobosuiteGoalEnv):
             return np.array([eef_goal, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
         
         def render_obs(env, robo_obs):
-            # INEFFICIENT!
-            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            encoded_cube = env.encoding
             return np.array([encoded_cube]), np.array([[0, 1, 0]])
         
         # for cube-only goal
         def render_goal_obs(env, robo_obs):
-            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            encoded_cube = env.encoding
             cube_goal = env.episode_goal_encoding
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
@@ -221,13 +220,12 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
             return np.array([eef_goal, cube_goal]), np.array([[1, 0, 0], [0, 1, 0]])
         
         def render_obs(env, robo_obs):
-            # INEFFICIENT!
-            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            encoded_cube = env.encoding
             return np.array([encoded_cube]), np.array([[0, 1, 0]])
         
         # for cube-only goal
         def render_goal_obs(env, robo_obs):
-            encoded_cube = env.obs_encoder.encode(env.sensor.observe(robo_obs))
+            encoded_cube = env.encoding
             cube_goal = env.episode_goal_encoding
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
