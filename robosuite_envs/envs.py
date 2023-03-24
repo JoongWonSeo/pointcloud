@@ -92,6 +92,9 @@ class RobosuiteReach(RobosuiteGoalEnv):
     def goal_state(self, state, rerender=False):
         desired_state = state.copy() # shallow copy
         desired_state['robot0_eef_pos'] = desired_state['cube_pos'] #  end-effector should be close to the cube
+        desired_state['robot0_eef_pos'][0] += np.random.uniform(-0.1, 0.1) # add some noise
+        desired_state['robot0_eef_pos'][1] += np.random.uniform(-0.1, 0.1)
+        desired_state['robot0_eef_pos'][2] += np.random.uniform(0, 0.1)
 
         if rerender:
             # create a dummy env, configure it to the desired state, and render it

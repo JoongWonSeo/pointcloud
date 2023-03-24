@@ -224,9 +224,16 @@ class RobosuiteGoalEnv(GoalEnv):
             self.show_frame(state, info)
 
         return peg, reward, terminated, truncated, info
+
+    
+    def render(self):
+        pass
+        # if self.render_mode == 'human':
+        #     self.show_frame(self.raw_state, {})
     
 
     def close(self):
+        self.robo_env.close()
         if self.viewer is not None:
             self.viewer.close()
 

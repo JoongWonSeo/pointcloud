@@ -2,6 +2,11 @@
 
 Info: This implementation is currently a WORK IN PROGRESS and INCOMPLETE. However, since it's part of my Bachelor's Thesis, it is due by April 2023.
 
+## Installation
+
+This has been tested on python 3.9, cuda 11.7, pytorch 1.13.1, pytorch3d 0.7.2, mujoco 2.3.3, robosuite 1.3.3, gymnasium, gymnasium-robotics, lightning, etc.
+
+
 ## Packages and Features
 
 This installable package provides two main features:
