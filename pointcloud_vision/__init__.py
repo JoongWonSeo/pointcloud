@@ -7,7 +7,7 @@ from robosuite_envs.envs import RobosuiteReach, RobosuiteLift, RobosuitePickAndP
 register(
     id='VisionLift-v0',
     entry_point=RobosuiteLift,
-    max_episode_steps=100,
+    max_episode_steps=50,
     kwargs={
         'sensor':PointCloudSensor,
         'obs_encoder':PointCloudGTPredictor,
@@ -18,7 +18,7 @@ register(
 register(
     id='VisionPickAndPlace-v0',
     entry_point=RobosuitePickAndPlace,
-    max_episode_steps=100,
+    max_episode_steps=50,
     kwargs={
         'sensor':PointCloudSensor,
         'obs_encoder':PointCloudGTPredictor,

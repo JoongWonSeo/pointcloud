@@ -252,8 +252,11 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
     def goal_state(self, state, rerender=False):
         # goal is the cube position
         cube_pos = state['cube_pos'].copy() # cube position
-        cube_pos[0] += np.random.uniform(-0.2, 0.2)
-        cube_pos[1] += np.random.uniform(-0.2, 0.2)
+        # pick random dist and direction to move the cube towards
+        dist = np.random.uniform(0.13, 0.2) # move by at least 13cm so goal is not achieved by default
+        dir = np.random.uniform(0, 2*np.pi)
+        cube_pos[0] += dist * np.cos(dir)
+        cube_pos[1] += dist * np.sin(dir)
         if np.random.uniform() < 0.5: # cube in the air for 50% of the time
             cube_pos[2] += np.random.uniform(0.01, 0.2)
 

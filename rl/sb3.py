@@ -1,24 +1,27 @@
 import gymnasium as gym
+import gymnasium_robotics
 import robosuite_envs
 
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, HerReplayBuffer
 
-task = 'RobosuiteReach-v0'
+# task = 'RobosuiteReach-v0'
+# task = 'RobosuitePickAndPlace-v0'
+task = 'FetchPickAndPlace-v2'
 
-train = True
+train = False
 if train:
     env = gym.make(task)
 
-    model = SAC("MultiInputPolicy", env, verbose=1)
-    model.learn(total_timesteps=10000, log_interval=4, progress_bar=True)
+    model = SAC("MultiInputPolicy", env, replay_buffer_class=HerReplayBuffer, verbose=1)
+    model.learn(total_timesteps=500000, log_interval=4, progress_bar=True)
     model.save(task)
 
     del model # remove to demonstrate saving and loading
     env.close()
 
-model = SAC.load(task)
 
 env = gym.make(task, render_mode='human')
+model = SAC.load(task, env=env)
 obs, info = env.reset()
 
 while True:
@@ -26,4 +29,5 @@ while True:
     obs, reward, terminated, truncated, info = env.step(action)
     env.render()
     if terminated or truncated:
-      obs, info = env.reset()
+        print('success' if info['is_success'] else 'failure')
+        obs, info = env.reset()

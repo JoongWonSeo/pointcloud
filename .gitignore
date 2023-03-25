@@ -3,7 +3,9 @@
 
 # model weights
 *.pth
+*.pt
 *.ckpt
+*.zip
 
 # slides
 *.html
