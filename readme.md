@@ -58,6 +58,19 @@ rl
 `viewer.py`: Browser-based point cloud viewer. TODO: integrate into `main.py viewer`
 
 
+## RL training using Stable Baselines Zoo
+
+```python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000```
+
+Multiprocessing:
+```python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000 --vec-env subproc -params n_envs:8```
+
+Viewing the result:
+```python -m rl_zoo3.enjoy --algo tqc --env RobosuiteReach-v0 --folder ./logs```
+
+
+
+
 ## Remarks
 
 ### `simulator.py`

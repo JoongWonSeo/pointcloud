@@ -1,6 +1,7 @@
 import gymnasium as gym
 import gymnasium_robotics
 import robosuite_envs
+import pointcloud_vision
 
 from stable_baselines3 import SAC, HerReplayBuffer
 
@@ -20,8 +21,8 @@ if train:
     env.close()
 
 
-env = gym.make(task, render_mode='human')
-model = SAC.load(task, env=env)
+env = gym.make(task.replace('Robosuite', 'Vision'), render_mode='human', max_episode_steps=100)
+model = SAC.load('weights/'+task, env=env)
 obs, info = env.reset()
 
 while True:

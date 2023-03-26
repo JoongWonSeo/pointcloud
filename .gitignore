@@ -14,6 +14,8 @@
 # training logs for tensorboard
 runs/
 output/
+rl/logs/
+rl/output/
 
 # mujoco error logs
 MUJOCO_LOG.txt
