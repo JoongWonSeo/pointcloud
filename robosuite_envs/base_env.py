@@ -3,6 +3,7 @@
 # Meaning that the observation space is a dictionary with keys 'observation', 'desired_goal' and 'achieved_goal'
 
 from abc import abstractmethod
+from copy import deepcopy
 import numpy as np
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
@@ -82,6 +83,7 @@ class RobosuiteGoalEnv(GoalEnv):
 
         # create CameraMovers and set their initial poses
         self.movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
+        self.reset_camera_poses = self.sensor.requires_vision
         self.set_camera_poses()
         
     
@@ -131,6 +133,10 @@ class RobosuiteGoalEnv(GoalEnv):
         super().reset(seed=seed)
 
         self.is_episode_success = False
+
+        # remember the camera pose for convenience
+        if not self.reset_camera_poses:
+            self.poses = [deepcopy(mover.get_camera_pose()) for mover in self.movers]
 
         # get the initial ground-truth state (S)
         backup = self.robo_env._get_observations

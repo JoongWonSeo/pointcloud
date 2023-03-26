@@ -54,7 +54,8 @@ class GroundTruthEncoder(ObservationEncoder):
     latent_encoding = False
 
     def encode(self, obs):
-        obs_list = [obs[key] for key in self.obs_keys]
+        # obs_list = [obs[key] if type(obs[key]) is np.array else np.array([obs[key]]) for key in self.obs_keys]
+        obs_list = [np.array(obs[key]).reshape((-1,)) for key in self.obs_keys]
         if len(obs_list) > 0:
             return np.concatenate(obs_list, dtype=np.float32)
         else:
@@ -62,7 +63,7 @@ class GroundTruthEncoder(ObservationEncoder):
 
     def get_space(self, robo_env):
         o = robo_env.observation_spec()
-        dim = sum([o[key].shape[0] for key in self.obs_keys])
+        dim = sum([o[key].shape[0] if isinstance(o[key], np.ndarray) else 1 for key in self.obs_keys])
         return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(dim,))
 
 
