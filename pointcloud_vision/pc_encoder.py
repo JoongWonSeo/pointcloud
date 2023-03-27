@@ -38,6 +38,10 @@ class PointCloudSensor(Sensor):
         }
     
     def observe(self, state):
+        '''
+        Even though this depends on the self.env.robo_env.sim, it only uses it to get the camera poses, so *as long as the camera poses are the same*, the generated pointclouds will only depend on the given state, even for a different environment.
+        '''
+
         # generate pointcloud from 2.5D observations
         pc, feats = multiview_pointcloud(self.env.robo_env.sim, state, self.env.cameras, self.preprocess, self.features, cfg.device)
         # TODO: currently, the original state is also included in the observation, in order to allow GT Encoders to work as well.

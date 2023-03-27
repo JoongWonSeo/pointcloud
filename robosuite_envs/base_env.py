@@ -9,8 +9,9 @@ from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils.camera_utils import CameraMover, get_camera_transform_matrix
+from robosuite.controllers import load_controller_config
 from .encoders import GroundTruthEncoder, ObservationEncoder
-from .utils import UI, to_cv2_img, render
+from .utils import UI, to_cv2_img, render, disable_rendering
 
 
 # generic wrapper class around any robosuite environment
@@ -51,7 +52,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.proprio_encoder = proprio_encoder
         self.obs_encoder = obs_encoder
         self.goal_encoder = goal_encoder
-        
+
         # cached information about the current episode that is not returned by step()
         self.raw_state = None # raw state from the Robosuite environment
         self.observation = None # observation from the sensor
@@ -60,6 +61,17 @@ class RobosuiteGoalEnv(GoalEnv):
         self.episode_goal_state = None # raw goal state from goal_state() function
         self.episode_goal_encoding = None # encoding from the goal encoder
         self.is_episode_success = False
+
+        # dummy environment for goal imagination
+        if self.goal_encoder.requires_vision and self.goal_encoder.latent_encoding:
+            abs_controller = load_controller_config(default_controller="OSC_POSITION")
+            abs_controller['control_delta'] = False # desired eef position is absolute
+            self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
+            self.goal_cam_movers = [CameraMover(self.goal_env, camera=c) for c in self.cameras]
+        else:
+            self.goal_env = None
+            # self.goal_cam_movers = None
+
 
         #######################
         # for Gym GoalEnv API #
@@ -149,14 +161,11 @@ class RobosuiteGoalEnv(GoalEnv):
             self.poses = [deepcopy(mover.get_camera_pose()) for mover in self.movers]
 
         # get the initial ground-truth state (S)
-        backup = self.robo_env._get_observations
-        self.robo_env._get_observations = lambda force_update: None # hack to prevent Robosuite from rendering, TODO: consider using a context manager instead to disable the function temporarily
-        self.robo_env.reset()
-        self.set_camera_poses() # reset the camera poses
-        self.set_initial_state(get_state=backup) # set the initial state of the robo env
-
-        self.robo_env._get_observations = backup # restore the original function
-        state = self.robo_env._get_observations(force_update=True)
+        with disable_rendering(self.robo_env) as renderer:
+            self.robo_env.reset()
+            self.set_camera_poses() # reset the camera poses
+            self.set_initial_state(get_state=renderer) # set the initial state of the robo env
+            state = renderer(force_update=True)
 
         self.sensor.reset()
 

@@ -97,16 +97,6 @@ class RobosuiteReach(RobosuiteGoalEnv):
     # define environment feedback functions
     def achieved_goal(self, proprio, obs_encoding):
         return proprio # end-effector position
-    
-    def set_initial_state(self, get_state):
-        # simulate the goal state here! (this is a hack)
-        abs_controller = load_controller_config(default_controller="OSC_POSITION")
-        abs_controller['control_delta'] = False # desired eef position is absolute
-
-
-        # reset the env and pretend nothing happened
-        self.robo_env.reset()
-        self.set_camera_poses()
 
     def goal_state(self, state, rerender=False):
         desired_state = state.copy() # shallow copy

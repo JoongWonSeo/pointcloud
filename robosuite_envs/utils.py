@@ -264,4 +264,21 @@ class UI:
             self.mouse_clicked = True
         if event == cv2.EVENT_LBUTTONUP:
             self.mouse_clicked = False
+
+
+
+class disable_rendering:
+    '''
+    Context manager to temporarily disable rendering in a RoboEnv,
+    such as during reset() or step().
+    '''
+    def __init__(self, robo_env):
+        self.robo_env = robo_env
     
+    def __enter__(self):
+        self.backup = self.robo_env._get_observations
+        self.robo_env._get_observations = lambda force_update: None 
+        return self.backup
+    
+    def __exit__(self, type, value, traceback) -> None:
+        self.robo_env._get_observations = self.backup
