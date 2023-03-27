@@ -56,66 +56,6 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
     'gt_dim': 3, # dimension of the ground-truth encoding, i.e. cube_pos
 }
 
-# Configs for Envs based on the Robosuite Door task
-robo_kwargs['Door'] = robo_kwargs['Base'] | {
-    'env_name': 'Door',
-    'robots': 'Panda',
-    'controller_configs': load_controller_config(default_controller="OSC_POSE"),
-}
-cfg_vision['Door'] = cfg_vision['Base'] | {
-    'cameras': { # name: (position, quaternion)
-        'frontview': ([0, -1.2, 1.8], [0.3972332, 0, 0, 0.9177177]),
-        'agentview': ([0. , 1.2, 1.8], [0, 0.3972332, 0.9177177, 0]),
-        'birdview': ([1.1, 0, 1.6], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
-    },
-    'bbox': [[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
-    # 'classes': [ # (name, RGB_for_visualization)
-    #     ('env', [0, 0, 0]),
-    #     ('cube', [1, 0, 0]),
-    #     ('arm', [0.5, 0.5, 0.5]),
-    #     ('base', [0, 1, 0]),
-    #     ('gripper', [0, 0, 1]),
-    # ],
-    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
-    #     ('env', 1.0),
-    #     ('cube', 150.0),
-    #     ('arm', 5.0),
-    #     ('base', 10.0),
-    #     ('gripper', 15.0),
-    # ],
-    # 'gt_dim': 3, # dimension of the ground-truth encoding, i.e. cube_pos
-}
-
-# Configs for Envs based on the Robosuite Door task
-robo_kwargs['Peg'] = robo_kwargs['Base'] | {
-    'env_name': 'TwoArmPegInHole',
-    'robots': 'Baxter',
-    'controller_configs': load_controller_config(default_controller="OSC_POSE"),
-}
-cfg_vision['Peg'] = cfg_vision['Base'] | {
-    'cameras': { # name: (position, quaternion)
-        'frontview': ([0, -1.2, 1.8], [0.3972332, 0, 0, 0.9177177]),
-        'agentview': ([0. , 1.2, 1.8], [0, 0.3972332, 0.9177177, 0]),
-        'birdview': ([1.1, 0, 1.6], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
-    },
-    'bbox': [[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
-    # 'classes': [ # (name, RGB_for_visualization)
-    #     ('env', [0, 0, 0]),
-    #     ('cube', [1, 0, 0]),
-    #     ('arm', [0.5, 0.5, 0.5]),
-    #     ('base', [0, 1, 0]),
-    #     ('gripper', [0, 0, 1]),
-    # ],
-    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
-    #     ('env', 1.0),
-    #     ('cube', 150.0),
-    #     ('arm', 5.0),
-    #     ('base', 10.0),
-    #     ('gripper', 15.0),
-    # ],
-    # 'gt_dim': 3, # dimension of the ground-truth encoding, i.e. cube_pos
-}
-
 
 class RobosuiteReach(RobosuiteGoalEnv):
     def __init__(
@@ -227,7 +167,6 @@ class RobosuiteLift(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
-            proprio=self.proprio_keys,
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder(self, self.obs_keys),
@@ -298,7 +237,6 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
-            proprio=self.proprio_keys,
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder(self, self.obs_keys),
@@ -341,125 +279,3 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
 
 
 
-class RobosuiteDoor(RobosuiteGoalEnv):
-    def __init__(
-        self,
-        render_mode=None,
-        sensor=GroundTruthSensor,
-        proprio_encoder=GroundTruthEncoder,
-        obs_encoder=GroundTruthEncoder,
-        goal_encoder=GroundTruthEncoder
-        ):
-        # configure cameras and their poses
-        if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Door'])
-        else:
-            # default camera with default pose
-            self.cameras = {'frontview': None} if render_mode == 'human' else {}
-            self.camera_size = (512, 512) # width, height
-        
-        # define proprioception, observation and goal keys
-        self.proprio_keys = ['robot0_proprio-state'] # all proprioception
-        self.obs_keys = ['door_pos', 'handle_pos', 'hinge_qpos', 'handle_qpos'] # observe the cube position
-        self.goal_keys = ['hinge_qpos'] # we only care about cube position
-
-
-        # initialize RobosuiteGoalEnv
-        super().__init__(
-            robo_kwargs=robo_kwargs['Door'],
-            proprio=self.proprio_keys,
-            sensor=sensor(env=self),
-            proprio_encoder=proprio_encoder(self, self.proprio_keys),
-            obs_encoder=obs_encoder(self, self.obs_keys),
-            goal_encoder=goal_encoder(self, self.goal_keys),
-            render_mode=render_mode,
-        )
- 
-
-    # define environment feedback functions
-    def achieved_goal(self, proprio, obs_encoding):
-        return obs_encoding[6:7] # only hinge qpos
-    
-    def goal_state(self, state, rerender=False):
-        if rerender:
-            raise NotImplementedError
-            # print('rerendering goal')
-            # desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
-        else:
-            desired_state = state.copy()
-            desired_state['hinge_qpos'] = 0.31
-
-        return desired_state
-
-    def check_success(self, achieved, desired, info):
-        # batched version
-        if achieved.ndim == 2:
-            return achieved[:, 0] > 0.3
-            # return np.linalg.norm(achieved - desired, axis=1) < 0.05
-        else: # single version
-            # return np.linalg.norm(achieved - desired) < 0.05
-            return bool(achieved[0] > 0.3) # hinge_qpos > 0.3
-
-
-
-
-class RobosuitePeg(RobosuiteGoalEnv):
-    def __init__(
-        self,
-        render_mode=None,
-        sensor=GroundTruthSensor,
-        proprio_encoder=GroundTruthEncoder,
-        obs_encoder=GroundTruthEncoder,
-        goal_encoder=GroundTruthEncoder
-        ):
-        # configure cameras and their poses
-        if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Peg'])
-        else:
-            # default camera with default pose
-            self.cameras = {'frontview': None} if render_mode == 'human' else {}
-            self.camera_size = (512, 512) # width, height
-        
-        # define proprioception, observation and goal keys
-        self.proprio_keys = ['robot0_proprio-state'] # all proprioception
-        self.obs_keys = ['object-state'] # 
-        self.goal_keys = [] # TODO
-
-
-        # initialize RobosuiteGoalEnv
-        super().__init__(
-            robo_kwargs=robo_kwargs['Peg'],
-            proprio=self.proprio_keys,
-            sensor=sensor(env=self),
-            proprio_encoder=proprio_encoder(self, self.proprio_keys),
-            obs_encoder=obs_encoder(self, self.obs_keys),
-            goal_encoder=goal_encoder(self, self.goal_keys),
-            render_mode=render_mode,
-        )
- 
-
-    # define environment feedback functions
-    def achieved_goal(self, proprio, obs_encoding):
-        return obs_encoding[6:7] # only hinge qpos
-    
-    def goal_state(self, state, rerender=False):
-        if rerender:
-            raise NotImplementedError
-            # print('rerendering goal')
-            # desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
-        else:
-            desired_state = state.copy()
-            # desired_state['ob'] = 0.31
-
-        return desired_state
-
-    def check_success(self, achieved, desired, info):
-        # batched version
-        if achieved.ndim == 2:
-            return achieved[:, 0] > 0.3
-            # return np.linalg.norm(achieved - desired, axis=1) < 0.05
-        else: # single version
-            # return np.linalg.norm(achieved - desired) < 0.05
-            return bool(achieved[0] > 0.3) # hinge_qpos > 0.3
-
-    
