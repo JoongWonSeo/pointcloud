@@ -12,8 +12,9 @@ horizon = 50
 # setup environment and agent
 # cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
-task = 'RobosuitePickAndPlace-v0'
-# task = 'RobosuiteReach-v0'
+# task = 'RobosuitePickAndPlace-v0'
+task = 'RobosuiteReach-v0'
+# task = 'RobosuitePeg-v0'
 # task = 'VisionReach-v0'
 # task = 'VisionLift-v0'
 # task = 'VisionPickAndPlace-v0'

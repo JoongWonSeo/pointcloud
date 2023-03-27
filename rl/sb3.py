@@ -6,8 +6,8 @@ import pointcloud_vision
 from stable_baselines3 import SAC, HerReplayBuffer
 
 # task = 'RobosuiteReach-v0'
-# task = 'RobosuitePickAndPlace-v0'
-task = 'FetchPickAndPlace-v2'
+task = 'RobosuitePickAndPlace-v0'
+# task = 'FetchPickAndPlace-v2'
 
 train = False
 if train:
@@ -21,7 +21,8 @@ if train:
     env.close()
 
 
-env = gym.make(task.replace('Robosuite', 'Vision'), render_mode='human', max_episode_steps=100)
+env = gym.make(task.replace('Robosuite', 'Vision')
+, render_mode='human', max_episode_steps=100)
 model = SAC.load('weights/'+task, env=env)
 obs, info = env.reset()
 
