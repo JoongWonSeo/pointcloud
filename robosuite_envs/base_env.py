@@ -17,11 +17,11 @@ from .utils import UI, to_cv2_img, render
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_kwargs, proprio, sensor, obs_encoder, goal_encoder, render_mode=None, render_info=None):
+    def __init__(self, robo_kwargs, sensor, proprio_encoder, obs_encoder, goal_encoder, render_mode=None, render_info=None):
         '''
         robo_kwargs: keyward arguments for Robosuite environment to be created
-        proprio: list of keys for the proprioception
         sensor: Sensor that transforms the ground truth into an observation (T -> O)
+        proprio_encoder: ObservationEncoder that transforms the proprioception into an encoding (P -> P')
         obs_encoder: ObservationEncoder that transforms an observation into an encoding (O -> E)
         goal_encoder: ObservationEncoder that transforms an observation into a goal encoding (O -> G)
         render_mode: str for render mode such as 'human' or None
@@ -47,8 +47,8 @@ class RobosuiteGoalEnv(GoalEnv):
             robo_kwargs |= {'use_camera_obs': False}
 
         self.robo_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs))
-        self.proprio = GroundTruthEncoder(self, proprio) # proprioception does not need to be encoded
         self.sensor = sensor
+        self.proprio_encoder = proprio_encoder
         self.obs_encoder = obs_encoder
         self.goal_encoder = goal_encoder
         
@@ -65,7 +65,7 @@ class RobosuiteGoalEnv(GoalEnv):
         # for Gym GoalEnv API #
         #######################
         self.observation_space = Dict({
-            'observation': ObservationEncoder.concat_spaces(self.robo_env, self.proprio, self.obs_encoder),
+            'observation': ObservationEncoder.concat_spaces(self.robo_env, self.proprio_encoder, self.obs_encoder),
             'achieved_goal': self.goal_encoder.get_space(self.robo_env),
             'desired_goal': self.goal_encoder.get_space(self.robo_env),
         })
@@ -115,6 +115,16 @@ class RobosuiteGoalEnv(GoalEnv):
         pass
 
 
+    def set_initial_state(self, get_state):
+        '''
+        get_state: function that returns the current state of the environment (essentially self.robo_env._get_observations())
+
+        Called after reset and before getting the first observation.
+        You could use this function to set the initial state of the task.
+        Or even simulate a few steps to imagine a goal state, and then reset the env.
+        '''
+        pass
+
     #######################
     # for Gym GoalEnv API #
     #######################
@@ -140,10 +150,12 @@ class RobosuiteGoalEnv(GoalEnv):
 
         # get the initial ground-truth state (S)
         backup = self.robo_env._get_observations
-        self.robo_env._get_observations = lambda force_update: None # hack to prevent Robosuite from rendering
+        self.robo_env._get_observations = lambda force_update: None # hack to prevent Robosuite from rendering, TODO: consider using a context manager instead to disable the function temporarily
         self.robo_env.reset()
         self.set_camera_poses() # reset the camera poses
-        self.robo_env._get_observations = backup
+        self.set_initial_state(get_state=backup) # set the initial state of the robo env
+
+        self.robo_env._get_observations = backup # restore the original function
         state = self.robo_env._get_observations(force_update=True)
 
         self.sensor.reset()
@@ -154,10 +166,8 @@ class RobosuiteGoalEnv(GoalEnv):
         obs = self.sensor.observe(state)
         goal_obs = self.sensor.observe(goal_state)
 
-        # proprioception does not need to be encoded
-        proprio = self.proprio.encode(state)
-
         # encode the observation into the encoding space (E)
+        proprio = self.proprio_encoder.encode(state)
         obs_encoding = self.obs_encoder.encode(obs)
         goal_encoding = self.goal_encoder.encode(goal_obs)
 
@@ -199,7 +209,7 @@ class RobosuiteGoalEnv(GoalEnv):
         obs = self.sensor.observe(state)
 
         # proprioception does not need to be encoded
-        proprio = self.proprio.encode(state)
+        proprio = self.proprio_encoder.encode(state)
 
         # encode the observation into the encoding space (E)
         obs_encoding = self.obs_encoder.encode(obs)
