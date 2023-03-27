@@ -96,18 +96,22 @@ class RobosuiteReach(RobosuiteGoalEnv):
             **kwargs
         )
 
+    @staticmethod
+    def set_initial_state(robo_env, get_state):
+        robo_env.clear_objects('cube')
+        robo_env.sim.forward()
+
     # define environment feedback functions
     def achieved_goal(self, proprio, obs_encoding):
         return proprio # end-effector position
 
     def goal_state(self, state, rerender=False):
         desired_state = state.copy() # shallow copy
-        desired_state['robot0_eef_pos'] = desired_state['cube_pos'] #  end-effector should be close to the cube
-        desired_state['robot0_eef_pos'][0] += np.random.uniform(-0.2, 0.2) # add some noise
-        desired_state['robot0_eef_pos'][1] += np.random.uniform(-0.2, 0.2)
-        desired_state['robot0_eef_pos'][2] += np.random.uniform(0, 0.2)
+        desired_state['robot0_eef_pos'][0] = np.random.uniform(-0.2, 0.2)
+        desired_state['robot0_eef_pos'][1] = np.random.uniform(-0.2, 0.2)
+        desired_state['robot0_eef_pos'][2] = np.random.uniform(0.85, 1.2)
 
-        if rerender:
+        if rerender or True:
             # simulate the goal state
             # with disable_rendering(self.goal_env) as renderer:
             #     self.goal_env.reset()
@@ -122,8 +126,6 @@ class RobosuiteReach(RobosuiteGoalEnv):
             desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
             if not succ:
                 print('Warning: failed to reach the desired robot pos for the goal state imagination')
-            else:
-                print(desired_state['robot0_eef_pos'])
 
         return desired_state
 

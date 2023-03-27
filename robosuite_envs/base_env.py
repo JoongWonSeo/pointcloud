@@ -128,14 +128,16 @@ class RobosuiteGoalEnv(GoalEnv):
         '''
         pass
 
-
-    def set_initial_state(self, get_state):
+    @staticmethod
+    def set_initial_state(robo_env, get_state):
         '''
         get_state: function that returns the current state of the environment (essentially self.robo_env._get_observations())
 
         Called after reset and before getting the first observation.
         You could use this function to set the initial state of the task.
         Or even simulate a few steps to imagine a goal state, and then reset the env.
+
+        This is static so that it can also be applied to the goal_env.
         '''
         pass
 
@@ -166,7 +168,7 @@ class RobosuiteGoalEnv(GoalEnv):
         with disable_rendering(self.robo_env) as renderer:
             self.robo_env.reset()
             self.set_camera_poses() # reset the camera poses
-            self.set_initial_state(get_state=renderer) # set the initial state of the robo env
+            self.set_initial_state(self.robo_env, get_state=renderer) # set the initial state of the robo env
             state = renderer(force_update=True)
 
         self.sensor.reset()
@@ -320,8 +322,10 @@ class RobosuiteGoalEnv(GoalEnv):
     def simulate_eef_pos(self, target, state_setter=None, tolerance=0.01, max_steps=50, eef_key='robot0_eef_pos'):
         if self.goal_env:
             success = False
-            self.goal_env.reset()
-            self.set_camera_poses(movers=self.goal_cam_movers)
+            with disable_rendering(self.goal_env) as renderer:
+                self.goal_env.reset()
+                self.set_camera_poses(movers=self.goal_cam_movers)
+                self.set_initial_state(self.goal_env, renderer)
 
             # try to move to the target
             action = np.zeros_like(self.goal_env.action_spec[0])
