@@ -18,7 +18,7 @@ from .utils import UI, to_cv2_img, render, disable_rendering
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_kwargs, sensor, proprio_encoder, obs_encoder, goal_encoder, render_mode=None, render_info=None):
+    def __init__(self, robo_kwargs, sensor, proprio_encoder, obs_encoder, goal_encoder, render_mode=None, render_info=None, **kwargs):
         '''
         robo_kwargs: keyward arguments for Robosuite environment to be created
         sensor: Sensor that transforms the ground truth into an observation (T -> O)
@@ -62,16 +62,6 @@ class RobosuiteGoalEnv(GoalEnv):
         self.episode_goal_encoding = None # encoding from the goal encoder
         self.is_episode_success = False
 
-        # dummy environment for goal imagination
-        if self.goal_encoder.requires_vision and self.goal_encoder.latent_encoding:
-            abs_controller = load_controller_config(default_controller="OSC_POSITION")
-            abs_controller['control_delta'] = False # desired eef position is absolute
-            self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
-            self.goal_cam_movers = [CameraMover(self.goal_env, camera=c) for c in self.cameras]
-        else:
-            self.goal_env = None
-            # self.goal_cam_movers = None
-
 
         #######################
         # for Gym GoalEnv API #
@@ -97,6 +87,18 @@ class RobosuiteGoalEnv(GoalEnv):
         self.movers = [CameraMover(self.robo_env, camera=c) for c in self.cameras]
         self.reset_camera_poses = self.sensor.requires_vision
         self.set_camera_poses()
+
+
+        # dummy environment for goal imagination
+        if kwargs.get('goal_env', False) or (self.goal_encoder.requires_vision and self.goal_encoder.latent_encoding):
+            abs_controller = load_controller_config(default_controller="OSC_POSITION")
+            abs_controller['control_delta'] = False # desired eef position is absolute
+            self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
+            self.goal_cam_movers = [CameraMover(self.goal_env, camera=c) for c in self.cameras]
+            print('Created a second env for goal state imagination')
+        else:
+            self.goal_env = None
+            # self.goal_cam_movers = None
         
     
 
@@ -266,8 +268,11 @@ class RobosuiteGoalEnv(GoalEnv):
     #################
     # for rendering #
     #################
-    def set_camera_poses(self):
-        for mover, pose in zip(self.movers, self.poses):
+    def set_camera_poses(self, movers=None, poses=None):
+        movers = movers or self.movers
+        poses = poses or self.poses
+
+        for mover, pose in zip(movers, poses):
             if pose is not None:
                 pos, quat = pose
                 mover.set_camera_pose(np.array(pos), np.array(quat))
@@ -311,4 +316,33 @@ class RobosuiteGoalEnv(GoalEnv):
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
         self.viewer.show(to_cv2_img(camera_image))
     
-    
+
+    def simulate_eef_pos(self, target, state_setter=None, tolerance=0.01, max_steps=50, eef_key='robot0_eef_pos'):
+        if self.goal_env:
+            success = False
+            self.goal_env.reset()
+            self.set_camera_poses(movers=self.goal_cam_movers)
+
+            # try to move to the target
+            action = np.zeros_like(self.goal_env.action_spec[0])
+            action[0:3] = target
+            for i in range(max_steps):
+                state, reward, done, info = self.goal_env.step(action)
+                if np.linalg.norm(state[eef_key] - target) < tolerance:
+                    print('early break at', i)
+                    print(state[eef_key], target)
+                    success = True
+                    break
+
+            # if state_setter is provided, set the state to the given state
+            if state_setter:
+                state_setter(self.goal_env)
+                self.goal_env.sim.forward()
+            
+            # return the state
+            state = self.goal_env._get_observations(force_update=True)
+            return state, success
+        else:
+            raise Exception('goal_env not set')
+            
+            

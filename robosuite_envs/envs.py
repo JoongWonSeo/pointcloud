@@ -5,7 +5,7 @@ from robosuite.controllers import load_controller_config
 from .base_env import RobosuiteGoalEnv
 from .encoders import GroundTruthEncoder
 from .sensors import GroundTruthSensor
-from .utils import apply_preset, set_obj_pos, set_robot_pose
+from .utils import apply_preset, set_obj_pos, set_robot_pose, disable_rendering
 
 # keyward arguments for Robosuite environment to be created
 robo_kwargs = {
@@ -64,7 +64,8 @@ class RobosuiteReach(RobosuiteGoalEnv):
         sensor=GroundTruthSensor,
         proprio_encoder=GroundTruthEncoder,
         obs_encoder=GroundTruthEncoder,
-        goal_encoder=GroundTruthEncoder
+        goal_encoder=GroundTruthEncoder,
+        **kwargs
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
@@ -91,7 +92,8 @@ class RobosuiteReach(RobosuiteGoalEnv):
             obs_encoder=obs_encoder(self, self.obs_keys),
             goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal
+            render_info=render_goal,
+            **kwargs
         )
 
     # define environment feedback functions
@@ -106,12 +108,22 @@ class RobosuiteReach(RobosuiteGoalEnv):
         desired_state['robot0_eef_pos'][2] += np.random.uniform(0, 0.2)
 
         if rerender:
-            # create a dummy env, configure it to the desired state, and render it
-            # set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=desired_state['cube_pos'])
-            # set_robot_pose(robo_env.sim, robo_env.robots[0], np.random.randn(7))
-            # desired_state = self.robo_env._get_observations(force_update=True)
+            # simulate the goal state
+            # with disable_rendering(self.goal_env) as renderer:
+            #     self.goal_env.reset()
 
-            raise NotImplementedError('Rerendering is not implemented for this environment.')
+            #     action = np.zeros_like(self.goal_env.action_spec[0])
+            #     action[0:3] = desired_state['robot0_eef_pos']
+            #     for i in range(10):
+            #         obs = self.goal_env.step(action)
+                
+            #     desired_state = renderer(force_update=True)
+
+            desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
+            if not succ:
+                print('Warning: failed to reach the desired robot pos for the goal state imagination')
+            else:
+                print(desired_state['robot0_eef_pos'])
 
         return desired_state
 
@@ -133,7 +145,8 @@ class RobosuiteLift(RobosuiteGoalEnv):
         sensor=GroundTruthSensor,
         proprio_encoder=GroundTruthEncoder,
         obs_encoder=GroundTruthEncoder,
-        goal_encoder=GroundTruthEncoder
+        goal_encoder=GroundTruthEncoder,
+        **kwargs
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
@@ -162,7 +175,8 @@ class RobosuiteLift(RobosuiteGoalEnv):
             obs_encoder=obs_encoder(self, self.obs_keys),
             goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal_obs
+            render_info=render_goal_obs,
+            **kwargs
         )
  
 
@@ -203,7 +217,8 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         sensor=GroundTruthSensor,
         proprio_encoder=GroundTruthEncoder,
         obs_encoder=GroundTruthEncoder,
-        goal_encoder=GroundTruthEncoder
+        goal_encoder=GroundTruthEncoder,
+        **kwargs
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
@@ -232,7 +247,8 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
             obs_encoder=obs_encoder(self, self.obs_keys),
             goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal_obs
+            render_info=render_goal_obs,
+            **kwargs
         )
  
 

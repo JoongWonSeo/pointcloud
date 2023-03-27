@@ -277,7 +277,7 @@ class disable_rendering:
     
     def __enter__(self):
         self.backup = self.robo_env._get_observations
-        self.robo_env._get_observations = lambda force_update: None 
+        self.robo_env._get_observations = lambda force_update=False: None 
         return self.backup
     
     def __exit__(self, type, value, traceback) -> None:
