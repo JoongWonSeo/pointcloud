@@ -333,8 +333,8 @@ class RobosuiteGoalEnv(GoalEnv):
             for i in range(max_steps):
                 state, reward, done, info = self.goal_env.step(action)
                 if np.linalg.norm(state[eef_key] - target) < tolerance:
-                    print('early break at', i)
-                    print(state[eef_key], target)
+                    # print('early break at', i)
+                    # print(state[eef_key], target)
                     success = True
                     break
 

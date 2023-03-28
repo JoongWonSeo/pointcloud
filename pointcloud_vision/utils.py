@@ -224,7 +224,6 @@ class EarthMoverDistance:
         # compare the features (RGB) OF THE CORRESPONDING POINTS ACCORDING TO assignment
         assignment = assignment.long().unsqueeze(-1)
         target = target.take_along_dim(assignment, 1) # permute target according to assignment, such that matched points are at the same index
-        # feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
 
         # DEBUG: check the number of unassigned points
         if cfg.debug:
@@ -246,6 +245,10 @@ class EarthMoverDistance:
             for idx, (_, w) in enumerate(self.classes):
                 weights[target_classes == idx] = w
             
+            feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * N) # compensate for auto broadcasting
+        else:
+            feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
+            
             # if cfg.debug:
             #     points_per_class = [(target_classes == i).sum()/25 for i in range(N)]
             #     num_points = 2048
@@ -254,9 +257,9 @@ class EarthMoverDistance:
 
         
         point_l = (dists.sqrt() * weights).sum() / weights.sum()
-        weighted_feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * len(self.classes)) # compensate for auto broadcasting
+    
 
-        return point_l + weighted_feature_l #feature_l
+        return point_l + feature_l #feature_l
 
 
 
@@ -303,15 +306,20 @@ class PointCloudDataset(Dataset):
 
         if self.in_features == self.out_features:
             in_pc = out_pc = obs_to_pc(obs, self.in_features)
+
+            if self.in_transform:
+                in_pc = self.in_transform(in_pc)
+            elif self.out_transform: # don't apply twice, since it's the same pc
+                out_pc = self.out_transform(out_pc)
         else:
             in_pc = obs_to_pc(obs, self.in_features)
             out_pc = obs_to_pc(obs, self.out_features)
 
-        if self.in_transform:
-            in_pc = self.in_transform(in_pc)
-        if self.out_transform:
-            out_pc = self.out_transform(out_pc)
-
+            if self.in_transform:
+                in_pc = self.in_transform(in_pc)
+            if self.out_transform:
+                out_pc = self.out_transform(out_pc)
+                
         return in_pc, out_pc
     
     def filename(self, idx):

@@ -5,7 +5,7 @@ import numpy as np
 from robosuite_envs.encoders import ObservationEncoder
 from robosuite_envs.sensors import Sensor
 from robosuite_envs.utils import multiview_pointcloud #TODO move to vision module
-from pointcloud_vision.models.pc_encoders import backbone_factory, GTEncoder
+from pointcloud_vision.models.pc_encoders import backbone_factory, AE, GTEncoder
 import pointcloud_vision.train
 from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize, obs_to_pc
 from torchvision.transforms import Compose
@@ -94,3 +94,39 @@ class PointCloudGTPredictor(ObservationEncoder):
     def get_space(self, robo_env):
         return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))
 
+
+class PointCloudEncoder(ObservationEncoder):
+    requires_vision = True
+    latent_encoding = True
+
+    def __init__(self, env, obs_keys):
+        super().__init__(env, obs_keys)
+        
+        if self.obs_keys == ['robot0_eef_pos']:
+            # use the encoder trained from Reach task
+            self.features = ['rgb']
+            self.encoding_dim = cfg.bottleneck_size
+
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/Autoencoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+            self.pc_encoder = AE(backbone_factory['PointNet2'](feature_dims=3), out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size)
+            self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
+            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
+            self.pc_encoder = self.pc_encoder.model.encoder.to(cfg.device)
+
+        elif self.obs_keys == ['cube_pos']:
+            raise NotImplementedError() #TODO from lift dataset
+        else:
+            raise NotImplementedError()
+        
+        self.pc_encoder.eval()
+    
+    def encode(self, obs):
+        preprocess = Normalize(obs['boundingbox'])
+    
+        pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
+        pred = self.pc_encoder(pc).detach().squeeze(0)
+
+        return pred.cpu().numpy()
+    
+    def get_space(self, robo_env):
+        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))

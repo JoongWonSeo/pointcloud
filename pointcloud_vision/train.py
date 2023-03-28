@@ -1,5 +1,6 @@
 import pointcloud_vision.cfg as cfg
 import re
+import argparse
 from types import SimpleNamespace
 import torch
 import torch.nn.functional as F
@@ -18,10 +19,11 @@ class Lit(pl.LightningModule):
     A very generic LightningModule to use for training any model.
     '''
 
-    def __init__(self, model, loss_fn):
+    def __init__(self, model, loss_fn, log_info=None):
         super().__init__()
         self.model = model
         self.loss_fn = loss_fn
+        self.log_info = log_info
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -36,16 +38,27 @@ class Lit(pl.LightningModule):
         loss = self.loss_fn(prediction, y)
         self.log('val_loss', loss)
         # log sample PC
-        # TODO: only do this for autoencoders
-        # if batch_idx == 0:
-        #     logger = self.trainer.logger.experiment # raw tensorboard SummaryWriter
-        #     pc = prediction[0, :, :3]
-        #     col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
-        #     gt = y[0, :, :3]
-        #     gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
-        #     pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
-        #     col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
-        #     logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
+        if self.log_info and batch_idx == 0:
+            logger = self.trainer.logger.experiment # raw tensorboard SummaryWriter
+
+            if self.log_info == 'Autoencoder':
+                pc = prediction[0, :, :3]
+                col = prediction[0, :, 3:]
+                gt = y[0, :, :3]
+                gt_col = y[0, :, 3:]
+                pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
+                col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
+                logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
+
+            if self.log_info == 'Segmenter':
+                pc = prediction[0, :, :3]
+                col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
+                gt = y[0, :, :3]
+                gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
+                pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
+                col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
+                logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
+
         return loss
 
     def configure_optimizers(self):
@@ -62,7 +75,8 @@ def create_model(model_type, backbone, env_name, load_dir=None):
     if model_type == 'Autoencoder':
         model = Lit(
             AE(encoder_backbone, out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None)
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None),
+            log_info=model_type
         )
         dataset = lambda input_dir: \
             PointCloudDataset(
@@ -70,14 +84,15 @@ def create_model(model_type, backbone, env_name, load_dir=None):
                 in_features=['rgb'],
                 out_features=['rgb'],
                 in_transform=Normalize(env.bbox),
-                out_transform=Normalize(env.bbox),
+                # out_transform=Normalize(env.bbox), # since x y are same, only normalize once
             )
 
     if model_type == 'Segmenter':
         C = len(env.classes)
         model = Lit(
             SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=env.class_weights)
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=env.class_weights),
+            log_info=model_type
         )
         dataset = lambda input_dir: \
             PointCloudDataset(
@@ -111,8 +126,8 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
 
     # Train the created model and dataset
     if model and open_dataset:
-        input_dir = f'pointcloud_vision/input/{dataset}'
-        output_dir = f'pointcloud_vision/output/{dataset}/{model_type}_{backbone}'
+        input_dir = f'input/{dataset}'
+        output_dir = f'output/{dataset}/{model_type}_{backbone}'
         if ckpt_path:
             # use simple regex to extract the number X from str like 'version_X'
             version = int(re.search(r'version_(\d+)', ckpt_path).group(1))
@@ -145,3 +160,21 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
         print('The model or dataset was not created!', model, open_dataset)
 
 
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train or evaluate a vision module')
+    parser.add_argument('dataset', default='Lift')
+    parser.add_argument('model', choices=cfg.models)
+    parser.add_argument('--backbone', choices=cfg.encoder_backbones, default='PointNet2')
+    parser.add_argument('--batch_size', default=cfg.vision_batch_size, type=int,
+                        help='batch size for training')
+    parser.add_argument('--num_epochs', default=cfg.vision_epochs, type=int,
+                        help='number of epochs to train for')
+    parser.add_argument('--ckpt', default=None, type=str,
+                        help='path to checkpoint to load (to either resume training or evaluate)')
+    a = parser.parse_args()
+
+
+    print(f'device = {cfg.device}')
+
+    train(a.model, a.backbone, a.dataset, a.num_epochs, a.batch_size, a.ckpt)

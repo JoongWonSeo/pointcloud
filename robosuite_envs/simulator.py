@@ -2,20 +2,21 @@
 # This assumes the gym environment is a GoalEnv as defined by gymnasium_robotics.
 import numpy as np
 import gymnasium as gym
+import pointcloud_vision
 from pointcloud_vision import PointCloudSensor, PointCloudGTPredictor
 from robosuite_envs.utils import *
 from rl import core
 
 # global variables
-horizon = 50
+horizon = 50*10
 
 # setup environment and agent
 # cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
 
 # task = 'RobosuitePickAndPlace-v0'
-task = 'RobosuiteReach-v0'
+# task = 'RobosuiteReach-v0'
 # task = 'RobosuitePeg-v0'
-# task = 'VisionReach-v0'
+task = 'VisionReach-v0'
 # task = 'VisionLift-v0'
 # task = 'VisionPickAndPlace-v0'
 # TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth

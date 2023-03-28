@@ -13,6 +13,8 @@ parser.add_argument('--horizon', type=int, default=100)
 parser.add_argument('--runs', type=int, default=5)
 parser.add_argument('--width', type=int, default=128)
 parser.add_argument('--height', type=int, default=128)
+parser.add_argument('--steps_per_frame', type=int, default=1)
+parser.add_argument('--render', action='store_true')
 arg = parser.parse_args()
 
 # global variables
@@ -20,7 +22,7 @@ horizon = arg.horizon
 runs = arg.runs
 total_steps = horizon * runs
 
-env = gym.make(args.env, max_episode_steps=horizon, sensor=PointCloudSensor)
+env = gym.make(arg.env, max_episode_steps=horizon, sensor=PointCloudSensor, render_mode='human' if arg.render else None)
 
 
 # simulation
@@ -29,14 +31,15 @@ for r in range(runs):
     env.reset()
     
     for t in range(horizon):        
-        set_obj_pos(env.robo_env.sim, joint='cube_joint0')
+        # TODO: env-defined randomization function
+        # set_obj_pos(env.robo_env.sim, joint='cube_joint0')
         #robot.set_robot_joint_positions(np.random.randn(7))
         #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
         # Simulation
-        #action = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        action = random_action(env) # sample random action
-        env.step(action)  # take action in the environment
+        for i in range(arg.steps_per_frame):
+            action = random_action(env) # sample random action
+            env.step(action)  # take action in the environment
 
         # convert all torch tensors to numpy arrays
         obs = env.observation.copy()
@@ -60,4 +63,4 @@ for r in range(runs):
         print(('#' * round(step/total_steps * 100)).ljust(100, '-'), end='\r')
 print('\ndone')
 
-
+env.close()

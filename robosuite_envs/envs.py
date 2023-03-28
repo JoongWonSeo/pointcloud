@@ -53,9 +53,31 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
         ('base', 10.0),
         ('gripper', 15.0),
     ],
-    'gt_dim': 3, # dimension of the ground-truth encoding, i.e. cube_pos
+    'gt_dim': 3, # cube_pos
 }
 
+
+
+########## Reach ##########
+
+# Configs for Reach
+robo_kwargs['Reach'] = robo_kwargs['Lift']
+cfg_vision['Reach'] = cfg_vision['Lift'] | {
+    'classes': [ # (name, RGB_for_visualization)
+        ('env', [0, 0, 0]),
+        # TODO: actually, maybe cube is still included in the segmentation?
+        ('arm', [0.5, 0.5, 0.5]),
+        ('base', [0, 1, 0]),
+        ('gripper', [0, 0, 1]),
+    ],
+    'class_weights': [ # (name, weight) TODO: automatically compute weights
+        ('env', 1.0),
+        ('arm', 5.0),
+        ('base', 10.0),
+        ('gripper', 15.0),
+    ],
+    'gt_dim': 3, # eef position
+}
 
 class RobosuiteReach(RobosuiteGoalEnv):
     def __init__(
@@ -76,8 +98,8 @@ class RobosuiteReach(RobosuiteGoalEnv):
             self.camera_size = (512, 512) # width, height
 
         # define proprioception, observation and goal keys
-        self.proprio_keys = ['robot0_eef_pos'] # end-effector position
-        self.obs_keys = [] # no observation
+        self.proprio_keys = [] # purposefully empty
+        self.obs_keys = ['robot0_eef_pos'] # otherwise task is too easy
         self.goal_keys = ['robot0_eef_pos'] # goal is a specific end-effector position
 
         # for visualization of the goal
@@ -92,7 +114,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
             obs_encoder=obs_encoder(self, self.obs_keys),
             goal_encoder=goal_encoder(self, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal,
+            render_info=render_goal if not goal_encoder.latent_encoding else None,
             **kwargs
         )
 
@@ -103,7 +125,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
     # define environment feedback functions
     def achieved_goal(self, proprio, obs_encoding):
-        return proprio # end-effector position
+        return obs_encoding # end-effector position
 
     def goal_state(self, state, rerender=False):
         desired_state = state.copy() # shallow copy
@@ -111,18 +133,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
         desired_state['robot0_eef_pos'][1] = np.random.uniform(-0.2, 0.2)
         desired_state['robot0_eef_pos'][2] = np.random.uniform(0.85, 1.2)
 
-        if rerender or True:
-            # simulate the goal state
-            # with disable_rendering(self.goal_env) as renderer:
-            #     self.goal_env.reset()
-
-            #     action = np.zeros_like(self.goal_env.action_spec[0])
-            #     action[0:3] = desired_state['robot0_eef_pos']
-            #     for i in range(10):
-            #         obs = self.goal_env.step(action)
-                
-            #     desired_state = renderer(force_update=True)
-
+        if rerender:
             desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
             if not succ:
                 print('Warning: failed to reach the desired robot pos for the goal state imagination')
@@ -130,6 +141,9 @@ class RobosuiteReach(RobosuiteGoalEnv):
         return desired_state
 
     def check_success(self, achieved, desired, info):
+        #TODO: you need to do latent space goal check theshold calibration....
+        # IDEA: do some initial goal state imagination with different goals, and then use the encoding diff distribution to set the threshold, i.e. avg or maybe even dim-wise diff...
+
         # batched version
         if achieved.ndim == 2:
             return np.linalg.norm(achieved - desired, axis=1) < 0.05
@@ -138,7 +152,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
         
 
 
-
+########## Lift ##########
 
 class RobosuiteLift(RobosuiteGoalEnv):
     def __init__(
