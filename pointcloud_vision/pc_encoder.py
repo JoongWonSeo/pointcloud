@@ -60,6 +60,10 @@ class PointCloudGTPredictor(ObservationEncoder):
         'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize cube position
         'from_gt': lambda bbox: Normalize(bbox), # normalize cube position
     }
+    cfgs['Reach'] = {
+        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize eef position
+        'from_gt': lambda bbox: Normalize(bbox), # normalize eef position
+    }
 
     def __init__(self, env, obs_keys):
         super().__init__(env, obs_keys)
