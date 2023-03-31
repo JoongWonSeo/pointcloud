@@ -59,6 +59,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.proprioception = None # proprioception from the robot
         self.encoding = None # encoding from the observation encoder
         self.episode_goal_state = None # raw goal state from goal_state() function
+        self.episode_goal_obs = None # goal observation from the sensor
         self.episode_goal_encoding = None # encoding from the goal encoder
         self.is_episode_success = False
 
@@ -197,6 +198,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.proprioception = proprio
         self.encoding = obs_encoding
         self.episode_goal_state = goal_state
+        self.episode_goal_obs = goal_obs
         self.episode_goal_encoding = goal_encoding
         info = {'is_success': self.is_episode_success}
 
@@ -216,6 +218,7 @@ class RobosuiteGoalEnv(GoalEnv):
             
             # cache current episode information
             self.episode_goal_state = goal_state
+            self.episode_goal_obs = goal_obs
             self.episode_goal_encoding = self.goal_encoder.encode(goal_obs)
         
         # convert the state into an observation (O)

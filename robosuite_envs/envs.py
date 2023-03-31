@@ -104,17 +104,23 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
-            return np.array([env.episode_goal_encoding]), np.array([[0, 1, 0]])
+            return np.array([env.episode_goal_state['robot0_eef_pos']]), np.array([[0, 1, 0]])
 
         # initialize RobosuiteGoalEnv
+        if self.obs_keys == self.goal_keys and obs_encoder == goal_encoder:
+            obs_encoder = goal_encoder = obs_encoder(self, self.obs_keys)
+        else:
+            obs_encoder = obs_encoder(self, self.obs_keys)
+            goal_encoder = goal_encoder(self, self.goal_keys)
+
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
-            obs_encoder=obs_encoder(self, self.obs_keys),
-            goal_encoder=goal_encoder(self, self.goal_keys),
+            obs_encoder=obs_encoder,
+            goal_encoder=goal_encoder,
             render_mode=render_mode,
-            render_info=render_goal if not goal_encoder.latent_encoding else None,
+            render_info=render_goal,
             **kwargs
         )
 
@@ -143,6 +149,14 @@ class RobosuiteReach(RobosuiteGoalEnv):
     def check_success(self, achieved, desired, info):
         #TODO: you need to do latent space goal check theshold calibration....
         # IDEA: do some initial goal state imagination with different goals, and then use the encoding diff distribution to set the threshold, i.e. avg or maybe even dim-wise diff...
+
+        if self.goal_encoder.latent_encoding:
+            # batched version
+            if achieved.ndim == 2:
+                return (np.abs(achieved - desired) <= np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.])).all(axis=1)
+            else:                
+                return (np.abs(achieved - desired) <= np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.])).all()
+
 
         # batched version
         if achieved.ndim == 2:
@@ -184,12 +198,18 @@ class RobosuiteLift(RobosuiteGoalEnv):
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
+        if self.obs_keys == self.goal_keys and obs_encoder == goal_encoder:
+            obs_encoder = goal_encoder = obs_encoder(self, self.obs_keys)
+        else:
+            obs_encoder = obs_encoder(self, self.obs_keys)
+            goal_encoder = goal_encoder(self, self.goal_keys)
+
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
-            obs_encoder=obs_encoder(self, self.obs_keys),
-            goal_encoder=goal_encoder(self, self.goal_keys),
+            obs_encoder=obs_encoder,
+            goal_encoder=goal_encoder,
             render_mode=render_mode,
             render_info=render_goal_obs,
             **kwargs
@@ -256,12 +276,18 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
+        if self.obs_keys == self.goal_keys and obs_encoder == goal_encoder:
+            obs_encoder = goal_encoder = obs_encoder(self, self.obs_keys)
+        else:
+            obs_encoder = obs_encoder(self, self.obs_keys)
+            goal_encoder = goal_encoder(self, self.goal_keys)
+
         super().__init__(
             robo_kwargs=robo_kwargs['Lift'],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
-            obs_encoder=obs_encoder(self, self.obs_keys),
-            goal_encoder=goal_encoder(self, self.goal_keys),
+            obs_encoder=obs_encoder,
+            goal_encoder=goal_encoder,
             render_mode=render_mode,
             render_info=render_goal_obs,
             **kwargs

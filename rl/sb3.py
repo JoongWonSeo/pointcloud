@@ -3,32 +3,31 @@ import gymnasium_robotics
 import robosuite_envs
 import pointcloud_vision
 
-from stable_baselines3 import SAC, HerReplayBuffer
+from sb3_contrib import TQC
+from sb3_contrib.tqc.policies import MultiInputPolicy
 
 task = 'RobosuiteReach-v0'
-# task = 'RobosuitePickAndPlace-v0'
-# task = 'FetchPickAndPlace-v2'
 
-train = False
-if train:
-    env = gym.make(task)
+env = gym.make(task, render_mode='human', max_episode_steps=50)
+# env = DummyVecEnv([lambda: gym.make(task, render_mode='human', max_episode_steps=100)])
+# env = VecNormalize.load('weights/'+task+'.zip', env)
+#  do not update them at test time
+# env.training = False
+# # reward normalization is not needed at test time
+# env.norm_reward = False
 
-    model = SAC("MultiInputPolicy", env, replay_buffer_class=HerReplayBuffer, verbose=1)
-    model.learn(total_timesteps=500000, log_interval=4, progress_bar=True)
-    model.save(task)
+if True:
+    model = TQC.load('weights/'+task, env=env)
+    model.policy.save('weights/'+task+'_policy')
+    policy = model.policy
+else:
+    policy = MultiInputPolicy.load('weights/'+task+'_policy')
 
-    del model # remove to demonstrate saving and loading
-    env.close()
 
-
-env = gym.make(task
-               #.replace('Robosuite', 'Vision')
-, render_mode='human', max_episode_steps=100)
-model = SAC.load('weights/'+task, env=env)
 obs, info = env.reset()
 
 while True:
-    action, _states = model.predict(obs, deterministic=True)
+    action, _states = policy.predict(obs, deterministic=True)
     obs, reward, terminated, truncated, info = env.step(action)
     env.render()
     if terminated or truncated:
