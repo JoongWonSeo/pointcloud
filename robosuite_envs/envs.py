@@ -34,11 +34,11 @@ robo_kwargs['Lift'] = robo_kwargs['Base'] | {
 }
 cfg_vision['Lift'] = cfg_vision['Base'] | {
     'cameras': { # name: (position, quaternion)
-        'frontview': ([0, -1.2, 1.8], [0.3972332, 0, 0, 0.9177177]),
-        'agentview': ([0. , 1.2, 1.8], [0, 0.3972332, 0.9177177, 0]),
-        'birdview': ([1.1, 0, 1.6], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
+        'frontview': ([0, -1.2, 2], [0.3972332, 0, 0, 0.9177177]),
+        'agentview': ([0. , 1.2, 2], [0, 0.3972332, 0.9177177, 0]),
+        'birdview': ([1.5, 0, 2], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
     },
-    'bbox': [[-0.5, 0.5], [-0.5, 0.5], [0.5, 1.5]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
+    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
     'classes': [ # (name, RGB_for_visualization)
         ('env', [0, 0, 0]),
         ('cube', [1, 0, 0]),
@@ -104,7 +104,13 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
-            return np.array([env.episode_goal_state['robot0_eef_pos']]), np.array([[0, 1, 0]])
+            eef_goal = env.episode_goal_state['robot0_eef_pos']
+            return np.array([eef_goal]), np.array([[0, 1, 0]])
+            
+        def render_pred(env, robo_obs):
+            predicted_eef = env.encoding
+            eef_goal = env.episode_goal_state['robot0_eef_pos']
+            return np.array([predicted_eef, eef_goal]), np.array([[1, 0, 0], [0, 1, 0]])
 
         # initialize RobosuiteGoalEnv
         if self.obs_keys == self.goal_keys and obs_encoder == goal_encoder:

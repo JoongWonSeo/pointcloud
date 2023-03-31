@@ -16,9 +16,9 @@ horizon = 50*10
 # task = 'RobosuitePickAndPlace-v0'
 # task = 'RobosuiteReach-v0'
 # task = 'RobosuitePeg-v0'
-task = 'GTReach-v0'
+# task = 'GTReach-v0'
 # task = 'VisionLift-v0'
-# task = 'VisionPickAndPlace-v0'
+task = 'VisionPickAndPlace-v0'
 # TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
 env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 

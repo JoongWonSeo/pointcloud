@@ -91,4 +91,4 @@ if total_count_abs_diff.any():
     print('avg latent diff during success:', total_abs_diff/total_count_abs_diff)
 
 print('Suggested latent space threshold:')
-print((0.8 * (total_before_succ/total_count_before_succ) + 0.2 * (total_abs_diff/total_count_abs_diff)).__repr__())
+print((0.5 * (total_before_succ/total_count_before_succ) + 0.5 * (total_abs_diff/total_count_abs_diff)).__repr__())
