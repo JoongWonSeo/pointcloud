@@ -1,3 +1,4 @@
+import numpy as np
 import gymnasium as gym
 import gymnasium_robotics
 import robosuite_envs
@@ -6,7 +7,7 @@ import pointcloud_vision
 from sb3_contrib import TQC
 from sb3_contrib.tqc.policies import MultiInputPolicy
 
-task = 'RobosuiteReach-v0'
+task = 'VisionReach-v0'
 
 env = gym.make(task, render_mode='human', max_episode_steps=50)
 # env = DummyVecEnv([lambda: gym.make(task, render_mode='human', max_episode_steps=100)])
@@ -26,10 +27,13 @@ else:
 
 obs, info = env.reset()
 
+ep_reward = 0
 while True:
     action, _states = policy.predict(obs, deterministic=True)
     obs, reward, terminated, truncated, info = env.step(action)
+    ep_reward += bool(np.linalg.norm(env.episode_goal_state['robot0_eef_pos'] - env.raw_state['robot0_eef_pos']) < 0.05) - 1
     env.render()
     if terminated or truncated:
-        print('success' if info['is_success'] else 'failure')
+        print(('success' if info['is_success'] else 'failure')+' reward: '+str(ep_reward))  
         obs, info = env.reset()
+        ep_reward = 0

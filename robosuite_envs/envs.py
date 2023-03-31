@@ -147,22 +147,20 @@ class RobosuiteReach(RobosuiteGoalEnv):
         return desired_state
 
     def check_success(self, achieved, desired, info):
-        #TODO: you need to do latent space goal check theshold calibration....
-        # IDEA: do some initial goal state imagination with different goals, and then use the encoding diff distribution to set the threshold, i.e. avg or maybe even dim-wise diff...
-
         if self.goal_encoder.latent_encoding:
+            # threshold = np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.], dtype=np.float32)
+            threshold = np.array([0., 0., 0., 0., 0., 1.2245406, 1.588274, 1.9326254, 0., 0., 0., 3.5028644, 1.2349489, 0., 0.26512176, 0.], dtype=np.float32) 
             # batched version
             if achieved.ndim == 2:
-                return (np.abs(achieved - desired) <= np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.])).all(axis=1)
+                return (np.abs(achieved - desired) <= threshold).all(axis=1)
             else:                
-                return (np.abs(achieved - desired) <= np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.])).all()
-
-
-        # batched version
-        if achieved.ndim == 2:
-            return np.linalg.norm(achieved - desired, axis=1) < 0.05
-        else: # single version
-            return np.linalg.norm(achieved - desired) < 0.05
+                return (np.abs(achieved - desired) <= threshold).all()
+        else:
+            # batched version
+            if achieved.ndim == 2:
+                return np.linalg.norm(achieved - desired, axis=1) < 0.05
+            else: # single version
+                return np.linalg.norm(achieved - desired) < 0.05
         
 
 

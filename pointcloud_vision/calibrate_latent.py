@@ -11,9 +11,10 @@ from sb3_contrib import TQC
 
 task = 'VisionReach-v0'
 horizon = 50
-runs = 10
+runs = 100
+render = False
 
-env = gym.make(task, render_mode='human', max_episode_steps=horizon)
+env = gym.make(task, render_mode='human' if render else None, max_episode_steps=horizon)
 # model = TQC.load('../rl/weights/'+task.replace('Vision', 'Robosuite'), env=env)
 policy = MultiInputPolicy.load('../rl/weights/'+task.replace('Vision', 'Robosuite')+'_policy')
 
@@ -90,4 +91,4 @@ if total_count_abs_diff.any():
     print('avg latent diff during success:', total_abs_diff/total_count_abs_diff)
 
 print('Suggested latent space threshold:')
-print(0.9 * (total_before_succ/total_count_before_succ) + 0.1 * (total_abs_diff/total_count_abs_diff))
+print((0.8 * (total_before_succ/total_count_before_succ) + 0.2 * (total_abs_diff/total_count_abs_diff)).__repr__())
