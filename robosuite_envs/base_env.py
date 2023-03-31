@@ -52,6 +52,8 @@ class RobosuiteGoalEnv(GoalEnv):
         self.proprio_encoder = proprio_encoder
         self.obs_encoder = obs_encoder
         self.goal_encoder = goal_encoder
+        
+        self.visual_goal = kwargs.get('visual_goal') if kwargs.get('visual_goal') else self.goal_encoder.requires_vision
 
         # cached information about the current episode that is not returned by step()
         self.raw_state = None # raw state from the Robosuite environment
@@ -91,7 +93,7 @@ class RobosuiteGoalEnv(GoalEnv):
 
 
         # dummy environment for goal imagination
-        if kwargs.get('goal_env', False) or (self.goal_encoder.requires_vision and self.goal_encoder.latent_encoding):
+        if kwargs.get('goal_env', False) or (self.visual_goal and self.goal_encoder.latent_encoding):
             abs_controller = load_controller_config(default_controller="OSC_POSITION")
             abs_controller['control_delta'] = False # desired eef position is absolute
             self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
@@ -174,7 +176,7 @@ class RobosuiteGoalEnv(GoalEnv):
 
         self.sensor.reset()
 
-        goal_state = self.goal_state(state, rerender=self.goal_encoder.requires_vision)
+        goal_state = self.goal_state(state, rerender=self.visual_goal)
 
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)

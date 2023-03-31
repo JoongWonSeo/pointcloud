@@ -80,6 +80,18 @@ class PointCloudGTPredictor(ObservationEncoder):
             self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
             self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
 
+        elif self.obs_keys == ['robot0_eef_pos']:
+            # EEF position predictor from pointcloud (Point Cloud {XYZRGB} -> EEF (XYZ))
+            self.features = ['rgb']
+            feature_dims = 3
+            self.encoding_dim = env.gt_dim
+            self.postprocess_fn = self.cfgs['Reach']['to_gt']
+
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+            self.pc_encoder = GTEncoder(backbone_factory['PointNet2'](feature_dims=feature_dims), self.encoding_dim)
+            self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
+            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
+            
         else:
             raise NotImplementedError()
 

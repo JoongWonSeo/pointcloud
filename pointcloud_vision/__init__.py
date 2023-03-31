@@ -15,6 +15,16 @@ register(
 )
 
 register(
+    id='GTReach-v0',
+    entry_point=RobosuiteReach,
+    max_episode_steps=50,
+    kwargs={
+        'sensor':PointCloudSensor,
+        'obs_encoder':PointCloudGTPredictor,
+    }
+)
+
+register(
     id='VisionLift-v0',
     entry_point=RobosuiteLift,
     max_episode_steps=50,
