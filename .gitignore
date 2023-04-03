@@ -12,10 +12,10 @@
 *.pdf
 
 # training logs for tensorboard
-runs/
-output/
-rl/logs/
-rl/output/
+*/runs/
+*/output/
+*/logs/
+*/weights/
 
 # mujoco error logs
 MUJOCO_LOG.txt

@@ -1,5 +1,5 @@
-# TODO: move this to root dir and change this to a simple environment demo without any dependencies on rl and pointcloud_vision
 # This assumes the gym environment is a GoalEnv as defined by gymnasium_robotics.
+import argparse
 import numpy as np
 import gymnasium as gym
 import pointcloud_vision
@@ -7,19 +7,21 @@ from pointcloud_vision import PointCloudSensor, PointCloudGTPredictor
 from robosuite_envs.utils import *
 from rl import core
 
+# parse arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('env', type=str, help='environment ID')
+parser.add_argument('--horizon', default=50, help='horizon')
+# parser.add_argument('--sensor', default='default', choices=['default', 'GT', 'PC'], help='sensor')
+# parser.add_argument('--obs_encoder', default='default', choices=['default', 'passthru', 'ae'], help='observation encoder')
+# parser.add_argument('--goal_encoder', default='PointCloudGTPredictor', help='goal encoder')
+args = parser.parse_args()
+
+
 # global variables
-horizon = 50*10
+horizon = args.horizon
+task = args.env
 
 # setup environment and agent
-# cube_encoder = PointCloudGTPredictor('robot0_eef_pos')
-
-# task = 'RobosuitePickAndPlace-v0'
-# task = 'RobosuiteReach-v0'
-# task = 'RobosuitePeg-v0'
-# task = 'GTReach-v0'
-# task = 'VisionLift-v0'
-task = 'VisionPickAndPlace-v0'
-# TODO: goal encoder for this needs rerendering!!!! because it is based on the point cloud not the ground truth
 env = gym.make(task, render_mode='human', max_episode_steps=horizon)
 
 agent_input_dim = env.observation_space['observation'].shape[0] + env.observation_space['desired_goal'].shape[0]
@@ -28,50 +30,42 @@ assert all(-env.action_space.low == env.action_space.high)
 agent_action_limit = env.action_space.high
 
 agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
-# agent.load_state_dict(torch.load('../rl/weights/reach.pt'))
-# o_mean, o_std, g_mean, g_std, model = torch.load('../rl/weights/reach.pt', map_location=lambda storage, loc: storage)
-
 
 
 # simulation
-def main():
-    run = True
-    while run:
-        obs, info = env.reset()
+run = True
+while run:
+    obs, info = env.reset()
+    obs = np.concatenate((obs['observation'], obs['desired_goal']))
+
+    total_reward = 0
+    for t in range(horizon):
+        # Simulation
+        action = agent.noisy_action(obs, 0) # sample agent action
+        # action = np.random.randn(agent_output_dim) # sample random action
+        obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
         obs = np.concatenate((obs['observation'], obs['desired_goal']))
 
-        total_reward = 0
-        for t in range(horizon):
-            # Simulation
-            action = agent.noisy_action(obs, 0) # sample agent action
-            # action = np.random.randn(agent_output_dim) # sample random action
-            obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
-            obs = np.concatenate((obs['observation'], obs['desired_goal']))
+        total_reward += reward
+        if info['is_success']:
+            print('s', end='')
+        
+        if env.viewer.is_pressed('g'):
+            env.show_frame(env.episode_goal_state, None)
 
-            total_reward += reward
-            if info['is_success']:
-                print('s', end='')
-            
-            if env.viewer.is_pressed('g'):
-                env.show_frame(env.episode_goal_state, None)
-
-            if terminated or truncated:
-                break
+        if terminated or truncated:
+            break
 
 
-            # change state to however we want
-            # def change_state(robo_env):
-            #     set_obj_pos(robo_env.sim, joint='cube_joint0')
-            #     set_robot_pose(robo_env.sim, robo_env.robots[0], np.random.randn(7))
-            
-            # fake_state = env.render_state(change_state)
-            # env.show_frame(fake_state, None)
+        # change state to however we want
+        # def change_state(robo_env):
+        #     set_obj_pos(robo_env.sim, joint='cube_joint0')
+        #     set_robot_pose(robo_env.sim, robo_env.robots[0], np.random.randn(7))
+        
+        # fake_state = env.render_state(change_state)
+        # env.show_frame(fake_state, None)
 
-            # env.show_frame(env.robo_env._get_observations(force_update=True), None)
-
-
-        print(f"\ntotal_reward = {total_reward}")
+        # env.show_frame(env.robo_env._get_observations(force_update=True), None)
 
 
-if __name__ == '__main__':
-    main()
+    print(f"\ntotal_reward = {total_reward}")

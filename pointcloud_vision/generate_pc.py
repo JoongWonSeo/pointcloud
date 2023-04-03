@@ -3,18 +3,19 @@ import numpy as np
 import torch
 import gymnasium as gym
 import robosuite_envs
-from robosuite_envs.utils import set_obj_pos, random_action
 from pointcloud_vision.pc_encoder import PointCloudSensor
+from robosuite_envs.utils import set_obj_pos, random_action
+from pointcloud_vision.utils import SampleRandomPoints, SampleFurthestPoints
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', type=str)
 parser.add_argument('--env', type=str, default='RobosuitePickAndPlace-v0')
-parser.add_argument('--horizon', type=int, default=100)
-parser.add_argument('--runs', type=int, default=5)
-parser.add_argument('--width', type=int, default=128)
-parser.add_argument('--height', type=int, default=128)
-parser.add_argument('--steps_per_frame', type=int, default=1)
+parser.add_argument('--horizon', type=int, default=50)
+parser.add_argument('--runs', type=int, default=30)
+parser.add_argument('--steps_per_action', type=int, default=5)
+parser.add_argument('--actions_per_frame', type=int, default=1)
 parser.add_argument('--render', action='store_true')
+parser.add_argument('--show_distribution', action='store_true')
 arg = parser.parse_args()
 
 # global variables
@@ -24,6 +25,10 @@ total_steps = horizon * runs
 
 env = gym.make(arg.env, max_episode_steps=horizon, sensor=PointCloudSensor, render_mode='human' if arg.render else None)
 
+# stats
+if arg.show_distribution:
+    all_points = np.array([]).reshape(0, 6)
+    all_gt = np.array([]).reshape(0, 6)
 
 # simulation
 step = 0
@@ -37,9 +42,10 @@ for r in range(runs):
         #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))
 
         # Simulation
-        for i in range(arg.steps_per_frame):
+        for i in range(arg.actions_per_frame):
             action = random_action(env) # sample random action
-            env.step(action)  # take action in the environment
+            for j in range(arg.steps_per_action):
+                env.step(action)  # take action in the environment
 
         # convert all torch tensors to numpy arrays
         obs = env.observation.copy()
@@ -58,9 +64,29 @@ for r in range(runs):
             **obs
         )
 
+        if arg.show_distribution:
+            pc = np.concatenate((obs['points'], obs['rgb']), axis=1)
+            all_points = np.concatenate((all_points, pc))
+            
+            if ground_truth.shape[0] == 3: # assume it's a point
+                x, y, z = ground_truth
+                gt = np.array([[x, y, z, 1, 0, 0]])
+                all_gt = np.concatenate((all_gt, gt))
+
         step += 1
         
         print(('#' * round(step/total_steps * 100)).ljust(100, '-'), end='\r')
 print('\ndone')
+
+if arg.show_distribution:
+    print('all points gathered', all_points.shape)
+    max_points = 20000
+    if all_points.shape[0] + all_gt.shape[0] > max_points:
+        sampled = SampleRandomPoints(max_points - all_gt.shape[0])(all_points)
+        all_points = np.concatenate((sampled, all_gt))
+        print('sampled', all_points.shape)
+
+    from pc_viewer import plot_pointcloud
+    plot_pointcloud({'points': all_points[:, :3], 'rgb': all_points[:, 3:]})
 
 env.close()

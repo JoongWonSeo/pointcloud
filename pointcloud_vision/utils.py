@@ -71,6 +71,7 @@ class SampleRandomPoints:
     def __init__(self, K):
         self.K = K
     
+    @support_numpy
     def __call__(self, points):
         # sample K points
         points = points[torch.randint(points.shape[0], (self.K,)), :]
@@ -81,6 +82,7 @@ class SampleFurthestPoints:
     def __init__(self, K):
         self.K = K
     
+    @support_numpy
     def __call__(self, points):
         # convert to batch of 1 pointcloud
         points = points.unsqueeze(0) # (1, N, D)
