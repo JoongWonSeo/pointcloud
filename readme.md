@@ -45,28 +45,51 @@ vision
 rl
     coming soon [TODO]
 
-## Scripts
+## How to Use
 
-`simulator.py`: Run a RoboSuite simulation and interact with it to explore the task environment.
+### Generating Point Cloud Training Data
 
-`generate_pc.py`: Used to run a RoboSuite simulation and automatically capture point clouds from the RGBD cameras to generate training data.
+Run the following scripts in the `pointcloud_vision/` directory.
 
-`preprocess.py`: Apply preprocessing to the raw captured point clouds e. g. sampling N points and normalizing the coordinates.
+For example for the RobosuiteReach-v0 dataset (validation), this will create 25 * 8 = 200 point cloud frames with randomized movement. The `--show_distribution` flag shows all generated data combined including the ground truth (red) and goal (green) if they're simple 3D points.
+```
+python generate_pc.py input/Reach/val --env RobosuiteReach-v0 --horizon 25 --runs 8 --show_distribution
+```
 
-`main.py`: Used to train/evaluate/visualize the Autoencoder
+To view any of the generated point cloud in the browser, you can run e.g.:
+```
+python pc_viewer.py input/Reach/train/0.npz
+```
 
-`viewer.py`: Browser-based point cloud viewer. TODO: integrate into `main.py viewer`
+### Training a Point Cloud Encoder
 
+In the `pointcloud_vision/` folder, run:
+```
+python train.py Reach Autoencoder --backbone PointNet2
+```
+Tensorboard will log some sample Point Clouds in the Mesh section.
 
-## RL training using Stable Baselines Zoo
+To interactively view the Encoder+Decoder, run:
+```
+python ae_viewer.py ... TODO
+```
 
-```python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000```
+### Train a RL Agent using [RL Baselines3 Zoo](https://github.com/DLR-RM/rl-baselines3-zoo)
 
-Multiprocessing:
-```python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000 --vec-env subproc -params n_envs:8```
+Make sure you also have [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3) and [SB3-Contrib](https://github.com/Stable-Baselines-Team/stable-baselines3-contrib) installed.
+```
+python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000
+```
 
-Viewing the result:
-```python -m rl_zoo3.enjoy --algo tqc --env RobosuiteReach-v0 --folder ./logs```
+Multiprocessing (be careful of RAM usage!):
+```
+python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000 --vec-env subproc -params n_envs:4
+```
+
+Viewing the result:  
+```
+python -m rl_zoo3.enjoy --algo tqc --env RobosuiteReach-v0 --folder ./logs
+```
 
 
 
