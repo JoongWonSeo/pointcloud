@@ -11,6 +11,9 @@
 *.html
 *.pdf
 
+# training data
+*/input/
+
 # training logs for tensorboard
 */runs/
 */output/

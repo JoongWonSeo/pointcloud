@@ -1,3 +1,4 @@
+import os
 import argparse
 import numpy as np
 import torch
@@ -95,7 +96,17 @@ if arg.show_distribution:
         all_points = np.concatenate((sampled, all_gt, all_goals))
         print('sampled', all_points.shape)
 
+    points = all_points[:, :3]
+    rgb = all_points[:, 3:]
+    np.savez(
+        f'{arg.dir}/distribution.npz',
+        points=points,
+        rgb=rgb,
+    )
+    # rename the file ending to .npz_ignore to prevent it from being loaded by the dataset
+    os.rename(f'{arg.dir}/distribution.npz', f'{arg.dir}/distribution.npz_ignore')
+
     from pc_viewer import plot_pointcloud
-    plot_pointcloud({'points': all_points[:, :3], 'rgb': all_points[:, 3:]})
+    plot_pointcloud({'points': points, 'rgb': rgb})
 
 env.close()

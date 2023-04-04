@@ -19,7 +19,8 @@ This installable package provides two main features:
     - The underlying PyTorch model and training procedure, including training data generation and training script (TODO: move sim.utils PC generation to vision)
     - Some point cloud loss functions (Chamfer Distance, Weighted Earth Mover Distance)
     - various utilities for visualization, PyTorch Dataset for point clouds, point cloud transformations in `torchvision.transforms` style (downsampling, filtering, normalization, etc.)
-    
+
+
 ## Structure
 
 cfg.py: global configuration that has an effect on the training and simulation, in order to make it easier to switch between different configurations and increase reproducibility and reduce the number of command line arguments
