@@ -1,3 +1,4 @@
+import os
 import pointcloud_vision.cfg as cfg
 import argparse
 import open3d as o3d
@@ -5,12 +6,6 @@ import numpy as np
 import torch
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--model', default='weights/PC_AE.pth')
-parser.add_argument('--input', default='input')
-arg = parser.parse_args()
-
 
 def aa_lines(pos, col, length=0.4, res=50):
     # create axis-aligned lines to show the predicted cube coordinate
@@ -29,21 +24,75 @@ def aa_lines(pos, col, length=0.4, res=50):
 def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
-def main(model_dir, input_dir):
+def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
+    input_dir = f'input/{dataset}/val'
+    if model_ver > -1:
+        model_dir = f'output/{dataset}/{model}_{backbone}/version_{model_ver}/checkpoints/'
+    else:
+        model_dir = f'output/{dataset}/{model}_{backbone}/'
+        model_dir += sorted(os.listdir(model_dir))[-1] # lastest version
+        model_dir += '/checkpoints/'
+    model_dir += sorted(os.listdir(model_dir))[-1] # lastest checkpoint
+
     # load model
-    ae, open_dataset = create_model('Segmenter', 'PointNet2', load_dir=model_dir)
+    ae, open_dataset = create_model(model, backbone, env, load_dir=model_dir)
     ae = ae.model
 
     ae = ae.to(cfg.device)
     ae.eval()
 
-    # input pointcloud -> encoder -> latent variable -> decoder -> pointcloud
-    input_index = 0
-    curr_pc, prev_pc = None, None
-    input_set = open_dataset(input_dir)
-    anim_t = 0
+    # states
+    input_set = open_dataset(input_dir) # dataset of input pointclouds
+    input_index = 0 # index of the shown pointcloud
+    curr_pc, prev_pc = None, None # for interpolation transition
+    anim_t = 0 # for interpolation animation
 
-    to_label = IntegerEncode()
+    # Autoencoder Input Output
+    def load_pc(index):
+        if model == 'Autoencoder':
+            # load input pointcloud
+            orig, target = input_set[index]
+
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+
+            if view_mode == 'sidebyside':
+                # shift so they are next to each other
+                target[:, 1] -= 0.3
+                pred[:, 1] += 0.3
+
+            if view_mode == 'overlap':
+                # apply red tint and green tint
+                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([1, 0, 0]), 0.3)
+                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([0, 1, 0]), 0.3)
+
+            # merge input and output pointclouds
+            points = np.concatenate((orig[:, :3], pred[:, :3]), axis=0)
+            rgb = np.concatenate((orig[:, 3:], pred[:, 3:]), axis=0)
+
+            return points, rgb
+
+        if model == 'Segmenter':
+            pass
+    
+        if model == 'GTEncoder':
+            # load input pointcloud
+            orig, target = input_set[index]
+
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+
+            # create axis-aligned lines to show the original cube coordinate
+            # vis = aa_lines(orig.unsqueeze(0), np.array([0, 1, 0]), res=50)
+            
+            # merge input and output pointclouds
+            points = pred
+            # points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
+            # rgb = np.concatenate((seg_to_color(pred[:, 3:], clases), vis[:, 3:]), axis=0)
+            # rgb = np.concatenate((np.concatenate(pred[:, 3:], ), vis[:, 3:]), axis=0)
+            # rgb = np.concatenate((np.zeros_like(pred[:, :3]), vis[:, 3:]), axis=0)
+            rgb = np.zeros_like(points)
+
+            return points, rgb
+
 
     # PosDecoder
     # def load_pc(index):
@@ -61,29 +110,30 @@ def main(model_dir, input_dir):
 
     #     return points, rgb
 
-    # PN2Autoencoder    
-    def load_pc(index):
-        # load input pointcloud
-        orig, target = input_set[index]
+    # Segmenting Autoencoder Input Output
+    # to_label = IntegerEncode()
+    # def load_pc(index):
+    #     # load input pointcloud
+    #     orig, target = input_set[index]
 
-        pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+    #     pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
 
-        pred, target = to_label(pred), to_label(target)
+    #     pred, target = to_label(pred), to_label(target)
 
-        # create axis-aligned lines to show the predicted cube coordinate
-        vis = aa_lines(mean_cube_pos(target), np.array([1, 0, 0]), res=50)
-        vis = np.concatenate((vis, aa_lines(mean_cube_pos(pred), np.array([0, 1, 0]), res=50)), axis=0)
+    #     # create axis-aligned lines to show the predicted cube coordinate
+    #     vis = aa_lines(mean_cube_pos(target), np.array([1, 0, 0]), res=50)
+    #     vis = np.concatenate((vis, aa_lines(mean_cube_pos(pred), np.array([0, 1, 0]), res=50)), axis=0)
 
-        # shift so they are next to each other
-        target[:, 1] -= 0.5
-        pred[:, 1] += 0.5
-        vis[:, 1] -= 0.5 # show at orig
+    #     # shift so they are next to each other
+    #     target[:, 1] -= 0.5
+    #     pred[:, 1] += 0.5
+    #     vis[:, 1] -= 0.5 # show at orig
         
-        # merge input and output pointclouds
-        points = np.concatenate((target[:, :3], pred[:, :3], vis[:, :3]), axis=0)
-        rgb = np.concatenate((seg_to_color(target[:, 3:]), seg_to_color(pred[:, 3:]), vis[:, 3:]), axis=0)
+    #     # merge input and output pointclouds
+    #     points = np.concatenate((target[:, :3], pred[:, :3], vis[:, :3]), axis=0)
+    #     rgb = np.concatenate((seg_to_color(target[:, 3:]), seg_to_color(pred[:, 3:]), vis[:, 3:]), axis=0)
 
-        return points, rgb
+    #     return points, rgb
 
 
     def update_input():
@@ -91,7 +141,7 @@ def main(model_dir, input_dir):
         prev_pc = curr_pc
         points, rgb = load_pc(input_index)
         curr_pc = points, rgb
-        anim_t = 0
+        anim_t = 0 # start transition animation
         
         return False # update geom is done in the main loop
 
@@ -103,26 +153,17 @@ def main(model_dir, input_dir):
             return update_input()
         return input_changer    
 
+
     # create visualizer and window.
     vis = o3d.visualization.VisualizerWithKeyCallback()
     vis.create_window(height=480, width=640)
-
-    # a, s, d to increment x, y, z; z, x, c to decrement x, y, z; using GLFW key codes
-    # vis.register_key_callback(65, make_xyz_changer('x', 0.1))
-    # vis.register_key_callback(83, make_xyz_changer('y', 0.1))
-    # vis.register_key_callback(68, make_xyz_changer('z', 0.1))
-    # vis.register_key_callback(90, make_xyz_changer('x', -0.1))
-    # vis.register_key_callback(88, make_xyz_changer('y', -0.1))
-    # vis.register_key_callback(67, make_xyz_changer('z', -0.1))
 
     # left, right to change input pointcloud
     vis.register_key_callback(262, make_input_changer(inc=True))
     vis.register_key_callback(263, make_input_changer(inc=False))
 
-
     # initialize pointcloud instance.
     pcd = o3d.geometry.PointCloud()
-    # update_pointcloud() # initial points
     update_input() # initial points
     pcd.points = o3d.utility.Vector3dVector(curr_pc[0])
     pcd.colors = o3d.utility.Vector3dVector(curr_pc[1])
@@ -144,4 +185,14 @@ def main(model_dir, input_dir):
     vis.destroy_window()
 
 
-main(arg.model, arg.input)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dataset', type=str)
+    parser.add_argument('env', type=str)
+    parser.add_argument('model', type=str)
+    parser.add_argument('--backbone', default='PointNet2', type=str)
+    parser.add_argument('--model_ver', default=-1, type=int)
+    parser.add_argument('--view', default='overlap', choices=['overlap', 'sidebyside'])
+    arg = parser.parse_args()
+
+    main(arg.dataset, arg.env, arg.model, arg.backbone, arg.model_ver, arg.view)
