@@ -112,7 +112,7 @@ class RobosuiteGoalEnv(GoalEnv):
     def achieved_goal(self, proprio, obs_encoding):
         '''
         function that takes the proprioception and observation encoding and returns the achieved goal in goal space
-        E -> G
+        (P, E) -> G
         '''
         pass
 
@@ -120,7 +120,7 @@ class RobosuiteGoalEnv(GoalEnv):
     def goal_state(self, state, rerender=False):
         '''
         function that takes the *initial Robosuite* state and returns the desired goal state as a dict in state space
-        T -> T
+        S -> S
         '''
         pass
 
@@ -141,6 +141,13 @@ class RobosuiteGoalEnv(GoalEnv):
         Or even simulate a few steps to imagine a goal state, and then reset the env.
 
         This is static so that it can also be applied to the goal_env.
+        '''
+        pass
+
+    @abstractmethod
+    def randomize(self):
+        '''
+        randomize the environment state, for training data generation
         '''
         pass
 

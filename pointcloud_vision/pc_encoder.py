@@ -48,68 +48,6 @@ class PointCloudSensor(Sensor):
         return state | {'points': pc, 'boundingbox': self.bbox} | feats
 
 
-class PointCloudGTPredictor(ObservationEncoder):
-    '''
-    '''
-    requires_vision = True
-    latent_encoding = False
-
-    # configure ground-truth data pre/postprocessing for each environment
-    cfgs = {}
-    cfgs['Lift'] = {
-        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize cube position
-        'from_gt': lambda bbox: Normalize(bbox), # normalize cube position
-    }
-    cfgs['Reach'] = {
-        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize eef position
-        'from_gt': lambda bbox: Normalize(bbox), # normalize eef position
-    }
-
-    def __init__(self, env, obs_keys):
-        super().__init__(env, obs_keys)
-        
-        if self.obs_keys == ['cube_pos']:
-            # Cube position predictor from pointcloud (Point Cloud {XYZRGB} -> Cube (XYZ))
-            self.features = ['rgb']
-            feature_dims = 3
-            self.encoding_dim = env.gt_dim
-            self.postprocess_fn = self.cfgs['Lift']['to_gt']
-
-            load_dir = os.path.join(os.path.dirname(__file__), 'output/Lift/GTEncoder_PointNet2/version_1/checkpoints/epoch=99-step=2000.ckpt')
-            self.pc_encoder = GTEncoder(backbone_factory['PointNet2'](feature_dims=feature_dims), self.encoding_dim)
-            self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
-            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
-
-        elif self.obs_keys == ['robot0_eef_pos']:
-            # EEF position predictor from pointcloud (Point Cloud {XYZRGB} -> EEF (XYZ))
-            self.features = ['rgb']
-            feature_dims = 3
-            self.encoding_dim = env.gt_dim
-            self.postprocess_fn = self.cfgs['Reach']['to_gt']
-
-            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
-            self.pc_encoder = GTEncoder(backbone_factory['PointNet2'](feature_dims=feature_dims), self.encoding_dim)
-            self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
-            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
-            
-        else:
-            raise NotImplementedError()
-
-        self.pc_encoder = self.pc_encoder.model.to(cfg.device)
-        self.pc_encoder.eval()
-
-    def encode(self, obs):
-        preprocess = Normalize(obs['boundingbox'])
-        postprocess = self.postprocess_fn(obs['boundingbox'])
-    
-        pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
-        pred = postprocess(self.pc_encoder(pc).detach()).squeeze(0)
-
-        return pred.cpu().numpy()
-    
-    def get_space(self, robo_env):
-        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))
-
 
 class PointCloudEncoder(ObservationEncoder):
     requires_vision = True
@@ -142,6 +80,67 @@ class PointCloudEncoder(ObservationEncoder):
     
         pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
         pred = self.pc_encoder(pc).detach().squeeze(0)
+
+        return pred.cpu().numpy()
+    
+    def get_space(self, robo_env):
+        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))
+
+
+        
+class PointCloudGTPredictor(ObservationEncoder):
+    '''
+    '''
+    requires_vision = True
+    latent_encoding = False
+
+    # configure ground-truth data pre/postprocessing for each environment
+    cfgs = {}
+    cfgs['Lift'] = {
+        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize cube position
+        'from_gt': lambda bbox: Normalize(bbox), # normalize cube position
+    }
+    cfgs['Reach'] = {
+        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize eef position
+        'from_gt': lambda bbox: Normalize(bbox), # normalize eef position
+    }
+
+    def __init__(self, env, obs_keys):
+        super().__init__(env, obs_keys)
+        
+        if self.obs_keys == ['cube_pos']:
+            # Cube position predictor from pointcloud (Point Cloud {XYZRGB} -> Cube (XYZ))
+            self.features = ['rgb']
+            feature_dims = 3
+            self.encoding_dim = env.gt_dim
+            self.postprocess_fn = self.cfgs['Lift']['to_gt']
+
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Lift/GTEncoder_PointNet2/version_1/checkpoints/epoch=99-step=2000.ckpt')
+            lit, _ = create_model('GTEncoder', 'PointNet2', env, load_dir)
+            self.pc_encoder = lit.model.to(cfg.device)
+
+        elif self.obs_keys == ['robot0_eef_pos']:
+            # EEF position predictor from pointcloud (Point Cloud {XYZRGB} -> EEF (XYZ))
+            self.features = ['rgb']
+            feature_dims = 3
+            self.encoding_dim = env.gt_dim
+            self.postprocess_fn = self.cfgs['Reach']['to_gt']
+
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+            lit, _ = create_model('GTEncoder', 'PointNet2', env, load_dir)
+            self.pc_encoder = lit.model.to(cfg.device)
+            
+        else:
+            raise NotImplementedError()
+
+        self.pc_encoder.eval()
+
+    def encode(self, obs):
+        preprocess = Normalize(obs['boundingbox'])
+        postprocess = self.postprocess_fn(obs['boundingbox'])
+    
+        pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
+        pred = postprocess(self.pc_encoder(pc).detach()).squeeze(0)
 
         return pred.cpu().numpy()
     

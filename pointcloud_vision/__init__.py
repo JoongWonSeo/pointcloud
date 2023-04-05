@@ -1,7 +1,7 @@
 from .pc_encoder import PointCloudSensor, PointCloudGTPredictor, PointCloudEncoder
 
 from gymnasium.envs.registration import register
-from robosuite_envs.envs import RobosuiteReach, RobosuiteLift, RobosuitePickAndPlace
+from robosuite_envs.envs import RobosuiteReach, RobosuitePush, RobosuitePickAndPlace
 
 register(
     id='VisionReach-v0',
@@ -25,8 +25,8 @@ register(
 )
 
 register(
-    id='VisionLift-v0',
-    entry_point=RobosuiteLift,
+    id='VisionPush-v0',
+    entry_point=RobosuitePush,
     max_episode_steps=50,
     kwargs={
         'sensor':PointCloudSensor,

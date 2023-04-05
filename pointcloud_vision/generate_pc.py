@@ -46,6 +46,7 @@ for r in range(runs):
     
     for t in range(horizon):        
         # TODO: env-defined randomization function
+        env.randomize()
         # set_obj_pos(env.robo_env.sim, joint='cube_joint0')
         #robot.set_robot_joint_positions(np.random.randn(7))
         #robot.set_robot_joint_positions(np.array([-1, 0, 0, 0, 0, 0, 0]))

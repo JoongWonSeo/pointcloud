@@ -70,7 +70,7 @@ def create_model(model_type, backbone, env, load_dir=None):
         env_name = env
         env = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
     else:
-        env_name = env.name
+        env_name = env.cfg_name
 
     # create the model and dataset
     model, dataset = None, None
@@ -91,7 +91,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 # out_transform=Normalize(env.bbox), # since x y are same, only normalize once
             )
 
-    if model_type == 'Segmenter':
+    elif model_type == 'Segmenter':
         C = len(env.classes)
         model = Lit(
             SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
@@ -107,7 +107,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 out_transform=Compose([Normalize(env.bbox), OneHotEncode(C, seg_dim=3)])
             )
 
-    if model_type == 'GTEncoder':
+    elif model_type == 'GTEncoder':
         model = Lit(
             GTEncoder(encoder_backbone, out_dim=env.gt_dim),
             F.mse_loss
@@ -119,6 +119,9 @@ def create_model(model_type, backbone, env, load_dir=None):
                 in_transform=Normalize(env.bbox),
                 out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox)
             )
+    
+    else:
+        raise NotImplementedError(f'Unknown model type: {model_type}')
     
     if load_dir:
         model.load_state_dict(torch.load(load_dir)['state_dict'])

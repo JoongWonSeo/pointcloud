@@ -1,4 +1,5 @@
 import numpy as np
+from random import uniform
 import robosuite as suite
 from robosuite.controllers import load_controller_config
 
@@ -33,6 +34,7 @@ robo_kwargs['Lift'] = robo_kwargs['Base'] | {
     'controller_configs': load_controller_config(default_controller="OSC_POSITION"),
 }
 cfg_vision['Lift'] = cfg_vision['Base'] | {
+    'name': 'Lift', # name of this configuration, used to look up other configs of the same env
     'cameras': { # name: (position, quaternion)
         'frontview': ([-0.15, -1.2, 2], [0.3972332, 0, 0, 0.9177177]),
         'agentview': ([-0.15, 1.2, 2], [0, 0.3972332, 0.9177177, 0]),
@@ -61,9 +63,7 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
 ########## Reach ##########
 
 # Configs for Reach
-robo_kwargs['Reach'] = robo_kwargs['Lift'] | {
-    'env_name': 'Reach',
-}
+robo_kwargs['Reach'] = robo_kwargs['Lift']
 cfg_vision['Reach'] = cfg_vision['Lift'] | {
     'classes': [ # (name, RGB_for_visualization)
         ('env', [0, 0, 0]),
@@ -82,6 +82,8 @@ cfg_vision['Reach'] = cfg_vision['Lift'] | {
 }
 
 class RobosuiteReach(RobosuiteGoalEnv):
+    cfg_name = 'Reach'
+
     def __init__(
         self,
         render_mode=None,
@@ -93,7 +95,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Reach'])
+            apply_preset(self, cfg_vision[self.cfg_name])
         else:
             # default camera with default pose
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
@@ -122,7 +124,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
             goal_encoder = goal_encoder(self, self.goal_keys)
 
         super().__init__(
-            robo_kwargs=robo_kwargs['Reach'],
+            robo_kwargs=robo_kwargs[self.cfg_name],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder,
@@ -148,9 +150,12 @@ class RobosuiteReach(RobosuiteGoalEnv):
         desired_state['robot0_eef_pos'][2] = np.random.uniform(0.85, 1.2)
 
         if rerender:
-            desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
-            if not succ:
-                print('Warning: failed to reach the desired robot pos for the goal state imagination')
+            if self.goal_env: # simulated goal
+                desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
+                if not succ:
+                    print('Warning: failed to reach the desired robot pos for the goal state imagination')
+            else: # visualized goal
+                raise NotImplementedError
 
         return desired_state
 
@@ -160,6 +165,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
             # threshold = np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.], dtype=np.float32)
             threshold = np.array([0., 0., 0., 0., 0., 1.2245406, 1.588274, 1.9326254, 0., 0., 0., 3.5028644, 1.2349489, 0., 0.26512176, 0.], dtype=np.float32)
             #TODO: threshold should be encoder specific...
+            # self.goal_encoder.goal_threshold * 0.05?
 
             return (np.abs(achieved - desired) <= threshold).all(axis=axis)
         else:
@@ -169,7 +175,9 @@ class RobosuiteReach(RobosuiteGoalEnv):
 
 ########## Lift ##########
 
-class RobosuiteLift(RobosuiteGoalEnv):
+class RobosuitePush(RobosuiteGoalEnv):
+    cfg_name = 'Lift'
+
     def __init__(
         self,
         render_mode=None,
@@ -181,7 +189,7 @@ class RobosuiteLift(RobosuiteGoalEnv):
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Lift'])
+            apply_preset(self, cfg_vision[self.cfg_name])
         else:
             # default camera with default pose
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
@@ -206,7 +214,7 @@ class RobosuiteLift(RobosuiteGoalEnv):
             goal_encoder = goal_encoder(self, self.goal_keys)
 
         super().__init__(
-            robo_kwargs=robo_kwargs['Lift'],
+            robo_kwargs=robo_kwargs[self.cfg_name],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder,
@@ -223,11 +231,18 @@ class RobosuiteLift(RobosuiteGoalEnv):
     
     def goal_state(self, state, rerender=False):
         cube_pos = state['cube_pos'].copy()
-        cube_pos[2] += 0.2 # cube must be lifted up
+        # pick random dist and direction to move the cube towards
+        dist = np.random.uniform(0.13, 0.2) # move by at least 13cm so goal is not achieved by default
+        dir = np.random.uniform(0, 2*np.pi)
+        cube_pos[0] += dist * np.cos(dir)
+        cube_pos[1] += dist * np.sin(dir)
 
         if rerender:
-            print('rerendering goal')
-            desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
+            if self.goal_env: # simulated goal
+                raise NotImplementedError
+            else: # visualized goal
+                print('rerendering goal')
+                desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
         else:
             desired_state = state.copy()
             desired_state['cube_pos'] = cube_pos
@@ -238,12 +253,18 @@ class RobosuiteLift(RobosuiteGoalEnv):
         axis = 1 if achieved.ndim == 2 else None # batched version or not
 
         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    
+
+    def randomize(self):
+        set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 1.3)]))
 
 
     
 ########## Pick and Place ##########
 
 class RobosuitePickAndPlace(RobosuiteGoalEnv):
+    cfg_name = 'Lift'
+
     def __init__(
         self,
         render_mode=None,
@@ -255,7 +276,7 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Lift'])
+            apply_preset(self, cfg_vision[self.cfg_name])
         else:
             # default camera with default pose
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
@@ -280,7 +301,7 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
             goal_encoder = goal_encoder(self, self.goal_keys)
 
         super().__init__(
-            robo_kwargs=robo_kwargs['Lift'],
+            robo_kwargs=robo_kwargs[self.cfg_name],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder,
@@ -307,8 +328,11 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
             cube_pos[2] += np.random.uniform(0.01, 0.2)
 
         if rerender:
-            print('rerendering goal')
-            desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
+            if self.goal_env: # simulated goal
+                raise NotImplementedError
+            else: # rendered goal
+                print('rerendering goal')
+                desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
         else:
             desired_state = state.copy()
             desired_state['cube_pos'] = cube_pos
@@ -321,5 +345,7 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 
 
+    def randomize(self):
+        set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 1.3)]))
 
 

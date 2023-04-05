@@ -7,8 +7,10 @@ import pointcloud_vision
 from sb3_contrib import TQC
 from sb3_contrib.tqc.policies import MultiInputPolicy
 
-task = 'GTReach-v0'
-agent = 'RobosuiteReach-v0'
+# task = 'GTReach-v0'
+task = 'VisionReach-v0'
+agent = 'VisionReach-v0'
+# task = agent = 'RobosuitePickAndPlace-v0'
 
 env = gym.make(task, render_mode='human', max_episode_steps=50)
 # env = DummyVecEnv([lambda: gym.make(task, render_mode='human', max_episode_steps=100)])
@@ -18,7 +20,7 @@ env = gym.make(task, render_mode='human', max_episode_steps=50)
 # # reward normalization is not needed at test time
 # env.norm_reward = False
 
-if False:
+if True:
     model = TQC.load('weights/'+task, env=env)
     model.policy.save('weights/'+task+'_policy')
     policy = model.policy
@@ -38,3 +40,4 @@ while True:
         print(('success' if info['is_success'] else 'failure')+' reward: '+str(ep_reward))  
         obs, info = env.reset()
         ep_reward = 0
+

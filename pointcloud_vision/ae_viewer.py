@@ -28,6 +28,8 @@ def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
 def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', animation_speed=0.1):
+    env_cfg = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
+
     input_dir = f'input/{dataset}/val'
     if model_ver > -1:
         model_dir = f'output/{dataset}/{model}_{backbone}/version_{model_ver}/checkpoints/'
@@ -68,8 +70,8 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
 
             if view_mode == 'overlap':
                 # apply red tint and green tint
-                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([1, 0, 0]), 0.3)
-                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([0, 1, 0]), 0.3)
+                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([0, 1, 0]), 0.3)
+                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([1, 0, 0]), 0.3)
 
             # merge input and output pointclouds
             points = np.concatenate((orig[:, :3], pred[:, :3]), axis=0)
@@ -85,17 +87,19 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             # show the input pointcloud and the predicted cube coordinate
             orig, target = input_set[index]
 
-            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
 
             # create axis-aligned lines to show the original cube coordinate
-            target_pos = aa_lines(target.unsqueeze(0), np.array([1, 0, 0]), res=50)
-            pred_pos = aa_lines(pred.unsqueeze(0), np.array([0, 1, 0]), res=50)
+            target_pos = aa_lines(target, np.array([0, 1, 0]), res=50)
+            pred_pos = aa_lines(pred, np.array([1, 0, 0]), res=50)
             vis = np.concatenate((target_pos, pred_pos), axis=0)
             
             # merge input and visualizations
-            points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
-            rgb = np.concatenate((seg_to_color(pred[:, 3:], clases), vis[:, 3:]), axis=0)
-            rgb = np.zeros_like(points)
+            points = np.concatenate((orig[:, :3], vis[:, :3]), axis=0)
+            rgb = np.concatenate((orig[:, 3:], vis[:, 3:]), axis=0)
+
+            nonlocal animation_speed
+            animation_speed = 1 # no animation, makes no sense for this
 
             return points, rgb
 
