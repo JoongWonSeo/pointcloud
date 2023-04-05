@@ -256,7 +256,7 @@ class RobosuitePush(RobosuiteGoalEnv):
     
 
     def randomize(self):
-        set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 1.3)]))
+        set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 0.9)]))
 
 
     
