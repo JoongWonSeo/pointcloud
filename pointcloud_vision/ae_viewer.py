@@ -6,6 +6,9 @@ import numpy as np
 import torch
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
+from types import SimpleNamespace
+from robosuite_envs.envs import cfg_vision
+
 
 def aa_lines(pos, col, length=0.4, res=50):
     # create axis-aligned lines to show the predicted cube coordinate
@@ -24,7 +27,7 @@ def aa_lines(pos, col, length=0.4, res=50):
 def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
-def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
+def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', animation_speed=0.1):
     input_dir = f'input/{dataset}/val'
     if model_ver > -1:
         model_dir = f'output/{dataset}/{model}_{backbone}/version_{model_ver}/checkpoints/'
@@ -33,6 +36,8 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
         model_dir += sorted(os.listdir(model_dir))[-1] # lastest version
         model_dir += '/checkpoints/'
     model_dir += sorted(os.listdir(model_dir))[-1] # lastest checkpoint
+    print('using input dataset', input_dir)
+    print('loading model', model_dir)
 
     # load model
     ae, open_dataset = create_model(model, backbone, env, load_dir=model_dir)
@@ -50,7 +55,8 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     # Autoencoder Input Output
     def load_pc(index):
         if model == 'Autoencoder':
-            # load input pointcloud
+            # show the input and predicted pointclouds
+
             orig, target = input_set[index]
 
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
@@ -72,23 +78,23 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             return points, rgb
 
         if model == 'Segmenter':
+            # show the input and predicted labeled pointclouds
             pass
     
         if model == 'GTEncoder':
-            # load input pointcloud
+            # show the input pointcloud and the predicted cube coordinate
             orig, target = input_set[index]
 
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
 
             # create axis-aligned lines to show the original cube coordinate
-            # vis = aa_lines(orig.unsqueeze(0), np.array([0, 1, 0]), res=50)
+            target_pos = aa_lines(target.unsqueeze(0), np.array([1, 0, 0]), res=50)
+            pred_pos = aa_lines(pred.unsqueeze(0), np.array([0, 1, 0]), res=50)
+            vis = np.concatenate((target_pos, pred_pos), axis=0)
             
-            # merge input and output pointclouds
-            points = pred
-            # points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
-            # rgb = np.concatenate((seg_to_color(pred[:, 3:], clases), vis[:, 3:]), axis=0)
-            # rgb = np.concatenate((np.concatenate(pred[:, 3:], ), vis[:, 3:]), axis=0)
-            # rgb = np.concatenate((np.zeros_like(pred[:, :3]), vis[:, 3:]), axis=0)
+            # merge input and visualizations
+            points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
+            rgb = np.concatenate((seg_to_color(pred[:, 3:], clases), vis[:, 3:]), axis=0)
             rgb = np.zeros_like(points)
 
             return points, rgb
@@ -174,7 +180,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     while keep_running:
         keep_running = vis.poll_events()
         if prev_pc is not None and curr_pc is not None and anim_t < 1:
-            anim_t = min(anim_t + 0.1, 1)
+            anim_t = min(anim_t + animation_speed, 1)
             points = interpolate_transition(prev_pc[0], curr_pc[0], anim_t)
             rgb = interpolate_transition(prev_pc[1], curr_pc[1], anim_t)
             pcd.points = o3d.utility.Vector3dVector(points)
@@ -193,6 +199,7 @@ if __name__ == '__main__':
     parser.add_argument('--backbone', default='PointNet2', type=str)
     parser.add_argument('--model_ver', default=-1, type=int)
     parser.add_argument('--view', default='overlap', choices=['overlap', 'sidebyside'])
+    parser.add_argument('--animation_speed', default=0.1, type=float)
     arg = parser.parse_args()
 
-    main(arg.dataset, arg.env, arg.model, arg.backbone, arg.model_ver, arg.view)
+    main(arg.dataset, arg.env, arg.model, arg.backbone, arg.model_ver, arg.view, arg.animation_speed)

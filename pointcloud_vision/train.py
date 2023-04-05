@@ -151,6 +151,7 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
             for split in ['train', 'val']
         )
 
+        torch.set_float32_matmul_precision('medium')
         trainer = pl.Trainer(
             logger=TensorBoardLogger(output_dir, name=None, version=version),
             max_epochs=epochs,

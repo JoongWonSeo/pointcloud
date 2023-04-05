@@ -21,7 +21,7 @@ class RobosuiteGoalEnv(GoalEnv):
     def __init__(self, robo_kwargs, sensor, proprio_encoder, obs_encoder, goal_encoder, render_mode=None, render_info=None, **kwargs):
         '''
         robo_kwargs: keyward arguments for Robosuite environment to be created
-        sensor: Sensor that transforms the ground truth into an observation (T -> O)
+        sensor: Sensor that transforms the ground truth into an observation (S -> O)
         proprio_encoder: ObservationEncoder that transforms the proprioception into an encoding (P -> P')
         obs_encoder: ObservationEncoder that transforms an observation into an encoding (O -> E)
         goal_encoder: ObservationEncoder that transforms an observation into a goal encoding (O -> G)

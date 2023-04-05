@@ -10,10 +10,10 @@
 # device to use for PyTorch and Lightning
 device = 'cuda'
 accelerator = 'gpu'
-precision = 16 # 16 for mixed precision, 32 for full precision
+precision = '16-mixed' # 16 for mixed precision, 32 for full precision
 
 # this enables more verbose output and more sanity checks (performance impact)
-debug = True
+debug = False
 
 
 ########## Vision: Model and Training Settings ##########
@@ -34,6 +34,10 @@ vision_lr = 1e-3 # default for Adam
 val_every = 4 # validation every n batches/steps
 
 # Earth Mover's Distance loss precision
-emd_eps = 0.002
-emd_iterations = 5000
+# during training
+emd_eps = 0.005
+emd_iterations = 50
 
+# during testing
+emd_test_eps = 0.002
+emd_test_iterations = 10000
