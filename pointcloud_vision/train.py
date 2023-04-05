@@ -65,8 +65,12 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def create_model(model_type, backbone, env_name, load_dir=None):
-    env = SimpleNamespace(**cfg_vision[env_name]) # dot notation rather than dict notation
+def create_model(model_type, backbone, env, load_dir=None):
+    if type(env) == str:
+        env_name = env
+        env = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
+    else:
+        env_name = env.name
 
     # create the model and dataset
     model, dataset = None, None
@@ -122,7 +126,7 @@ def create_model(model_type, backbone, env_name, load_dir=None):
 
 
 def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
-    model, open_dataset = create_model(model_type, backbone, env_name=dataset)
+    model, open_dataset = create_model(model_type, backbone, env=dataset)
 
     # Train the created model and dataset
     if model and open_dataset:
@@ -152,6 +156,7 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
             max_epochs=epochs,
             log_every_n_steps=cfg.val_every,
             accelerator=cfg.accelerator,
+            precision=cfg.precision,
             detect_anomaly=cfg.debug,
             default_root_dir=output_dir
         )
@@ -163,7 +168,7 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train or evaluate a vision module')
-    parser.add_argument('dataset', default='Lift')
+    parser.add_argument('dataset', type=str)
     parser.add_argument('model', choices=cfg.models)
     parser.add_argument('--backbone', choices=cfg.encoder_backbones, default='PointNet2')
     parser.add_argument('--batch_size', default=cfg.vision_batch_size, type=int,

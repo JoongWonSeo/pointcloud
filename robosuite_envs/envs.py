@@ -61,7 +61,9 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
 ########## Reach ##########
 
 # Configs for Reach
-robo_kwargs['Reach'] = robo_kwargs['Lift']
+robo_kwargs['Reach'] = robo_kwargs['Lift'] | {
+    'env_name': 'Reach',
+}
 cfg_vision['Reach'] = cfg_vision['Lift'] | {
     'classes': [ # (name, RGB_for_visualization)
         ('env', [0, 0, 0]),
@@ -91,7 +93,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
         ):
         # configure cameras and their poses
         if sensor.requires_vision:
-            apply_preset(self, cfg_vision['Lift'])
+            apply_preset(self, cfg_vision['Reach'])
         else:
             # default camera with default pose
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
@@ -120,7 +122,7 @@ class RobosuiteReach(RobosuiteGoalEnv):
             goal_encoder = goal_encoder(self, self.goal_keys)
 
         super().__init__(
-            robo_kwargs=robo_kwargs['Lift'],
+            robo_kwargs=robo_kwargs['Reach'],
             sensor=sensor(env=self),
             proprio_encoder=proprio_encoder(self, self.proprio_keys),
             obs_encoder=obs_encoder,
@@ -153,20 +155,15 @@ class RobosuiteReach(RobosuiteGoalEnv):
         return desired_state
 
     def check_success(self, achieved, desired, info):
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
         if self.goal_encoder.latent_encoding:
             # threshold = np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.], dtype=np.float32)
-            threshold = np.array([0., 0., 0., 0., 0., 1.2245406, 1.588274, 1.9326254, 0., 0., 0., 3.5028644, 1.2349489, 0., 0.26512176, 0.], dtype=np.float32) 
-            # batched version
-            if achieved.ndim == 2:
-                return (np.abs(achieved - desired) <= threshold).all(axis=1)
-            else:                
-                return (np.abs(achieved - desired) <= threshold).all()
+            threshold = np.array([0., 0., 0., 0., 0., 1.2245406, 1.588274, 1.9326254, 0., 0., 0., 3.5028644, 1.2349489, 0., 0.26512176, 0.], dtype=np.float32)
+            #TODO: threshold should be encoder specific...
+
+            return (np.abs(achieved - desired) <= threshold).all(axis=axis)
         else:
-            # batched version
-            if achieved.ndim == 2:
-                return np.linalg.norm(achieved - desired, axis=1) < 0.05
-            else: # single version
-                return np.linalg.norm(achieved - desired) < 0.05
+            return np.linalg.norm(achieved - desired, axis=axis) < 0.05
         
 
 
@@ -238,17 +235,13 @@ class RobosuiteLift(RobosuiteGoalEnv):
         return desired_state
 
     def check_success(self, achieved, desired, info):
-        # TODO: experiment only check the cube position, ignore the end-effector position
-        # also experiment with goal of moving the eef away from the cube
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
 
-        # batched version
-        if achieved.ndim == 2:
-            return np.linalg.norm(achieved - desired, axis=1) < 0.05
-        else: # single version
-            return np.linalg.norm(achieved - desired) < 0.05
+        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+
 
     
-
+########## Pick and Place ##########
 
 class RobosuitePickAndPlace(RobosuiteGoalEnv):
     def __init__(
@@ -323,11 +316,10 @@ class RobosuitePickAndPlace(RobosuiteGoalEnv):
         return desired_state
 
     def check_success(self, achieved, desired, info):
-        # batched version
-        if achieved.ndim == 2:
-            return np.linalg.norm(achieved - desired, axis=1) < 0.05
-        else: # single version
-            return np.linalg.norm(achieved - desired) < 0.05
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
+
+        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+
 
 
 

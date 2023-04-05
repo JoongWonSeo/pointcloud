@@ -4,7 +4,7 @@ Info: This implementation is currently a WORK IN PROGRESS and INCOMPLETE. Howeve
 
 ## Installation
 
-This has been tested on python 3.9, cuda 11.7, pytorch 1.13.1, pytorch3d 0.7.2, mujoco 2.3.3, robosuite 1.3.3, gymnasium, gymnasium-robotics, lightning, etc.
+This has been tested on python 3.9, cuda 11.7, pytorch 1.13.1, pytorch3d 0.7.2, mujoco 2.3.3, robosuite 1.3.3, gymnasium, gymnasium-robotics, lightning, open3d 0.17.0, etc.
 
 
 ## Packages and Features

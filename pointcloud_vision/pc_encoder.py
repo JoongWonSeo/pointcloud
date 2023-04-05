@@ -6,7 +6,7 @@ from robosuite_envs.encoders import ObservationEncoder
 from robosuite_envs.sensors import Sensor
 from robosuite_envs.utils import multiview_pointcloud #TODO move to vision module
 from pointcloud_vision.models.pc_encoders import backbone_factory, AE, GTEncoder
-import pointcloud_vision.train
+from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize, obs_to_pc
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
@@ -124,10 +124,11 @@ class PointCloudEncoder(ObservationEncoder):
             self.encoding_dim = cfg.bottleneck_size
 
             load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/Autoencoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
-            self.pc_encoder = AE(backbone_factory['PointNet2'](feature_dims=3), out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size)
-            self.pc_encoder = pointcloud_vision.train.Lit(self.pc_encoder, None)
-            self.pc_encoder.load_state_dict(torch.load(load_dir)['state_dict'])
-            self.pc_encoder = self.pc_encoder.model.encoder.to(cfg.device)
+            lit, _ = create_model('Autoencoder', 'PointNet2', env, load_dir)
+            # TODO LOAD PRECALIBRATED LATENT THRESHOLD
+
+            self.pc_encoder = lit.model.encoder.to(cfg.device)
+            
 
         elif self.obs_keys == ['cube_pos']:
             raise NotImplementedError() #TODO from lift dataset
