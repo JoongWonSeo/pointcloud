@@ -35,7 +35,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
         model_dir = f'output/{dataset}/{model}_{backbone}/version_{model_ver}/checkpoints/'
     else:
         model_dir = f'output/{dataset}/{model}_{backbone}/'
-        model_dir += sorted(os.listdir(model_dir))[-1] # lastest version
+        model_dir += sorted(map(lambda n: (len(n), n), os.listdir(model_dir)))[-1][1] # lastest version, sorted first by length and then by name
         model_dir += '/checkpoints/'
     model_dir += sorted(os.listdir(model_dir))[-1] # lastest checkpoint
     print('using input dataset', input_dir)
@@ -48,6 +48,11 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     ae = ae.to(cfg.device)
     ae.eval()
 
+    if model == 'Segmenter':
+        classes = env_cfg.classes
+        C = len(classes)
+        to_label = IntegerEncode(num_classes=C)
+
     # states
     input_set = open_dataset(input_dir) # dataset of input pointclouds
     input_index = 0 # index of the shown pointcloud
@@ -58,7 +63,6 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     def load_pc(index):
         if model == 'Autoencoder':
             # show the input and predicted pointclouds
-
             orig, target = input_set[index]
 
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
@@ -80,8 +84,39 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             return points, rgb
 
         if model == 'Segmenter':
-            # show the input and predicted labeled pointclouds
-            pass
+            # show the input and predicted labeled pointclouds  
+            orig, target = input_set[index]
+
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+
+            pred, target = to_label(pred), to_label(target) # one hot to integer label
+
+            # create axis-aligned lines to show the predicted cube coordinate
+            vis = aa_lines(mean_cube_pos(target), np.array([0, 1, 0]), res=50)
+            vis = np.concatenate((vis, aa_lines(mean_cube_pos(pred), np.array([1, 0, 0]), res=50)), axis=0)
+
+            # convert to color
+            pred = np.concatenate((pred[:, :3], seg_to_color(pred[:, 3:], classes)), axis=1)
+            target = np.concatenate((target[:, :3], seg_to_color(target[:, 3:], classes)), axis=1)
+
+            if view_mode == 'sidebyside':
+                # shift so they are next to each other
+                target[:, 1] -= 0.5
+                pred[:, 1] += 0.5
+                vis[:, 1] -= 0.5 # show at orig
+            
+            if view_mode == 'overlap':
+                # apply red tint and green tint
+                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([0, 1, 0]), 0.3)
+                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([1, 0, 0]), 0.3)
+            
+            # merge input and output pointclouds
+            points = np.concatenate((target[:, :3], pred[:, :3], vis[:, :3]), axis=0)
+            rgb = np.concatenate((target[:, 3:], pred[:, 3:], vis[:, 3:]), axis=0)
+
+            return points, rgb
+
+
     
         if model == 'GTEncoder':
             # show the input pointcloud and the predicted cube coordinate

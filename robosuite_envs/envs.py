@@ -48,13 +48,13 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
         ('base', [0, 1, 0]),
         ('gripper', [0, 0, 1]),
     ],
-    'class_weights': [ # (name, weight) TODO: automatically compute weights
-        ('env', 1.0),
-        ('cube', 150.0),
-        ('arm', 5.0),
-        ('base', 10.0),
-        ('gripper', 15.0),
-    ],
+    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
+    #     ('env', 1.0),
+    #     ('cube', 150.0),
+    #     ('arm', 5.0),
+    #     ('base', 10.0),
+    #     ('gripper', 15.0),
+    # ],
     'gt_dim': 3, # cube_pos
 }
 
@@ -72,12 +72,12 @@ cfg_vision['Reach'] = cfg_vision['Lift'] | {
         ('base', [0, 1, 0]),
         ('gripper', [0, 0, 1]),
     ],
-    'class_weights': [ # (name, weight) TODO: automatically compute weights
-        ('env', 1.0),
-        ('arm', 5.0),
-        ('base', 10.0),
-        ('gripper', 15.0),
-    ],
+    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
+    #     ('env', 1.0),
+    #     ('arm', 5.0),
+    #     ('base', 10.0),
+    #     ('gripper', 15.0),
+    # ],
     'gt_dim': 3, # eef position
 }
 

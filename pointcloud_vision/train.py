@@ -51,13 +51,14 @@ class Lit(pl.LightningModule):
                 logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
 
             if self.log_info == 'Segmenter':
-                pc = prediction[0, :, :3]
-                col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1))
-                gt = y[0, :, :3]
-                gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1))
-                pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
-                col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
-                logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
+                pass
+                # pc = prediction[0, :, :3]
+                # col = seg_to_color(prediction[0, :, 3:].argmax(dim=1).unsqueeze(1), classes=env.classes)
+                # gt = y[0, :, :3]
+                # gt_col = seg_to_color(y[0, :, 3:].argmax(dim=1).unsqueeze(1), classes=env.classes)
+                # pc = torch.cat((pc.unsqueeze(0), gt.unsqueeze(0)), dim=0)
+                # col = torch.cat((col.unsqueeze(0), gt_col.unsqueeze(0)), dim=0)
+                # logger.add_mesh('Point Cloud', vertices=pc, colors=col*255, global_step=self.global_step)
 
         return loss
 
@@ -79,7 +80,7 @@ def create_model(model_type, backbone, env, load_dir=None):
     if model_type == 'Autoencoder':
         model = Lit(
             AE(encoder_backbone, out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=None),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
             log_info=model_type
         )
         dataset = lambda input_dir: \
@@ -95,7 +96,7 @@ def create_model(model_type, backbone, env, load_dir=None):
         C = len(env.classes)
         model = Lit(
             SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, classes=env.class_weights),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=len(env.classes)),
             log_info=model_type
         )
         dataset = lambda input_dir: \

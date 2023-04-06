@@ -213,12 +213,12 @@ class ChamferDistance:
             return self.loss_fn(pred, target)[0]
 
 class EarthMoverDistance:
-    def __init__(self, eps = 0.002, its = 10000, feature_loss=MSELoss(), classes=None):
+    def __init__(self, eps = 0.002, its = 10000, feature_loss=MSELoss(), num_classes=None):
         self.loss_fn = emdModule()
         self.eps = eps
         self.iterations = its
         self.feature_loss = feature_loss
-        self.classes = classes
+        self.C = num_classes
     
     def __call__(self, pred, target):
         dists, assignment = self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)
@@ -234,20 +234,27 @@ class EarthMoverDistance:
             if num_missing > 0:
                 print(f"DEBUG: EMD unassigned = {num_missing} / {num_points} = {num_missing / num_points}")
 
-        # sanity check: compare the points of the permuted pc
-        # d = (pred[:,:,:3] - target[:,:,:3]) * (pred[:,:,:3] - target[:,:,:3])
-        # d = torch.sqrt(d.sum(-1)).mean()
-
-        # check if target is in bbox and increase weight of loss
-        # now that segmentation is available, use it to assign weights by class
+        # use segmentation data to assign weights by class
         weights = torch.ones_like(dists) # (B, N)
-        if self.classes is not None:
-            N = len(self.classes)
-            target_classes = target[:, :, 3:3+N].argmax(dim=2) # (B, N)
-            for idx, (_, w) in enumerate(self.classes):
+        if self.C is not None:
+            # convert one-hot encoded segmentation label to integer encoding
+            target_classes = target[:, :, 3:3+self.C].argmax(dim=2) # (B, N, C) -> (B, N)
+
+            # automatically estimate weights for each class by looking at the distribution in the given batch
+            distribution = torch.zeros(self.C)
+            for idx in range(self.C):
+                distribution[idx] = (target_classes == idx).sum()
+            distribution = distribution / distribution.sum()
+            class_weights = 1 / (distribution + 1e-5)  # inverse of distribution
+            # if cfg.debug:
+            #     print(f"DEBUG: EMD batch distribution = {distribution}")
+            #     print(f"DEBUG: EMD batch class weights = {class_weights}")
+
+            # assign weights according to class
+            for idx, w in enumerate(class_weights):
                 weights[target_classes == idx] = w
             
-            feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * N) # compensate for auto broadcasting
+            feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * self.C) # compensate for auto broadcasting
         else:
             feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
             
@@ -259,7 +266,6 @@ class EarthMoverDistance:
 
         
         point_l = (dists.sqrt() * weights).sum() / weights.sum()
-    
 
         return point_l + feature_l #feature_l
 
