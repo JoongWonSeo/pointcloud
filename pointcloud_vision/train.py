@@ -3,12 +3,13 @@ import re
 import argparse
 from types import SimpleNamespace
 import torch
+from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, backbone_factory
+from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
 from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_vision
@@ -96,7 +97,7 @@ def create_model(model_type, backbone, env, load_dir=None):
         C = len(env.classes)
         model = Lit(
             SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=len(env.classes)),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
             log_info=model_type
         )
         dataset = lambda input_dir: \
@@ -105,7 +106,8 @@ def create_model(model_type, backbone, env, load_dir=None):
                 in_features=['rgb'],
                 out_features=['segmentation'],
                 in_transform=Normalize(env.bbox),
-                out_transform=Compose([Normalize(env.bbox), OneHotEncode(C, seg_dim=3)])
+                # out_transform=Compose([Normalize(env.bbox), OneHotEncode(C, seg_dim=3)])
+                out_transform=Compose([Normalize(env.bbox)])
             )
 
     elif model_type == 'GTEncoder':
@@ -121,11 +123,43 @@ def create_model(model_type, backbone, env, load_dir=None):
                 out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox)
             )
     
+    elif model_type == 'GTDecoder':
+        model = Lit(
+            PCDecoder(encoding_dim=env.gt_dim, out_points=env.sample_points, out_dim=6),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
+        )
+        dataset = lambda input_dir: \
+            PointCloudGTDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                in_transform=Normalize(env.bbox),
+                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox),
+                swap_xy=True
+            )
+    
+    elif model_type == 'GTSegmenter':
+        C = len(env.classes)
+        model = Lit(
+            PCSegmenter(encoding_dim=env.gt_dim, out_points=env.sample_points, num_classes=C),
+            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
+        )
+        dataset = lambda input_dir: \
+            PointCloudGTDataset(
+                root_dir=input_dir,
+                in_features=['segmentation'],
+                in_transform=Normalize(env.bbox),
+                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox),
+                swap_xy=True
+            )
+
     else:
         raise NotImplementedError(f'Unknown model type: {model_type}')
     
     if load_dir:
         model.load_state_dict(torch.load(load_dir)['state_dict'])
+    
+    model.loss_fn.log = model.log # let the loss function log to tensorboard
+
     return model, dataset
 
 

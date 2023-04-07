@@ -48,7 +48,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     ae = ae.to(cfg.device)
     ae.eval()
 
-    if model == 'Segmenter':
+    if model in ['Segmenter', 'GTSegmenter']:
         classes = env_cfg.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
@@ -61,124 +61,100 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
 
     # Autoencoder Input Output
     def load_pc(index):
+        nonlocal animation_speed
+
+        # load the dataset
+        orig, target = input_set[index]
+
+        target_pc, target_feature = None, None
+        pred_pc, pred_feature = None, None
+        target_gt, pred_gt = None, None
+
         if model == 'Autoencoder':
             # show the input and predicted pointclouds
-            orig, target = input_set[index]
-
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
 
-            if view_mode == 'sidebyside':
-                # shift so they are next to each other
-                target[:, 1] -= 0.3
-                pred[:, 1] += 0.3
-
-            if view_mode == 'overlap':
-                # apply red tint and green tint
-                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([0, 1, 0]), 0.3)
-                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([1, 0, 0]), 0.3)
-
-            # merge input and output pointclouds
-            points = np.concatenate((orig[:, :3], pred[:, :3]), axis=0)
-            rgb = np.concatenate((orig[:, 3:], pred[:, 3:]), axis=0)
-
-            return points, rgb
+            target_pc = target
+            target_feature = 'rgb'
+            pred_pc = pred
+            pred_feature = 'rgb'
 
         if model == 'Segmenter':
-            # show the input and predicted labeled pointclouds  
-            orig, target = input_set[index]
-
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+            pred = to_label(pred) # one hot to integer label (target is already integer label)
 
-            pred, target = to_label(pred), to_label(target) # one hot to integer label
+            target_pc = target
+            target_feature = 'seg'
+            pred_pc = pred
+            pred_feature = 'seg'
+            target_gt = mean_cube_pos(target)
+            pred_gt = mean_cube_pos(pred)
 
-            # create axis-aligned lines to show the predicted cube coordinate
-            vis = aa_lines(mean_cube_pos(target), np.array([0, 1, 0]), res=50)
-            vis = np.concatenate((vis, aa_lines(mean_cube_pos(pred), np.array([1, 0, 0]), res=50)), axis=0)
-
-            # convert to color
-            pred = np.concatenate((pred[:, :3], seg_to_color(pred[:, 3:], classes)), axis=1)
-            target = np.concatenate((target[:, :3], seg_to_color(target[:, 3:], classes)), axis=1)
-
-            if view_mode == 'sidebyside':
-                # shift so they are next to each other
-                target[:, 1] -= 0.5
-                pred[:, 1] += 0.5
-                vis[:, 1] -= 0.5 # show at orig
-            
-            if view_mode == 'overlap':
-                # apply red tint and green tint
-                target[:, 3:] = interpolate_transition(target[:, 3:], np.array([0, 1, 0]), 0.3)
-                pred[:, 3:] = interpolate_transition(pred[:, 3:], np.array([1, 0, 0]), 0.3)
-            
-            # merge input and output pointclouds
-            points = np.concatenate((target[:, :3], pred[:, :3], vis[:, :3]), axis=0)
-            rgb = np.concatenate((target[:, 3:], pred[:, 3:], vis[:, 3:]), axis=0)
-
-            return points, rgb
-
-
-    
         if model == 'GTEncoder':
-            # show the input pointcloud and the predicted cube coordinate
-            orig, target = input_set[index]
-
             pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
 
-            # create axis-aligned lines to show the original cube coordinate
-            target_pos = aa_lines(target, np.array([0, 1, 0]), res=50)
-            pred_pos = aa_lines(pred, np.array([1, 0, 0]), res=50)
-            vis = np.concatenate((target_pos, pred_pos), axis=0)
-            
-            # merge input and visualizations
-            points = np.concatenate((orig[:, :3], vis[:, :3]), axis=0)
-            rgb = np.concatenate((orig[:, 3:], vis[:, 3:]), axis=0)
+            target_pc = orig
+            target_feature = 'rgb'
+            target_gt = target
+            pred_gt = pred
 
-            nonlocal animation_speed
             animation_speed = 1 # no animation, makes no sense for this
-
-            return points, rgb
-
-
-    # PosDecoder
-    # def load_pc(index):
-    #     # load input pointcloud
-    #     orig, target = input_set[index]
-
-    #     pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-
-    #     # create axis-aligned lines to show the original cube coordinate
-    #     vis = aa_lines(orig.unsqueeze(0), np.array([0, 1, 0]), res=50)
         
-    #     # merge input and output pointclouds
-    #     points = np.concatenate((pred[:, :3], vis[:, :3]), axis=0)
-    #     rgb = np.concatenate((seg_to_color(pred[:, 3:]), vis[:, 3:]), axis=0)
+        if model == 'GTDecoder':
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
 
-    #     return points, rgb
+            target_pc = target
+            target_feature = 'rgb'
+            pred_pc = pred
+            pred_feature = 'rgb'
 
-    # Segmenting Autoencoder Input Output
-    # to_label = IntegerEncode()
-    # def load_pc(index):
-    #     # load input pointcloud
-    #     orig, target = input_set[index]
-
-    #     pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-
-    #     pred, target = to_label(pred), to_label(target)
-
-    #     # create axis-aligned lines to show the predicted cube coordinate
-    #     vis = aa_lines(mean_cube_pos(target), np.array([1, 0, 0]), res=50)
-    #     vis = np.concatenate((vis, aa_lines(mean_cube_pos(pred), np.array([0, 1, 0]), res=50)), axis=0)
-
-    #     # shift so they are next to each other
-    #     target[:, 1] -= 0.5
-    #     pred[:, 1] += 0.5
-    #     vis[:, 1] -= 0.5 # show at orig
+            target_gt = orig
         
-    #     # merge input and output pointclouds
-    #     points = np.concatenate((target[:, :3], pred[:, :3], vis[:, :3]), axis=0)
-    #     rgb = np.concatenate((seg_to_color(target[:, 3:]), seg_to_color(pred[:, 3:]), vis[:, 3:]), axis=0)
+        if model == 'GTSegmenter':
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+            pred = to_label(pred) # one hot to integer label (target is already integer label)
 
-    #     return points, rgb
+            target_pc = target
+            target_feature = 'seg'
+            pred_pc = pred
+            pred_feature = 'seg'
+
+            target_gt = mean_cube_pos(target)
+            pred_gt = mean_cube_pos(pred)
+
+
+        # assemble the pointclouds        
+        if target_pc is not None and target_feature == 'seg': # convert to color
+            target_pc = np.concatenate((target_pc[:, :3], seg_to_color(target_pc[:, 3:], classes)), axis=1)
+        if pred_pc is not None and pred_feature == 'seg': # convert to color
+            pred_pc = np.concatenate((pred_pc[:, :3], seg_to_color(pred_pc[:, 3:], classes)), axis=1)
+
+        # create visualization
+        vis = np.array([]).reshape(0, 6)
+        if target_gt is not None:
+            target_vis = aa_lines(target_gt, np.array([0, 1, 0]), res=50)
+            vis = np.concatenate((vis, target_vis), axis=0)
+        if pred_gt is not None:
+            pred_vis = aa_lines(pred_gt, np.array([1, 0, 0]), res=50)
+            vis = np.concatenate((vis, pred_vis), axis=0)
+        
+        # apply view mode
+        if target_pc is not None and pred_pc is not None:
+            if view_mode == 'sidebyside':
+                # shift so they are next to each other
+                target_pc[:, 1] -= 0.3
+                pred_pc[:, 1] += 0.3
+                vis[:, 1] -= 0.3 # show at orig
+
+            if view_mode == 'overlap':
+                # apply red tint and green tint
+                target_pc[:, 3:] = interpolate_transition(target_pc[:, 3:], np.array([0, 1, 0]), 0.3)
+                pred_pc[:, 3:] = interpolate_transition(pred_pc[:, 3:], np.array([1, 0, 0]), 0.3)
+            
+        # merge input and visualizations
+        pcs = filter(lambda x: x is not None, [target_pc, pred_pc, vis])
+        pcs = np.concatenate(tuple(pcs), axis=0)
+        return pcs[:, :3], pcs[:, 3:]
 
 
     def update_input():

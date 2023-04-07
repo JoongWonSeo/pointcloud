@@ -106,7 +106,7 @@ class PCSegmenter(nn.Module):
         # sigmoid over xyz
         xyz = torch.sigmoid(xyz)
         # softmax over class probabilities
-        seg = F.softmax(seg, dim=2)
+        # seg = F.softmax(seg, dim=2) # we don't need this, since we use CrossEntropyLoss
         return torch.cat((xyz, seg), dim=2)
 
 

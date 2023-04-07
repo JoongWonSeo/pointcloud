@@ -213,12 +213,12 @@ class ChamferDistance:
             return self.loss_fn(pred, target)[0]
 
 class EarthMoverDistance:
-    def __init__(self, eps = 0.002, its = 10000, feature_loss=MSELoss(), num_classes=None):
+    def __init__(self, eps = 0.002, its = 10000, num_classes=None, feature_weight=0.1):
         self.loss_fn = emdModule()
         self.eps = eps
         self.iterations = its
-        self.feature_loss = feature_loss
         self.C = num_classes
+        self.feature_weight = feature_weight
     
     def __call__(self, pred, target):
         dists, assignment = self.loss_fn(pred[:, :, :3], target[:, :, :3],  self.eps, self.iterations)
@@ -236,38 +236,47 @@ class EarthMoverDistance:
 
         # use segmentation data to assign weights by class
         weights = torch.ones_like(dists) # (B, N)
-        if self.C is not None:
-            # convert one-hot encoded segmentation label to integer encoding
-            target_classes = target[:, :, 3:3+self.C].argmax(dim=2) # (B, N, C) -> (B, N)
+        if self.C is not None: # segmentation
+            # get segmentation labels
+            target_classes = target[:, :, 3].long() # (B, N)
 
             # automatically estimate weights for each class by looking at the distribution in the given batch
-            distribution = torch.zeros(self.C)
-            for idx in range(self.C):
-                distribution[idx] = (target_classes == idx).sum()
+            distribution = torch.bincount(target_classes.view(-1), minlength=self.C) # (C,)
             distribution = distribution / distribution.sum()
-            class_weights = 1 / (distribution + 1e-5)  # inverse of distribution
+
+            # distribution of the predicted classes
+            pred_classes = pred[:, :, 3:].argmax(dim=2) # (B, N)
+            pred_distribution = torch.bincount(pred_classes.view(-1), minlength=self.C) # (C,)
+            pred_distribution = pred_distribution / pred_distribution.sum()
+
+            # KL divergence between the two distributions
+            kl_div = F.kl_div(F.log_softmax(pred_distribution, dim=0), F.softmax(distribution, dim=0), reduction='batchmean')
+
+            class_weights = (1 / (distribution + 1e-4)) ** (1-0.3)  # inverse of distribution TODO try 1-distribution
+            class_weights = class_weights / class_weights.sum()
             # if cfg.debug:
             #     print(f"DEBUG: EMD batch distribution = {distribution}")
             #     print(f"DEBUG: EMD batch class weights = {class_weights}")
 
             # assign weights according to class
-            for idx, w in enumerate(class_weights):
-                weights[target_classes == idx] = w
+            weights = class_weights[target_classes]
             
-            feature_l = ((pred[:, :, 3:] - target[:, :, 3:])**2 * weights.unsqueeze(2)).sum() / (weights.sum() * self.C) # compensate for auto broadcasting
-        else:
-            feature_l = self.feature_loss(pred[:, :, 3:], target[:, :, 3:])
-            
-            # if cfg.debug:
-            #     points_per_class = [(target_classes == i).sum()/25 for i in range(N)]
-            #     num_points = 2048
-            #     for i in range(N):
-            #         print(f"DEBUG: EMD class {self.classes[i][0]} = {points_per_class[i]} / {num_points} = {points_per_class[i] / num_points}")
+            # pred needs to be permuted from (B, N, C) to (B, C, N) for cross_entropy
+            ce_l = F.cross_entropy(pred.permute(0, 2, 1)[:, 3:, :], target_classes, weight=class_weights)
+            feature_l = 0.1 * ce_l + 100 * kl_div #TODO adjust
+            self.log('train_loss/cross_entropy', ce_l)
+            self.log('train_loss/kl_divergence', kl_div)
+
+        else: # general feature loss
+            feature_l = F.mse_loss(pred[:, :, 3:], target[:, :, 3:])
 
         
         point_l = (dists.sqrt() * weights).sum() / weights.sum()
+        # point_l = (dists * weights).sum() / weights.sum() # weighted mean squared distance (squared EMD = wasserstein distance)
+        self.log('train_loss/EMD', point_l)
+        self.log('train_loss/feature', feature_l)
 
-        return point_l + feature_l #feature_l
+        return point_l + feature_l
 
 
 
@@ -342,7 +351,7 @@ class PointCloudGTDataset(Dataset):
     Dataset for point cloud to ground truth pairs, e.g. for training a point cloud to ground truth predictor
     '''
 
-    def __init__(self, root_dir, files=None, in_features=['rgb'], in_transform=None, out_transform=None):
+    def __init__(self, root_dir, files=None, in_features=['rgb'], in_transform=None, out_transform=None, swap_xy=False):
         self.root_dir = root_dir
 
         # you can either pass a list of files or None for all files in the root_dir
@@ -353,6 +362,8 @@ class PointCloudGTDataset(Dataset):
         self.out_transform = out_transform
 
         self.in_features = in_features
+
+        self.swap_xy = swap_xy
 
     def __len__(self):
         return len(self.files)
@@ -368,7 +379,7 @@ class PointCloudGTDataset(Dataset):
         if self.out_transform:
             out_data = self.out_transform(out_data)
 
-        return in_pc, out_data
+        return (in_pc, out_data) if not self.swap_xy else (out_data, in_pc)
     
     def filename(self, idx):
         return self.files[idx]

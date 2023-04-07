@@ -72,7 +72,7 @@ Tensorboard will log some sample Point Clouds in the Mesh section.
 
 To interactively view the Encoder+Decoder, run:
 ```
-python ae_viewer.py ... TODO
+python ae_viewer.py --view=sidebyside --animation_speed=0.5 Lift Lift Segmenter
 ```
 
 ### Train a RL Agent using [RL Baselines3 Zoo](https://github.com/DLR-RM/rl-baselines3-zoo)
