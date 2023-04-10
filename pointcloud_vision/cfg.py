@@ -13,7 +13,7 @@ accelerator = 'gpu'
 precision = '16-mixed' # 16 for mixed precision, 32 for full precision
 
 # this enables more verbose output and more sanity checks (performance impact)
-debug = False
+debug = True
 
 
 ########## Vision: Model and Training Settings ##########

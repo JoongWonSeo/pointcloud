@@ -163,13 +163,15 @@ def create_model(model_type, backbone, env, load_dir=None):
     return model, dataset
 
 
-def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None):
+def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None, dataset_dir=None):
     model, open_dataset = create_model(model_type, backbone, env=dataset)
+
+    dataset_dir = dataset_dir or dataset
 
     # Train the created model and dataset
     if model and open_dataset:
-        input_dir = f'input/{dataset}'
-        output_dir = f'output/{dataset}/{model_type}_{backbone}'
+        input_dir = f'input/{dataset_dir}'
+        output_dir = f'output/{dataset_dir}/{model_type}_{backbone}'
         if ckpt_path:
             # use simple regex to extract the number X from str like 'version_X'
             version = int(re.search(r'version_(\d+)', ckpt_path).group(1))
@@ -209,10 +211,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train or evaluate a vision module')
     parser.add_argument('dataset', type=str)
     parser.add_argument('model', choices=cfg.models)
+    parser.add_argument('--dataset_dir', default=None, type=str)
     parser.add_argument('--backbone', choices=cfg.encoder_backbones, default='PointNet2')
     parser.add_argument('--batch_size', default=cfg.vision_batch_size, type=int,
                         help='batch size for training')
-    parser.add_argument('--num_epochs', default=cfg.vision_epochs, type=int,
+    parser.add_argument('--epochs', default=cfg.vision_epochs, type=int,
                         help='number of epochs to train for')
     parser.add_argument('--ckpt', default=None, type=str,
                         help='path to checkpoint to load (to either resume training or evaluate)')
@@ -221,4 +224,4 @@ if __name__ == '__main__':
 
     print(f'device = {cfg.device}')
 
-    train(a.model, a.backbone, a.dataset, a.num_epochs, a.batch_size, a.ckpt)
+    train(a.model, a.backbone, a.dataset, a.epochs, a.batch_size, a.ckpt, a.dataset_dir)

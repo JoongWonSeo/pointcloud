@@ -231,7 +231,7 @@ class EarthMoverDistance:
         if cfg.debug:
             num_points = pred.shape[1]
             num_missing = num_points - assignment.unique().numel()
-            if num_missing > 0:
+            if num_missing/num_points > 0.005:
                 print(f"DEBUG: EMD unassigned = {num_missing} / {num_points} = {num_missing / num_points}")
 
         # use segmentation data to assign weights by class
@@ -252,7 +252,7 @@ class EarthMoverDistance:
             # KL divergence between the two distributions
             kl_div = F.kl_div(F.log_softmax(pred_distribution, dim=0), F.softmax(distribution, dim=0), reduction='batchmean')
 
-            class_weights = (1 / (distribution + 1e-4)) ** (1-0.3)  # inverse of distribution TODO try 1-distribution
+            class_weights = (1 / (distribution + 1e-4)) ** (1-0)  # inverse of distribution TODO try 1-distribution
             class_weights = class_weights / class_weights.sum()
             # if cfg.debug:
             #     print(f"DEBUG: EMD batch distribution = {distribution}")
@@ -263,7 +263,7 @@ class EarthMoverDistance:
             
             # pred needs to be permuted from (B, N, C) to (B, C, N) for cross_entropy
             ce_l = F.cross_entropy(pred.permute(0, 2, 1)[:, 3:, :], target_classes, weight=class_weights)
-            feature_l = 0.1 * ce_l + 100 * kl_div #TODO adjust
+            feature_l = 0.1 * ce_l #+ 100 * kl_div #TODO adjust
             self.log('train_loss/cross_entropy', ce_l)
             self.log('train_loss/kl_divergence', kl_div)
 

@@ -15,6 +15,7 @@ parser.add_argument('--horizon', type=int, default=50)
 parser.add_argument('--runs', type=int, default=40)
 parser.add_argument('--steps_per_action', type=int, default=5)
 parser.add_argument('--actions_per_frame', type=int, default=1)
+parser.add_argument('--action_scale', type=float, default=1.0)
 parser.add_argument('--render', action='store_true')
 parser.add_argument('--show_distribution', action='store_true')
 arg = parser.parse_args()
@@ -50,7 +51,7 @@ for r in range(runs):
 
         # Simulation
         for i in range(arg.actions_per_frame):
-            action = random_action(env) # sample random action
+            action = random_action(env) * arg.action_scale # sample random action
             for j in range(arg.steps_per_action):
                 env.step(action)  # take action in the environment
 

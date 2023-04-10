@@ -87,7 +87,6 @@ def pixel_to_feature(feature_map):
     """
 
     # sample from the feature map using the pixel locations
-    # features = np.array([feature_map[-y, x] for x, y in pixels])
     h, w, c = feature_map.shape
     features = feature_map.reshape((-1, c)) # (H*W, C), with coords (x, y) = (i%W, i//W)
 
