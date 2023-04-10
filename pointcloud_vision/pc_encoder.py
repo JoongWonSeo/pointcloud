@@ -61,7 +61,7 @@ class PointCloudEncoder(ObservationEncoder):
             self.features = ['rgb']
             self.encoding_dim = cfg.bottleneck_size
 
-            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/Autoencoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/Autoencoder_PointNet2/version_3/checkpoints/epoch=99-step=8000.ckpt')
             lit, _ = create_model('Autoencoder', 'PointNet2', env, load_dir)
             # TODO LOAD PRECALIBRATED LATENT THRESHOLD
 
@@ -126,7 +126,7 @@ class PointCloudGTPredictor(ObservationEncoder):
             self.encoding_dim = env.gt_dim
             self.postprocess_fn = self.cfgs['Reach']['to_gt']
 
-            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/GTEncoder_PointNet2/version_0/checkpoints/epoch=99-step=2000.ckpt')
+            load_dir = os.path.join(os.path.dirname(__file__), 'output/Reach/GTEncoder_PointNet2/version_1/checkpoints/epoch=99-step=8000.ckpt')
             lit, _ = create_model('GTEncoder', 'PointNet2', env, load_dir)
             self.pc_encoder = lit.model.to(cfg.device)
             

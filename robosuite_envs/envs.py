@@ -36,8 +36,8 @@ robo_kwargs['Lift'] = robo_kwargs['Base'] | {
 cfg_vision['Lift'] = cfg_vision['Base'] | {
     'name': 'Lift', # name of this configuration, used to look up other configs of the same env
     'cameras': { # name: (position, quaternion)
-        'frontview': ([-0.15, -1.2, 2], [0.3972332, 0, 0, 0.9177177]),
-        'agentview': ([-0.15, 1.2, 2], [0, 0.3972332, 0.9177177, 0]),
+        'frontview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]),
+        'agentview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]),
         'birdview': ([1.5, 0, 2], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
     },
     'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
