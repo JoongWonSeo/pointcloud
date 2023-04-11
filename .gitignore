@@ -20,6 +20,9 @@
 */logs/
 */weights/
 
+# jupyter notebooks
+*.ipynb
+
 # mujoco error logs
 MUJOCO_LOG.txt
 
