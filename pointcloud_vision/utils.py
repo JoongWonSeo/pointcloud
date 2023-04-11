@@ -110,7 +110,7 @@ class FilterBBox:
 class FilterClasses:
     def __init__(self, whitelist, seg_dim):
         '''
-        whitelist: list of classes to remove
+        whitelist: list of classes to keep
         num_classes: number of classes in the dataset
         seg_dim: dimension index of the segmentation label in the point cloud
         '''
@@ -204,13 +204,27 @@ def mean_cube_pos(Y):
 ########## Loss Functions ##########
 
 class ChamferDistance:
-    def __init__(self, bbox=None):
-        self.loss_fn = pytorch3d_loss.chamfer_distance
-        self.bbox = bbox
-    
     def __call__(self, pred, target):
-        if self.bbox is None:
-            return self.loss_fn(pred, target)[0]
+        #TODO: feature loss
+        return pytorch3d_loss.chamfer_distance(pred, target)[0]
+
+class FilteringChamferDistance:
+    def __init__(self, filter):
+        self.filter = filter
+
+    def __call__(self, pred, target):
+        device, dtype = pred.device, torch.float32 # unfortunately, pytorch3d only supports float32 
+        pred = pred.to(dtype=dtype)
+
+        # filter each point cloud in the batch individually
+        filtered = [self.filter(p) for p in target]
+        num_points = [p.shape[0] for p in filtered]
+        max_points = max(num_points)
+        # pad and stack filtered point clouds
+        target = torch.stack([F.pad(p, (0, 0, 0, max_points - p.shape[0])) for p in filtered]).to(dtype=dtype)
+
+        # TODO: feature loss
+        return pytorch3d_loss.chamfer_distance(pred, target, y_lengths=torch.tensor(num_points, device=device))[0]
 
 class EarthMoverDistance:
     def __init__(self, eps = 0.002, its = 10000, num_classes=None, feature_weight=0.1):

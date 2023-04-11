@@ -48,13 +48,9 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
         ('base', [0, 1, 0]),
         ('gripper', [0, 0, 1]),
     ],
-    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
-    #     ('env', 1.0),
-    #     ('cube', 150.0),
-    #     ('arm', 5.0),
-    #     ('base', 10.0),
-    #     ('gripper', 15.0),
-    # ],
+    'obs_classes': [ # classes that are actually relevant to the observation, along with their rough percentile in the point cloud
+        ('cube', 0.01), # roughly, 1% of the points are from the cube
+    ],
     'gt_dim': 3, # cube_pos
 }
 
@@ -67,17 +63,13 @@ robo_kwargs['Reach'] = robo_kwargs['Lift']
 cfg_vision['Reach'] = cfg_vision['Lift'] | {
     'classes': [ # (name, RGB_for_visualization)
         ('env', [0, 0, 0]),
-        # TODO: actually, maybe cube is still included in the segmentation?
         ('arm', [0.5, 0.5, 0.5]),
         ('base', [0, 1, 0]),
         ('gripper', [0, 0, 1]),
     ],
-    # 'class_weights': [ # (name, weight) TODO: automatically compute weights
-    #     ('env', 1.0),
-    #     ('arm', 5.0),
-    #     ('base', 10.0),
-    #     ('gripper', 15.0),
-    # ],
+    'obs_classes': [ # classes that are actually relevant to the observation, along with their rough percentile in the point cloud
+        ('gripper', 0.05), # roughly, 5% of the points are from the gripper
+    ],
     'gt_dim': 3, # eef position
 }
 

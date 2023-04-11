@@ -48,7 +48,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     ae = ae.to(cfg.device)
     ae.eval()
 
-    if model in ['Segmenter', 'GTSegmenter']:
+    if model in ['Segmenter', 'GTSegmenter', 'FilteringSegmenter']:
         classes = env_cfg.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
@@ -61,7 +61,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
 
     # Autoencoder Input Output
     def load_pc(index):
-        nonlocal animation_speed
+        nonlocal animation_speed, view_mode
 
         # load the dataset
         orig, target = input_set[index]
@@ -121,6 +121,24 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
 
             target_gt = mean_cube_pos(target)
             pred_gt = mean_cube_pos(pred)
+        
+        if model == 'FilteringSegmenter':
+            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+            pred = to_label(pred) # one hot to integer label (target is already integer label)
+
+            target_pc = target
+            target_feature = 'seg'
+            pred_pc = pred
+            pred_feature = 'seg'
+            
+            target_gt = mean_cube_pos(target)
+            # pred_gt = mean_cube_pos(pred)
+
+            print('target_cube_pos', target_gt)
+            print(pred)
+            # if view_mode != 'overlap':
+            #     print('FilteringSegmenter only supports overlap view mode')
+            #     view_mode = 'overlap'
 
 
         # assemble the pointclouds        

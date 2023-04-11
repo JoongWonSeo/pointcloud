@@ -2,6 +2,7 @@ import pointcloud_vision.cfg as cfg
 import re
 import argparse
 from types import SimpleNamespace
+from math import ceil
 import torch
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
@@ -11,7 +12,7 @@ import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
-from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, EarthMoverDistance, seg_to_color
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_vision
 
 
@@ -90,7 +91,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 in_features=['rgb'],
                 out_features=['rgb'],
                 in_transform=Normalize(env.bbox),
-                # out_transform=Normalize(env.bbox), # since x y are same, only normalize once
+                # out_transform=Normalize(env.bbox), # since x==y identity-wise, only normalize once
             )
 
     elif model_type == 'Segmenter':
@@ -106,8 +107,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 in_features=['rgb'],
                 out_features=['segmentation'],
                 in_transform=Normalize(env.bbox),
-                # out_transform=Compose([Normalize(env.bbox), OneHotEncode(C, seg_dim=3)])
-                out_transform=Compose([Normalize(env.bbox)])
+                out_transform=Normalize(env.bbox)
             )
 
     elif model_type == 'GTEncoder':
@@ -150,6 +150,26 @@ def create_model(model_type, backbone, env, load_dir=None):
                 in_transform=Normalize(env.bbox),
                 out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox),
                 swap_xy=True
+            )
+    
+    elif model_type == 'FilteringSegmenter':
+        OBS_C = len(env.obs_classes) # the number of classes to reconstruct
+        all_classes = [name for (name, _) in env.classes]
+        classes = [all_classes.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
+        class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
+        print(f'FilteringSegmenter: {classes} with {class_points} points each')
+        model = Lit(
+            SegAE(encoder_backbone, num_classes=OBS_C, out_points=sum(class_points), bottleneck=cfg.bottleneck_size),
+            FilteringChamferDistance(FilterClasses(classes, seg_dim=3)), #TODO: make this per-class CD, not just CD. Important for multi-class
+            log_info=model_type
+        )
+        dataset = lambda input_dir: \
+            PointCloudDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                out_features=['segmentation'],
+                in_transform=Normalize(env.bbox),
+                out_transform=Normalize(env.bbox)
             )
 
     else:
