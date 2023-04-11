@@ -52,6 +52,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
         classes = env_cfg.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
+        class_color = {name: color for name, color in classes}
 
     # states
     input_set = open_dataset(input_dir) # dataset of input pointclouds
@@ -138,15 +139,18 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             #     view_mode = 'overlap'
         
         if model == 'MultiFilter':
-            pred = ae(orig.to(cfg.device).unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+            pred = ae(orig.to(cfg.device).unsqueeze(0))
+            pred = {name: pc.squeeze(0).detach().cpu().numpy() for name, pc in pred.items()}
+            pred = {name: np.concatenate([pc, np.zeros_like(pc)], axis=1) for name, pc in pred.items()}
+            for name, pc in pred.items():
+                pc[:, 3:] = np.array(class_color[name])
+            pred = np.concatenate(list(pred.values()), axis=0)
+            print('encodings:', {obs: x.encoding.detach().cpu().numpy() for obs, x in ae.autoencoders.items()})
 
             target_pc = target
             target_feature = 'seg'
-            pred_pc = np.concatenate([pred, np.zeros_like(pred)], axis=1)
-            pred_pc[:, 3:] = np.array([1, 0, 0])
-
-            target_gt = mean_cube_pos(target)
-            pred_gt = pred.mean(axis=0)
+            pred_pc = pred
+            pred_feature = 'rgb'
 
             # if view_mode != 'overlap':
             #     print('MultiFilter only supports overlap view mode')

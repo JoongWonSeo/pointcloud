@@ -48,11 +48,10 @@ cfg_vision['Lift'] = cfg_vision['Base'] | {
         ('base', [0, 1, 0]),
         ('gripper', [0, 0, 1]),
     ],
-    'obs_classes': [ # classes that are actually relevant to the observation, along with their rough percentile in the point cloud
-        ('cube', 0.01), # roughly, 1% of the points are from the cube
-    ],
-    'obs_dims': [ # dimensions of each observation, used as bottleneck size
-        ('cube', 3),
+    'obs_classes': [ # class to observe, percentile, and dimensions
+        ('cube', 0.01, 3), # 1% of the points are from the cube
+        ('gripper', 0.05, 3), # 5% of the points are from the gripper
+        ('arm', 0.4, 10), # 40% of the points are from the arm
     ],
     'gt_dim': 3, # cube_pos
 }

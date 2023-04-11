@@ -225,17 +225,18 @@ class FilteringChamferDistance:
         return pytorch3d_loss.chamfer_distance(pred, target, y_lengths=torch.tensor(num_points, device=device))[0]
 
 class MultiFilterChamferDistance:
-    def __init__(self, classes):
+    def __init__(self, class_names_index):
         '''
         This loss function is for MultiFilterAE, which outputs C many filtered point clouds, one for each class
-        Therefore the predicted output is a list of C point clouds, and the target is a single segmented point cloud,
+        Therefore the predicted output is {class_name: point clouds}, and the target is a single segmented point cloud,
         which this loss function will automatically filter for each class, and then compute the chamfer distance
+        class_names_index: dictionary mapping class names to their index in the one-hot encoded segmentation label
         '''
-        self.classes = classes
-        self.classs_losses = [FilteringChamferDistance(FilterClasses([c], seg_dim=3)) for c in classes]
+        self.classes = class_names_index
+        self.classs_losses = {c: FilteringChamferDistance(FilterClasses([i], seg_dim=3)) for c, i in class_names_index.items()}
 
     def __call__(self, pred, target):
-        loss_per_class = torch.stack([loss(pred[i], target) for i, loss in enumerate(self.classs_losses)])
+        loss_per_class = torch.stack([loss(pred[c], target) for c, loss in self.classs_losses.items()])
         # weight_per_class = torch.ones_like(loss_per_class) / len(loss_per_class)
         return loss_per_class.sum()
 

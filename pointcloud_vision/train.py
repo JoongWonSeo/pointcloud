@@ -159,10 +159,10 @@ def create_model(model_type, backbone, env, load_dir=None):
         assert(OBS_C == 1)
         class_names = [name for (name, _) in env.classes]
         classes = [class_names.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
-        class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
-        print(f'ObjectFilter: {classes} with {class_points} points each')
+        obs_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
+        print(f'ObjectFilter: {classes} with {obs_points} points each')
         model = Lit(
-            FilterAE(encoder_backbone, out_points=sum(class_points), bottleneck=cfg.bottleneck_size),
+            FilterAE(encoder_backbone, out_points=sum(obs_points), bottleneck=cfg.bottleneck_size),
             FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
             log_info=model_type
         )
@@ -177,14 +177,14 @@ def create_model(model_type, backbone, env, load_dir=None):
     
     elif model_type == 'MultiFilter':
         OBS_C = len(env.obs_classes) # the number of classes to reconstruct
-        class_names = [name for (name, _) in env.classes]
-        classes = [class_names.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
-        class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
-        class_bottlenecks = [dim for (_, dim) in env.obs_dims]
-        print(f'MultiFilter: {classes} with {class_points} points each')
+        all_classes = [name for (name, _) in env.classes]
+        obs_names, obs_points, obs_bottlenecks = zip(*env.obs_classes) # unzip
+        obs_points = [ceil(p * env.sample_points) for p in obs_points] # number of points to reconstruct for each class
+        obs_indices = {name: all_classes.index(name) for name in obs_names}
+        print(f'MultiFilter: {obs_names} with {obs_points} points each')
         model = Lit(
-            MultiFilterAE(encoder_backbone, class_points=class_points, bottlenecks=class_bottlenecks),
-            MultiFilterChamferDistance(classes),
+            MultiFilterAE(encoder_backbone, class_names=obs_names, class_points=obs_points, bottlenecks=obs_bottlenecks),
+            MultiFilterChamferDistance(obs_indices),
             log_info=model_type
         )
         dataset = lambda input_dir: \
