@@ -46,6 +46,33 @@ def FilterAE(preencoder, out_points, bottleneck=16):
     decoder = PCDecoder(bottleneck, out_points, out_dim=3, hidden_sizes=[256, 512])
     return PCEncoderDecoder(encoder, decoder)
 
+class MultiFilterAE(nn.Module):
+    def __init__(self, preencoder, class_points, bottlenecks):
+        super().__init__()
+        self.class_points = class_points
+        self.bottlenecks = bottlenecks
+        assert(len(class_points) == len(bottlenecks))
+        self.preencoder = preencoder
+        self.autoencoders = nn.ModuleList([
+            PCEncoderDecoder(
+                encoder=nn.Sequential(
+                    nn.Linear(preencoder.ENCODING_DIM, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, bottleneck),
+                    # nn.ReLU()?
+                ),
+                decoder=PCDecoder(bottleneck, num_points, out_dim=3, hidden_sizes=[256, 512])
+            )
+            for bottleneck, num_points in zip(bottlenecks, class_points)
+        ])
+    
+    def forward(self, X):
+        self.global_encoding = self.preencoder(X)
+        return [ae(self.global_encoding) for ae in self.autoencoders]
+
+
 
 
 ###### Point Cloud Encoders ######

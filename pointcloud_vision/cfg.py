@@ -18,7 +18,7 @@ debug = True
 
 ########## Vision: Model and Training Settings ##########
 
-models = ['Autoencoder', 'Segmenter', 'GTEncoder', 'GTDecoder', 'GTSegmenter', 'ObjectFilter']
+models = ['Autoencoder', 'Segmenter', 'GTEncoder', 'GTDecoder', 'GTSegmenter', 'ObjectFilter', 'MultiFilter']
 encoder_backbones = ['PointNet', 'PointNet2', 'PointMLP', 'PointMLPE']
 
 bottleneck_size = 16 # TODO: should depend on the env and the model

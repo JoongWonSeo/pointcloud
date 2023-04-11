@@ -205,7 +205,6 @@ def mean_cube_pos(Y):
 
 class ChamferDistance:
     def __call__(self, pred, target):
-        #TODO: feature loss
         return pytorch3d_loss.chamfer_distance(pred, target)[0]
 
 class FilteringChamferDistance:
@@ -223,8 +222,22 @@ class FilteringChamferDistance:
         # pad and stack filtered point clouds
         target = torch.stack([F.pad(p, (0, 0, 0, max_points - p.shape[0])) for p in filtered]).to(dtype=dtype)
 
-        # TODO: feature loss
         return pytorch3d_loss.chamfer_distance(pred, target, y_lengths=torch.tensor(num_points, device=device))[0]
+
+class MultiFilterChamferDistance:
+    def __init__(self, classes):
+        '''
+        This loss function is for MultiFilterAE, which outputs C many filtered point clouds, one for each class
+        Therefore the predicted output is a list of C point clouds, and the target is a single segmented point cloud,
+        which this loss function will automatically filter for each class, and then compute the chamfer distance
+        '''
+        self.classes = classes
+        self.classs_losses = [FilteringChamferDistance(FilterClasses([c], seg_dim=3)) for c in classes]
+
+    def __call__(self, pred, target):
+        loss_per_class = torch.stack([loss(pred[i], target) for i, loss in enumerate(self.classs_losses)])
+        # weight_per_class = torch.ones_like(loss_per_class) / len(loss_per_class)
+        return loss_per_class.sum()
 
 class EarthMoverDistance:
     def __init__(self, eps = 0.002, its = 10000, num_classes=None, feature_weight=0.1):

@@ -48,7 +48,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     ae = ae.to(cfg.device)
     ae.eval()
 
-    if model in ['Segmenter', 'GTSegmenter', 'ObjectFilter']:
+    if model in ['Segmenter', 'GTSegmenter', 'ObjectFilter', 'MultiFilter']:
         classes = env_cfg.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
@@ -133,10 +133,23 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             target_gt = mean_cube_pos(target)
             pred_gt = pred.mean(axis=0)
 
-            print('target_cube_pos', target_gt)
-            print(pred)
             # if view_mode != 'overlap':
             #     print('ObjectFilter only supports overlap view mode')
+            #     view_mode = 'overlap'
+        
+        if model == 'MultiFilter':
+            pred = ae(orig.to(cfg.device).unsqueeze(0))[0].squeeze(0).detach().cpu().numpy()
+
+            target_pc = target
+            target_feature = 'seg'
+            pred_pc = np.concatenate([pred, np.zeros_like(pred)], axis=1)
+            pred_pc[:, 3:] = np.array([1, 0, 0])
+
+            target_gt = mean_cube_pos(target)
+            pred_gt = pred.mean(axis=0)
+
+            # if view_mode != 'overlap':
+            #     print('MultiFilter only supports overlap view mode')
             #     view_mode = 'overlap'
 
 

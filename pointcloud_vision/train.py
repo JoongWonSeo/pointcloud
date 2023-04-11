@@ -10,9 +10,9 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.pc_encoders import AE, SegAE, FilterAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
+from pointcloud_vision.models.pc_encoders import AE, SegAE, FilterAE, MultiFilterAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
-from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, EarthMoverDistance, seg_to_color
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, MultiFilterChamferDistance, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_vision
 
 
@@ -157,13 +157,34 @@ def create_model(model_type, backbone, env, load_dir=None):
     elif model_type == 'ObjectFilter':
         OBS_C = len(env.obs_classes) # the number of classes to reconstruct
         assert(OBS_C == 1)
-        all_classes = [name for (name, _) in env.classes]
-        classes = [all_classes.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
+        class_names = [name for (name, _) in env.classes]
+        classes = [class_names.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
         class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
         print(f'ObjectFilter: {classes} with {class_points} points each')
         model = Lit(
             FilterAE(encoder_backbone, out_points=sum(class_points), bottleneck=cfg.bottleneck_size),
             FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
+            log_info=model_type
+        )
+        dataset = lambda input_dir: \
+            PointCloudDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                out_features=['segmentation'],
+                in_transform=Normalize(env.bbox),
+                out_transform=Normalize(env.bbox)
+            )
+    
+    elif model_type == 'MultiFilter':
+        OBS_C = len(env.obs_classes) # the number of classes to reconstruct
+        class_names = [name for (name, _) in env.classes]
+        classes = [class_names.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
+        class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
+        class_bottlenecks = [dim for (_, dim) in env.obs_dims]
+        print(f'MultiFilter: {classes} with {class_points} points each')
+        model = Lit(
+            MultiFilterAE(encoder_backbone, class_points=class_points, bottlenecks=class_bottlenecks),
+            MultiFilterChamferDistance(classes),
             log_info=model_type
         )
         dataset = lambda input_dir: \
