@@ -217,7 +217,7 @@ class FilteringChamferDistance:
         pred = pred.to(dtype=dtype)
 
         # filter each point cloud in the batch individually
-        filtered = [self.filter(p) for p in target]
+        filtered = [self.filter(p)[:, :3] for p in target]
         num_points = [p.shape[0] for p in filtered]
         max_points = max(num_points)
         # pad and stack filtered point clouds

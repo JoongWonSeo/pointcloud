@@ -48,7 +48,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     ae = ae.to(cfg.device)
     ae.eval()
 
-    if model in ['Segmenter', 'GTSegmenter', 'FilteringSegmenter']:
+    if model in ['Segmenter', 'GTSegmenter', 'ObjectFilter']:
         classes = env_cfg.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
@@ -122,22 +122,21 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             target_gt = mean_cube_pos(target)
             pred_gt = mean_cube_pos(pred)
         
-        if model == 'FilteringSegmenter':
+        if model == 'ObjectFilter':
             pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-            pred = to_label(pred) # one hot to integer label (target is already integer label)
 
             target_pc = target
             target_feature = 'seg'
-            pred_pc = pred
-            pred_feature = 'seg'
+            pred_pc = np.concatenate([pred, np.zeros_like(pred)], axis=1)
+            pred_pc[:, 3:] = np.array([1, 0, 0])
             
             target_gt = mean_cube_pos(target)
-            # pred_gt = mean_cube_pos(pred)
+            pred_gt = pred.mean(axis=0)
 
             print('target_cube_pos', target_gt)
             print(pred)
             # if view_mode != 'overlap':
-            #     print('FilteringSegmenter only supports overlap view mode')
+            #     print('ObjectFilter only supports overlap view mode')
             #     view_mode = 'overlap'
 
 

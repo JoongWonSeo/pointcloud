@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.pc_encoders import AE, SegAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
+from pointcloud_vision.models.pc_encoders import AE, SegAE, FilterAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
 from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_vision
@@ -123,6 +123,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox)
             )
     
+    # only for testing
     elif model_type == 'GTDecoder':
         model = Lit(
             PCDecoder(encoding_dim=env.gt_dim, out_points=env.sample_points, out_dim=6),
@@ -137,6 +138,7 @@ def create_model(model_type, backbone, env, load_dir=None):
                 swap_xy=True
             )
     
+    # only for testing
     elif model_type == 'GTSegmenter':
         C = len(env.classes)
         model = Lit(
@@ -152,15 +154,16 @@ def create_model(model_type, backbone, env, load_dir=None):
                 swap_xy=True
             )
     
-    elif model_type == 'FilteringSegmenter':
+    elif model_type == 'ObjectFilter':
         OBS_C = len(env.obs_classes) # the number of classes to reconstruct
+        assert(OBS_C == 1)
         all_classes = [name for (name, _) in env.classes]
         classes = [all_classes.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
         class_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
-        print(f'FilteringSegmenter: {classes} with {class_points} points each')
+        print(f'ObjectFilter: {classes} with {class_points} points each')
         model = Lit(
-            SegAE(encoder_backbone, num_classes=OBS_C, out_points=sum(class_points), bottleneck=cfg.bottleneck_size),
-            FilteringChamferDistance(FilterClasses(classes, seg_dim=3)), #TODO: make this per-class CD, not just CD. Important for multi-class
+            FilterAE(encoder_backbone, out_points=sum(class_points), bottleneck=cfg.bottleneck_size),
+            FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
             log_info=model_type
         )
         dataset = lambda input_dir: \
