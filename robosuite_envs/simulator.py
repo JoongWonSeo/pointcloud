@@ -51,7 +51,7 @@ while run:
             print('s', end='')
         
         if env.viewer.is_pressed('g'):
-            env.show_frame(env.episode_goal_state, None)
+            env.show_frame(env.goal_state, None)
 
         if terminated or truncated:
             break

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.architectures import AE, SegAE, FilterAE, MultiSegAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
+from pointcloud_vision.models.architectures import AE, SegAE, MultiSegAE, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
 from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, SegmentingChamferDistance, EarthMoverDistance, seg_to_color
 from robosuite_envs.envs import cfg_scene

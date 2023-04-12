@@ -34,7 +34,7 @@ ep_reward = 0
 while True:
     action, _states = policy.predict(obs, deterministic=True)
     obs, reward, terminated, truncated, info = env.step(action)
-    ep_reward += bool(np.linalg.norm(env.episode_goal_state['robot0_eef_pos'] - env.raw_state['robot0_eef_pos']) < 0.05) - 1
+    ep_reward += bool(np.linalg.norm(env.goal_state['robot0_eef_pos'] - env.raw_state['robot0_eef_pos']) < 0.05) - 1
     env.render()
     if terminated or truncated:
         print(('success' if info['is_success'] else 'failure')+' reward: '+str(ep_reward))  

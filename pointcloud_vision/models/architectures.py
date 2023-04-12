@@ -14,13 +14,13 @@ backbone_factory = {
 }
 
 
-
 # some are pre-defined model factories, pretends to be a class, hence the PascalCase
 
-
 ###### Point Cloud Autoencoder Architectures ######
-
 class PCEncoderDecoder(nn.Module):
+    '''
+    Generic point cloud autoencoder for global scene encoding
+    '''
     def __init__(self, encoder, decoder):
         super().__init__()
         self.encoder = encoder
@@ -32,18 +32,13 @@ class PCEncoderDecoder(nn.Module):
         return self.decoder(self.encoding)
 
 def AE(preencoder, out_points=2048, out_dim=6, bottleneck=16):
-    encoder = Bottle(preencoder, bottleneck)
+    encoder = PCEncoder(preencoder, bottleneck, output_activation=None)
     decoder = PCDecoder(bottleneck, out_points, out_dim)
     return PCEncoderDecoder(encoder, decoder)
 
 def SegAE(preencoder, num_classes, out_points=2048, bottleneck=16):
-    encoder = Bottle(preencoder, bottleneck)
+    encoder = PCEncoder(preencoder, bottleneck, output_activation=None)
     decoder = PCSegmenter(bottleneck, out_points, num_classes)
-    return PCEncoderDecoder(encoder, decoder)
-
-def FilterAE(preencoder, out_points, bottleneck=16):
-    encoder = Bottle(preencoder, bottleneck)
-    decoder = PCDecoder(bottleneck, out_points, out_dim=3, hidden_sizes=[256, 512])
     return PCEncoderDecoder(encoder, decoder)
 
 class MultiSegAE(nn.Module):
@@ -53,14 +48,7 @@ class MultiSegAE(nn.Module):
         self.preencoder = preencoder
         self.autoencoders = nn.ModuleDict({
             name: PCEncoderDecoder(
-                encoder=nn.Sequential(
-                    nn.Linear(preencoder.ENCODING_DIM, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, 256),
-                    nn.ReLU(),
-                    nn.Linear(256, bottleneck),
-                    # nn.ReLU()?
-                ),
+                encoder=MLP(preencoder.ENCODING_DIM, bottleneck, hidden_sizes=[512, 256], output_activation=None),
                 decoder=PCDecoder(bottleneck, num_points, out_dim=3, hidden_sizes=[256, 512])
             )
             for name, num_points, bottleneck in name_points_dims
@@ -88,84 +76,67 @@ class MultiSegAE(nn.Module):
         return torch.cat([sub_ae.encoding for sub_ae in self.autoencoders.values()], dim=1)
     
 
-
-
-
 ###### Point Cloud Encoders ######
-
-def Bottle(preencoder, bottleneck_dim):
+def PCEncoder(preencoder, bottleneck_dim, hidden_sizes=[], output_activation=None):
+    #TODO: compare with sigmoid or other activation functions
     return nn.Sequential(
         preencoder,
-        nn.Linear(preencoder.ENCODING_DIM, bottleneck_dim),
-        nn.ReLU() #TODO: compare with sigmoid or other activation functions
+        *MLP(
+            input_size=preencoder.ENCODING_DIM,
+            hidden_sizes=hidden_sizes,
+            output_size=bottleneck_dim,
+            activation=nn.ReLU,
+            output_activation=output_activation
+        ).children()
     )
 
 
-def GTEncoder(preencoder, out_dim):
+def GTEncoder(preencoder, out_dim, hidden_sizes=[512, 256, 128], output_activation=nn.Sigmoid):
     return nn.Sequential(
-            preencoder,
-            nn.Linear(preencoder.ENCODING_DIM, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, out_dim),
-            nn.Sigmoid(),
+        preencoder,
+        *MLP(
+            input_size=preencoder.ENCODING_DIM,
+            hidden_sizes=hidden_sizes,
+            output_size=out_dim,
+            activation=nn.ReLU,
+            output_activation=output_activation
+        ).children()
     )
 
 
 ###### Point Cloud Decoders ######
-
-# def PCDecoder(encoding_dim, out_points, out_dim):
-#     return nn.Sequential(
-#             nn.Linear(encoding_dim, 512),
-#             nn.ReLU(),
-#             nn.Linear(512, 1024),
-#             nn.ReLU(),
-#             nn.Linear(1024, 2048),
-#             nn.ReLU(),
-#             nn.Linear(2048, out_points * out_dim),
-#             nn.Sigmoid(),
-#             nn.Unflatten(1, (out_points, out_dim))
-#     )
-
 def PCDecoder(encoding_dim, out_points, out_dim, hidden_sizes=[512, 1024, 2048]):
     '''
     Creates a simple FC MLP decoder with a variable number of hidden layers.
     The input layer is the encoding dimension, the output layer is the number of points * the dimension of each point.
     '''
-    # input layer
-    layers = [nn.Linear(encoding_dim, hidden_sizes[0])]
-    # hidden layers
-    for i in range(len(hidden_sizes) - 1):
-        layers.append(nn.ReLU())
-        layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i+1]))
-    layers.append(nn.ReLU())
-    # output layer
-    layers.append(nn.Linear(hidden_sizes[-1], out_points * out_dim))
-    # output activation
-    layers.append(nn.Sigmoid())
-    layers.append(nn.Unflatten(1, (out_points, out_dim)))
-    return nn.Sequential(*layers)
-
+    return nn.Sequential(
+        *MLP(
+            input_size=encoding_dim,
+            hidden_sizes=hidden_sizes,
+            output_size=out_points * out_dim,
+            activation=nn.ReLU,
+            output_activation=nn.Sigmoid
+        ).children(),
+        nn.Unflatten(1, (out_points, out_dim))
+    )
 
 class PCSegmenter(nn.Module):
-    def __init__(self, encoding_dim, out_points, num_classes):
+    def __init__(self, encoding_dim, out_points, num_classes, hidden_sizes=[512, 1024, 2048]):
         super().__init__()
 
         self.out_points = out_points
         self.num_classes = num_classes
         out_dim = 3 + num_classes # 3 for xyz, num_classes for class probabilities
         self.segmenter = nn.Sequential(
-                nn.Linear(encoding_dim, 512),
-                nn.ReLU(),
-                nn.Linear(512, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 2048),
-                nn.ReLU(),
-                nn.Linear(2048, out_points * out_dim),
-                nn.Unflatten(1, (out_points, out_dim))
+            *MLP(
+                input_size=encoding_dim,
+                hidden_sizes=hidden_sizes,
+                output_size=out_points * out_dim,
+                activation=nn.ReLU,
+                output_activation=None
+            ).children(),
+            nn.Unflatten(1, (out_points, out_dim))
         )
     
     def forward(self, X):
@@ -179,20 +150,27 @@ class PCSegmenter(nn.Module):
         return torch.cat((xyz, seg), dim=2)
 
 
-class PCMultiDecoder(nn.Module):
-    def __init__(self, encoding_dim, decoder_sizes, decoder_hidden_sizes=[512]):
-        '''
-        Creates a multi-decoder model, where each decoder has a different number of output points.
-        encoding_dim: the dimension of the encoding
-        decoder_sizes: a list of the number of output points for each decoder
-        decoder_hidden_sizes: a list of the hidden layer sizes to be applied to all decoders
-        '''
-        super().__init__()
-        self.decoder_sizes = decoder_sizes
-        self.decoders = nn.ModuleList([
-            PCDecoder(encoding_dim, out_points=size, out_dim=3, hidden_sizes=decoder_hidden_sizes)
-            for size in decoder_sizes
-        ])
+###### Generic Network Architectures ######
+def MLP(input_size, output_size, hidden_sizes, activation=nn.ReLU, output_activation=nn.ReLU):
+    '''
+    Creates a simple FC MLP decoder with a variable number of hidden layers.
+    '''
+    if hidden_sizes is None or len(hidden_sizes) == 0:
+        layers = [nn.Linear(input_size, output_size)]
+        if output_activation is not None:
+            layers.append(output_activation())
+        return nn.Sequential(*layers)
     
-    def forward(self, X):
-        return [decoder(X) for decoder in self.decoders]
+    # input layer
+    layers = [nn.Linear(input_size, hidden_sizes[0])]
+    layers.append(activation())
+    # hidden layers
+    for i in range(len(hidden_sizes) - 1):
+        layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i+1]))
+        layers.append(activation())
+    # output layer
+    layers.append(nn.Linear(hidden_sizes[-1], output_size))
+    if output_activation is not None:
+        layers.append(output_activation())
+    return nn.Sequential(*layers)
+

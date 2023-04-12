@@ -99,17 +99,17 @@ class RoboReach(RobosuiteGoalEnv):
 
         # for visualization of the goal
         def render_goal(env, robo_obs):
-            eef_goal = env.episode_goal_state['robot0_eef_pos']
+            eef_goal = env.goal_state['robot0_eef_pos']
             return np.array([eef_goal]), np.array([[0, 1, 0]])
             
         def render_pred(env, robo_obs):
             predicted_eef = env.encoding
-            eef_goal = env.episode_goal_state['robot0_eef_pos']
+            eef_goal = env.goal_state['robot0_eef_pos']
             return np.array([predicted_eef, eef_goal]), np.array([[1, 0, 0], [0, 1, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
-            robo_kwargs=robo_kwargs[self.task],
+            robo_kwargs=robo_kwargs[self.scene],
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
@@ -181,12 +181,12 @@ class RoboPush(RobosuiteGoalEnv):
         # for cube-only goal
         def render_goal_obs(env, robo_obs):
             encoded_cube = env.encoding
-            cube_goal = env.episode_goal_encoding
+            cube_goal = env.goal_encoding
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
-            robo_kwargs=robo_kwargs[self.task],
+            robo_kwargs=robo_kwargs[self.scene],
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
@@ -253,12 +253,12 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
         # for visualization of the goal
         def render_goal_obs(env, robo_obs):
             encoded_cube = env.encoding
-            cube_goal = env.episode_goal_encoding
+            cube_goal = env.goal_encoding
             return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
-            robo_kwargs=robo_kwargs[self.task],
+            robo_kwargs=robo_kwargs[self.scene],
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
