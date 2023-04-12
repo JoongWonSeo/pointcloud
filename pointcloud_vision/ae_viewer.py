@@ -49,7 +49,7 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
     ae.eval()
 
     if model in ['Segmenter', 'GTSegmenter', 'MultiSegmenter']:
-        classes = scene.classes
+        classes = list(zip(scene.classes, scene.class_colors))
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
         class_color = {name: color for name, color in classes}

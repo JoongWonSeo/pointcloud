@@ -46,18 +46,19 @@ cfg_scene['Table'] = cfg_scene['Base'] | {
     'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 
     # class segmentation, the index corresponds to the label value (integer encoding)
-    'classes': ['env', 'arm', 'base', 'gripper'],
-    'class_colors': [[0, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
-    'class_distribution': [0.3, 0.4, 0.05, 0.05], #TODO: from generate_pc
-    'class_gt_dim': [0, 7+7, 0, 3], # 0 will be ignored
-    'class_latent_dim': [0, 7, 0, 3], # 0 will be ignored
+    # cube only exists because it is index 1, but there is no cube in the scene
+    'classes': ['env', 'cube', 'arm', 'base', 'gripper'],
+    'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
+    'class_distribution': [0.3, 0, 0.05, 0.05], #TODO: from generate_pc
+    'class_gt_dim': [0, 0, 7+7, 0, 3], # 0 will be ignored
+    'class_latent_dim': [0, 0, 7, 0, 3], # 0 will be ignored
 }
 
 
 ########## Cube Scene ##########
 # Configs for Envs based on the Robosuite Lift task
 robo_kwargs['Cube'] = robo_kwargs['Table']
-cfg_scene['Cube'] = cfg_scene['Base'] | {
+cfg_scene['Cube'] = cfg_scene['Table'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
 
     # class segmentation, the index corresponds to the label value (integer encoding)
