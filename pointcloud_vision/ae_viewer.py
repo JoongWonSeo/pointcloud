@@ -7,7 +7,7 @@ import torch
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
 from types import SimpleNamespace
-from robosuite_envs.envs import cfg_vision
+from robosuite_envs.envs import cfg_scene
 
 
 def aa_lines(pos, col, length=0.4, res=50):
@@ -27,14 +27,14 @@ def aa_lines(pos, col, length=0.4, res=50):
 def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
-def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', animation_speed=0.1):
-    env_cfg = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
+def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', animation_speed=0.1):
+    scene = SimpleNamespace(**cfg_scene[scene_name]) # dot notation rather than dict notation
 
-    input_dir = f'input/{dataset}/val'
+    input_dir = f'input/{scene_name}/val'
     if model_ver > -1:
-        model_dir = f'output/{dataset}/{model}_{backbone}/version_{model_ver}/checkpoints/'
+        model_dir = f'output/{scene_name}/{model}_{backbone}/version_{model_ver}/checkpoints/'
     else:
-        model_dir = f'output/{dataset}/{model}_{backbone}/'
+        model_dir = f'output/{scene_name}/{model}_{backbone}/'
         model_dir += sorted(map(lambda n: (len(n), n), os.listdir(model_dir)))[-1][1] # lastest version, sorted first by length and then by name
         model_dir += '/checkpoints/'
     model_dir += sorted(os.listdir(model_dir))[-1] # lastest checkpoint
@@ -42,14 +42,14 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
     print('loading model', model_dir)
 
     # load model
-    ae, open_dataset = create_model(model, backbone, env, load_dir=model_dir)
+    ae, open_dataset = create_model(model, backbone, scene_name, load_dir=model_dir)
     ae = ae.model
 
     ae = ae.to(cfg.device)
     ae.eval()
 
-    if model in ['Segmenter', 'GTSegmenter', 'ObjectFilter', 'MultiFilter']:
-        classes = env_cfg.classes
+    if model in ['Segmenter', 'GTSegmenter', 'MultiSegmenter']:
+        classes = scene.classes
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
         class_color = {name: color for name, color in classes}
@@ -91,61 +91,24 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
             target_gt = mean_cube_pos(target)
             pred_gt = mean_cube_pos(pred)
 
-        if model == 'GTEncoder':
-            pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
+        # if model == 'GTEncoder':
+        #     pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
 
-            target_pc = orig
-            target_feature = 'rgb'
-            target_gt = target
-            pred_gt = pred
+        #     target_pc = orig
+        #     target_feature = 'rgb'
+        #     target_gt = target
+        #     pred_gt = pred
 
-            animation_speed = 1 # no animation, makes no sense for this
+        #     animation_speed = 1 # no animation, makes no sense for this
         
-        if model == 'GTDecoder':
-            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-
-            target_pc = target
-            target_feature = 'rgb'
-            pred_pc = pred
-            pred_feature = 'rgb'
-
-            target_gt = orig
-        
-        if model == 'GTSegmenter':
-            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-            pred = to_label(pred) # one hot to integer label (target is already integer label)
-
-            target_pc = target
-            target_feature = 'seg'
-            pred_pc = pred
-            pred_feature = 'seg'
-
-            target_gt = mean_cube_pos(target)
-            pred_gt = mean_cube_pos(pred)
-        
-        if model == 'ObjectFilter':
-            pred = ae(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-
-            target_pc = target
-            target_feature = 'seg'
-            pred_pc = np.concatenate([pred, np.zeros_like(pred)], axis=1)
-            pred_pc[:, 3:] = np.array([1, 0, 0])
-            
-            target_gt = mean_cube_pos(target)
-            pred_gt = pred.mean(axis=0)
-
-            # if view_mode != 'overlap':
-            #     print('ObjectFilter only supports overlap view mode')
-            #     view_mode = 'overlap'
-        
-        if model == 'MultiFilter':
+        if model == 'MultiSegmenter':
             pred = ae(orig.to(cfg.device).unsqueeze(0))
             pred = {name: pc.squeeze(0).detach().cpu().numpy() for name, pc in pred.items()}
             pred = {name: np.concatenate([pc, np.zeros_like(pc)], axis=1) for name, pc in pred.items()}
             for name, pc in pred.items():
                 pc[:, 3:] = np.array(class_color[name])
             pred = np.concatenate(list(pred.values()), axis=0)
-            print('encodings:', {obs: x.encoding.detach().cpu().numpy() for obs, x in ae.autoencoders.items()})
+            print('encodings:', {name: x.encoding.detach().cpu().numpy() for name, x in ae.autoencoders.items()})
 
             target_pc = target
             target_feature = 'seg'
@@ -242,8 +205,7 @@ def main(dataset, env, model, backbone='PointNet2', model_ver=-1, view_mode='ove
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('dataset', type=str)
-    parser.add_argument('env', type=str)
+    parser.add_argument('scene', type=str)
     parser.add_argument('model', type=str)
     parser.add_argument('--backbone', default='PointNet2', type=str)
     parser.add_argument('--model_ver', default=-1, type=int)
@@ -251,4 +213,4 @@ if __name__ == '__main__':
     parser.add_argument('--animation_speed', default=0.1, type=float)
     arg = parser.parse_args()
 
-    main(arg.dataset, arg.env, arg.model, arg.backbone, arg.model_ver, arg.view, arg.animation_speed)
+    main(arg.scene, arg.model, arg.backbone, arg.model_ver, arg.view, arg.animation_speed)

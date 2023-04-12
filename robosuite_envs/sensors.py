@@ -34,7 +34,7 @@ class Sensor(ABC):
         pass
 
 
-class GroundTruthSensor(Sensor):
+class PassthroughSensor(Sensor):
     requires_vision = False
 
     def observe(self, state):

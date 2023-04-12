@@ -10,10 +10,10 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.pc_encoders import AE, SegAE, FilterAE, MultiFilterAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
+from pointcloud_vision.models.architectures import AE, SegAE, FilterAE, MultiSegAE, GTEncoder, PCDecoder, PCSegmenter, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
-from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, MultiFilterChamferDistance, EarthMoverDistance, seg_to_color
-from robosuite_envs.envs import cfg_vision
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, SegmentingChamferDistance, EarthMoverDistance, seg_to_color
+from robosuite_envs.envs import cfg_scene
 
 
 class Lit(pl.LightningModule):
@@ -68,12 +68,9 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def create_model(model_type, backbone, env, load_dir=None):
-    if type(env) == str:
-        env_name = env
-        env = SimpleNamespace(**cfg_vision[env]) # dot notation rather than dict notation
-    else:
-        env_name = env.cfg_name
+def create_model(model_type, backbone, scene, load_dir=None):
+    scene_name = scene
+    scene = SimpleNamespace(**cfg_scene[scene_name]) # dot notation rather than dict notation
 
     # create the model and dataset
     model, dataset = None, None
@@ -81,7 +78,7 @@ def create_model(model_type, backbone, env, load_dir=None):
 
     if model_type == 'Autoencoder':
         model = Lit(
-            AE(encoder_backbone, out_points=env.sample_points, out_dim=6, bottleneck=cfg.bottleneck_size),
+            AE(encoder_backbone, out_points=scene.sample_points, out_dim=6, bottleneck=sum(scene.class_latent_dim)),
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
             log_info=model_type
         )
@@ -90,14 +87,14 @@ def create_model(model_type, backbone, env, load_dir=None):
                 root_dir=input_dir,
                 in_features=['rgb'],
                 out_features=['rgb'],
-                in_transform=Normalize(env.bbox),
-                # out_transform=Normalize(env.bbox), # since x==y identity-wise, only normalize once
+                in_transform=Normalize(scene.bbox),
+                # out_transform=Normalize(scene.bbox), # since x==y identity-wise, only normalize once
             )
 
     elif model_type == 'Segmenter':
-        C = len(env.classes)
+        C = len(scene.classes)
         model = Lit(
-            SegAE(encoder_backbone, num_classes=C, out_points=env.sample_points, bottleneck=cfg.bottleneck_size),
+            SegAE(encoder_backbone, num_classes=C, out_points=scene.sample_points, bottleneck=sum(scene.class_latent_dim)),
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
             log_info=model_type
         )
@@ -106,64 +103,90 @@ def create_model(model_type, backbone, env, load_dir=None):
                 root_dir=input_dir,
                 in_features=['rgb'],
                 out_features=['segmentation'],
-                in_transform=Normalize(env.bbox),
-                out_transform=Normalize(env.bbox)
+                in_transform=Normalize(scene.bbox),
+                out_transform=Normalize(scene.bbox)
             )
 
-    elif model_type == 'GTEncoder':
-        model = Lit(
-            GTEncoder(encoder_backbone, out_dim=env.gt_dim),
-            F.mse_loss
-        )
-        dataset = lambda input_dir: \
-            PointCloudGTDataset(
-                root_dir=input_dir,
-                in_features=['rgb'],
-                in_transform=Normalize(env.bbox),
-                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox)
-            )
+    #region outdated
+    # elif model_type == 'GTEncoder':
+    #     model = Lit(
+    #         GTEncoder(encoder_backbone, out_dim=scene.class_gt_dim),
+    #         F.mse_loss
+    #     )
+    #     dataset = lambda input_dir: \
+    #         PointCloudGTDataset(
+    #             root_dir=input_dir,
+    #             in_features=['rgb'],
+    #             in_transform=Normalize(scene.bbox),
+    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox)
+    #         )
     
-    # only for testing
-    elif model_type == 'GTDecoder':
-        model = Lit(
-            PCDecoder(encoding_dim=env.gt_dim, out_points=env.sample_points, out_dim=6),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
-        )
-        dataset = lambda input_dir: \
-            PointCloudGTDataset(
-                root_dir=input_dir,
-                in_features=['rgb'],
-                in_transform=Normalize(env.bbox),
-                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox),
-                swap_xy=True
-            )
+    # # only for testing
+    # elif model_type == 'GTDecoder':
+    #     model = Lit(
+    #         PCDecoder(encoding_dim=scene.gt_dim, out_points=scene.sample_points, out_dim=6),
+    #         EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
+    #     )
+    #     dataset = lambda input_dir: \
+    #         PointCloudGTDataset(
+    #             root_dir=input_dir,
+    #             in_features=['rgb'],
+    #             in_transform=Normalize(scene.bbox),
+    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox),
+    #             swap_xy=True
+    #         )
     
-    # only for testing
-    elif model_type == 'GTSegmenter':
-        C = len(env.classes)
-        model = Lit(
-            PCSegmenter(encoding_dim=env.gt_dim, out_points=env.sample_points, num_classes=C),
-            EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
-        )
-        dataset = lambda input_dir: \
-            PointCloudGTDataset(
-                root_dir=input_dir,
-                in_features=['segmentation'],
-                in_transform=Normalize(env.bbox),
-                out_transform=pc_encoder.PointCloudGTPredictor.cfgs[env_name]['from_gt'](env.bbox),
-                swap_xy=True
-            )
+    # # only for testing
+    # elif model_type == 'GTSegmenter':
+    #     C = len(scene.classes)
+    #     model = Lit(
+    #         PCSegmenter(encoding_dim=scene.gt_dim, out_points=scene.sample_points, num_classes=C),
+    #         EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
+    #     )
+    #     dataset = lambda input_dir: \
+    #         PointCloudGTDataset(
+    #             root_dir=input_dir,
+    #             in_features=['segmentation'],
+    #             in_transform=Normalize(scene.bbox),
+    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox),
+    #             swap_xy=True
+    #         )
+
+    # elif model_type == 'ObjectFilter':
+    #     OBS_C = len(scene.obs_classes) # the number of classes to reconstruct
+    #     assert(OBS_C == 1)
+    #     class_names = [name for (name, _) in scene.classes]
+    #     classes = [class_names.index(c) for (c, _) in scene.obs_classes] # index of classes to reconstruct
+    #     obs_points = [ceil(p * scene.sample_points) for (_, p) in scene.obs_classes] # number of points to reconstruct for each class
+    #     print(f'ObjectFilter: {classes} with {obs_points} points each')
+    #     model = Lit(
+    #         FilterAE(encoder_backbone, out_points=sum(obs_points), bottleneck=cfg.bottleneck_size),
+    #         FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
+    #         log_info=model_type
+    #     )
+    #     dataset = lambda input_dir: \
+    #         PointCloudDataset(
+    #             root_dir=input_dir,
+    #             in_features=['rgb'],
+    #             out_features=['segmentation'],
+    #             in_transform=Normalize(scene.bbox),
+    #             out_transform=Normalize(scene.bbox)
+    #         )
+        
+    #endregion
     
-    elif model_type == 'ObjectFilter':
-        OBS_C = len(env.obs_classes) # the number of classes to reconstruct
-        assert(OBS_C == 1)
-        class_names = [name for (name, _) in env.classes]
-        classes = [class_names.index(c) for (c, _) in env.obs_classes] # index of classes to reconstruct
-        obs_points = [ceil(p * env.sample_points) for (_, p) in env.obs_classes] # number of points to reconstruct for each class
-        print(f'ObjectFilter: {classes} with {obs_points} points each')
+    elif model_type == 'MultiSegmenter':
+        name_points_dims = [ #(class name, number of points, latent dimension)
+            (n, ceil(p*scene.sample_points), d)
+            for (n, p, d) in zip(scene.classes, scene.class_distribution, scene.class_latent_dim)
+            if d>0
+        ]
+        name_indices = {n: scene.classes.index(n) for (n, _, _) in name_points_dims}
+        print(f'MultiFilter: {name_points_dims}')
+        
         model = Lit(
-            FilterAE(encoder_backbone, out_points=sum(obs_points), bottleneck=cfg.bottleneck_size),
-            FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
+            MultiSegAE(encoder_backbone, name_points_dims),
+            SegmentingChamferDistance(name_indices),
             log_info=model_type
         )
         dataset = lambda input_dir: \
@@ -171,29 +194,8 @@ def create_model(model_type, backbone, env, load_dir=None):
                 root_dir=input_dir,
                 in_features=['rgb'],
                 out_features=['segmentation'],
-                in_transform=Normalize(env.bbox),
-                out_transform=Normalize(env.bbox)
-            )
-    
-    elif model_type == 'MultiFilter':
-        OBS_C = len(env.obs_classes) # the number of classes to reconstruct
-        all_classes = [name for (name, _) in env.classes]
-        obs_names, obs_points, obs_bottlenecks = zip(*env.obs_classes) # unzip
-        obs_points = [ceil(p * env.sample_points) for p in obs_points] # number of points to reconstruct for each class
-        obs_indices = {name: all_classes.index(name) for name in obs_names}
-        print(f'MultiFilter: {obs_names} with {obs_points} points each')
-        model = Lit(
-            MultiFilterAE(encoder_backbone, class_names=obs_names, class_points=obs_points, bottlenecks=obs_bottlenecks),
-            MultiFilterChamferDistance(obs_indices),
-            log_info=model_type
-        )
-        dataset = lambda input_dir: \
-            PointCloudDataset(
-                root_dir=input_dir,
-                in_features=['rgb'],
-                out_features=['segmentation'],
-                in_transform=Normalize(env.bbox),
-                out_transform=Normalize(env.bbox)
+                in_transform=Normalize(scene.bbox),
+                out_transform=Normalize(scene.bbox)
             )
 
     else:
@@ -207,10 +209,10 @@ def create_model(model_type, backbone, env, load_dir=None):
     return model, dataset
 
 
-def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None, dataset_dir=None):
-    model, open_dataset = create_model(model_type, backbone, env=dataset)
+def train(model_type, backbone, scene, epochs, batch_size, ckpt_path=None, dataset_dir=None):
+    model, open_dataset = create_model(model_type, backbone, scene=scene)
 
-    dataset_dir = dataset_dir or dataset
+    dataset_dir = dataset_dir or scene
 
     # Train the created model and dataset
     if model and open_dataset:
@@ -253,9 +255,9 @@ def train(model_type, backbone, dataset, epochs, batch_size, ckpt_path=None, dat
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train or evaluate a vision module')
-    parser.add_argument('dataset', type=str)
+    parser.add_argument('scene', type=str)
     parser.add_argument('model', choices=cfg.models)
-    parser.add_argument('--dataset_dir', default=None, type=str)
+    parser.add_argument('--scene_dir', default=None, type=str)
     parser.add_argument('--backbone', choices=cfg.encoder_backbones, default='PointNet2')
     parser.add_argument('--batch_size', default=cfg.vision_batch_size, type=int,
                         help='batch size for training')
@@ -268,4 +270,4 @@ if __name__ == '__main__':
 
     print(f'device = {cfg.device}')
 
-    train(a.model, a.backbone, a.dataset, a.epochs, a.batch_size, a.ckpt, a.dataset_dir)
+    train(a.model, a.backbone, a.scene, a.epochs, a.batch_size, a.ckpt, a.scene_dir)

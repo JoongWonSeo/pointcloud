@@ -46,13 +46,9 @@ def FilterAE(preencoder, out_points, bottleneck=16):
     decoder = PCDecoder(bottleneck, out_points, out_dim=3, hidden_sizes=[256, 512])
     return PCEncoderDecoder(encoder, decoder)
 
-class MultiFilterAE(nn.Module):
-    def __init__(self, preencoder, class_names, class_points, bottlenecks):
+class MultiSegAE(nn.Module):
+    def __init__(self, preencoder, name_points_dims):
         super().__init__()
-        self.class_names = class_names
-        self.class_points = class_points
-        self.bottlenecks = bottlenecks
-        assert(len(class_names) == len(class_points) == len(bottlenecks))
         self.preencoder = preencoder
         self.autoencoders = nn.ModuleDict({
             name: PCEncoderDecoder(
@@ -66,7 +62,7 @@ class MultiFilterAE(nn.Module):
                 ),
                 decoder=PCDecoder(bottleneck, num_points, out_dim=3, hidden_sizes=[256, 512])
             )
-            for name, bottleneck, num_points in zip(class_names, bottlenecks, class_points)
+            for name, num_points, bottleneck in name_points_dims
         })
     
     def forward(self, X):

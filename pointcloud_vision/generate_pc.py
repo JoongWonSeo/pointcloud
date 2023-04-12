@@ -40,8 +40,8 @@ for r in range(runs):
 
     if arg.show_distribution:
         # save goal
-        if env.episode_goal_encoding.shape[0] == 3: # assume it's a point
-            x, y, z = env.episode_goal_encoding
+        if env.goal_encoding.shape[0] == 3: # assume it's a point
+            x, y, z = env.goal_encoding
             goal = np.array([[x, y, z, 0, 1, 0]])
             all_goals = np.concatenate((all_goals, goal))
     
@@ -68,7 +68,7 @@ for r in range(runs):
         np.savez(
             f'{arg.dir}/{step}.npz',
             ground_truth=ground_truth,
-            classes=np.array(env.classes, dtype=object),
+            classes=np.array({n: c for (n,c) in zip(env.classes, env.class_colors)}, dtype=object),
             **obs
         )
 

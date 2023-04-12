@@ -1,21 +1,21 @@
 from gymnasium.envs.registration import register
-from .envs import RobosuiteReach, RobosuitePush, RobosuitePickAndPlace
+from .envs import RoboReach, RoboPush, RoboPickAndPlace
 
 register(
-    id='RobosuiteReach-v0',
-    entry_point=RobosuiteReach,
+    id='RoboReach-v0',
+    entry_point=RoboReach,
     max_episode_steps=50,
 )
 
 register(
-    id='RobosuitePush-v0',
-    entry_point=RobosuitePush,
+    id='RoboPush-v0',
+    entry_point=RoboPush,
     max_episode_steps=50,
 )
 
 register(
-    id='RobosuitePickAndPlace-v0',
-    entry_point=RobosuitePickAndPlace,
+    id='RoboPickAndPlace-v0',
+    entry_point=RoboPickAndPlace,
     max_episode_steps=50,
 )
 

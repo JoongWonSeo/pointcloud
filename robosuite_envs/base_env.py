@@ -10,7 +10,7 @@ from gymnasium.spaces import Box, Dict
 import robosuite as suite
 from robosuite.utils.camera_utils import CameraMover, get_camera_transform_matrix
 from robosuite.controllers import load_controller_config
-from .encoders import GroundTruthEncoder, ObservationEncoder
+from .encoders import PassthroughEncoder, ObservationEncoder, flatten_observations, flatten_robosuite_space
 from .utils import UI, to_cv2_img, render, disable_rendering
 
 
@@ -18,13 +18,15 @@ from .utils import UI, to_cv2_img, render, disable_rendering
 class RobosuiteGoalEnv(GoalEnv):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, robo_kwargs, sensor, proprio_encoder, obs_encoder, goal_encoder, render_mode=None, render_info=None, **kwargs):
+    # should be set by the subclass
+    task, scene = None, None
+    proprio_keys, obs_keys, goal_keys = None, None, None
+
+    def __init__(self, robo_kwargs, sensor, encoder, render_mode=None, render_info=None, **kwargs):
         '''
         robo_kwargs: keyward arguments for Robosuite environment to be created
         sensor: Sensor that transforms the ground truth into an observation (S -> O)
-        proprio_encoder: ObservationEncoder that transforms the proprioception into an encoding (P -> P')
-        obs_encoder: ObservationEncoder that transforms an observation into an encoding (O -> E)
-        goal_encoder: ObservationEncoder that transforms an observation into a goal encoding (O -> G)
+        obs_encoder: ObservationEncoder that turns an observation into an encoding and goal (O -> ExG)
         render_mode: str for render mode such as 'human' or None
         render_info: a function that returns array of points and colors to render
         '''
@@ -49,33 +51,36 @@ class RobosuiteGoalEnv(GoalEnv):
 
         self.robo_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs))
         self.sensor = sensor
-        self.proprio_encoder = proprio_encoder
-        self.obs_encoder = obs_encoder
-        self.goal_encoder = goal_encoder
+        self.encoder = encoder
         
-        self.visual_goal = kwargs.get('visual_goal') if kwargs.get('visual_goal') else self.goal_encoder.requires_vision
+        self.visual_goal = kwargs.get('visual_goal', self.encoder.requires_vision)
 
         # cached information about the current episode that is not returned by step()
         self.raw_state = None # raw state from the Robosuite environment
         self.observation = None # observation from the sensor
         self.proprioception = None # proprioception from the robot
         self.encoding = None # encoding from the observation encoder
-        self.episode_goal_state = None # raw goal state from goal_state() function
-        self.episode_goal_obs = None # goal observation from the sensor
-        self.episode_goal_encoding = None # encoding from the goal encoder
+        self.goal_state = None # raw goal state from goal_state() function
+        self.goal_obs = None # goal observation from the sensor
+        self.goal_encoding = None # encoding from the goal encoder
         self.is_episode_success = False
 
 
         #######################
         # for Gym GoalEnv API #
         #######################
+        # note that this observation space refers to what the RL agent sees, which consists of the proprioception, observation and goal
         self.observation_space = Dict({
-            'observation': ObservationEncoder.concat_spaces(self.robo_env, self.proprio_encoder, self.obs_encoder),
-            'achieved_goal': self.goal_encoder.get_space(self.robo_env),
-            'desired_goal': self.goal_encoder.get_space(self.robo_env),
+            'observation': ObservationEncoder.concat_spaces(
+                flatten_robosuite_space(self.robo_env, self.proprio_keys),
+                self.encoder.get_encoding_space(self.robo_env)
+            ),
+            'achieved_goal': self.encoder.get_goal_space(self.robo_env),
+            'desired_goal': self.encoder.get_goal_space(self.robo_env),
         })
         low, high = np.float32(self.robo_env.action_spec[0]), np.float32(self.robo_env.action_spec[1])
         self.action_space = Box(low, high, dtype=np.float32)
+
 
         ###################
         # for rendering   #
@@ -93,7 +98,7 @@ class RobosuiteGoalEnv(GoalEnv):
 
 
         # dummy environment for goal imagination
-        if kwargs.get('goal_env', False) or (self.visual_goal and self.goal_encoder.latent_encoding):
+        if kwargs.get('goal_env', False) or (self.visual_goal and self.encoder.latent_encoding):
             abs_controller = load_controller_config(default_controller="OSC_POSITION")
             abs_controller['control_delta'] = False # desired eef position is absolute
             self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
@@ -103,21 +108,12 @@ class RobosuiteGoalEnv(GoalEnv):
             self.goal_env = None
             # self.goal_cam_movers = None
         
-    
 
     ###################################
     # defined by each individual task #
     ###################################
     @abstractmethod
-    def achieved_goal(self, proprio, obs_encoding):
-        '''
-        function that takes the proprioception and observation encoding and returns the achieved goal in goal space
-        (P, E) -> G
-        '''
-        pass
-
-    @abstractmethod
-    def goal_state(self, state, rerender=False):
+    def desired_goal_state(self, state, rerender=False):
         '''
         function that takes the *initial Robosuite* state and returns the desired goal state as a dict in state space
         S -> S
@@ -128,6 +124,7 @@ class RobosuiteGoalEnv(GoalEnv):
     def check_success(self, achieved, desired, info) -> bool:
         '''
         function that takes (achieved_goal, desired_goal, info) and returns True if the task is completed
+        G x G -> {0, 1}
         '''
         pass
 
@@ -151,18 +148,19 @@ class RobosuiteGoalEnv(GoalEnv):
         '''
         pass
 
+
     #######################
     # for Gym GoalEnv API #
     #######################
-    # TODO: vectorize these functions for batched observations
     def compute_reward(self, achieved_goal, desired_goal, info):
+        '''GxG -> {-1, 0}'''
         return self.check_success(achieved_goal, desired_goal, info) - 1
     
     def compute_truncated(self, achieved_goal, desired_goal, info):
-        return self.robo_env.horizon == self.robo_env.timestep - 1
+        return self.robo_env.horizon == self.robo_env.timestep - 1 #TODO: we use gym wrapper instead
 
     def compute_terminated(self, achieved_goal, desired_goal, info):
-        return False
+        return False # our tasks are continuous
 
 
     def reset(self, *, seed=None, options=None):
@@ -183,21 +181,21 @@ class RobosuiteGoalEnv(GoalEnv):
 
         self.sensor.reset()
 
-        goal_state = self.goal_state(state, rerender=self.visual_goal)
+        goal_state = self.desired_goal_state(state, rerender=self.visual_goal)
 
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)
         goal_obs = self.sensor.observe(goal_state)
 
         # encode the observation into the encoding space (E)
-        proprio = self.proprio_encoder.encode(state)
-        obs_encoding = self.obs_encoder.encode(obs)
-        goal_encoding = self.goal_encoder.encode(goal_obs)
+        proprio = flatten_observations(state, self.proprio_keys)
+        obs_encoding, achieved_goal = self.encoder(obs)
+        goal_encoding = self.encoder.encode_goal(goal_obs)
 
         # create the observation dict for the agent
         peg = {
             'observation': np.concatenate((proprio, obs_encoding), dtype=np.float32),
-            'achieved_goal': self.achieved_goal(proprio, obs_encoding),
+            'achieved_goal': achieved_goal,
             'desired_goal': goal_encoding,
         }
 
@@ -206,9 +204,9 @@ class RobosuiteGoalEnv(GoalEnv):
         self.observation = obs
         self.proprioception = proprio
         self.encoding = obs_encoding
-        self.episode_goal_state = goal_state
-        self.episode_goal_obs = goal_obs
-        self.episode_goal_encoding = goal_encoding
+        self.goal_state = goal_state
+        self.goal_obs = goal_obs
+        self.goal_encoding = goal_encoding
         info = {'is_success': self.is_episode_success}
 
         if self.render_mode == 'human':
@@ -221,39 +219,37 @@ class RobosuiteGoalEnv(GoalEnv):
         # get the next ground-truth state (S)
         state, reward, done, info = self.robo_env.step(action)
 
-        if self.episode_goal_encoding is None: # for if reset() is not called first
-            goal_state = self.goal_state(state, rerender=self.goal_encoder.requires_vision)
+        if self.goal_encoding is None: # for if reset() is not called first
+            goal_state = self.desired_goal_state(state, rerender=self.visual_goal)
             goal_obs = self.sensor.observe(goal_state)
             
             # cache current episode information
-            self.episode_goal_state = goal_state
-            self.episode_goal_obs = goal_obs
-            self.episode_goal_encoding = self.goal_encoder.encode(goal_obs)
+            self.goal_state = goal_state
+            self.goal_obs = goal_obs
+            self.goal_encoding = self.encoder.encode_goal(goal_obs)
         
         # convert the state into an observation (O)
         obs = self.sensor.observe(state)
 
-        # proprioception does not need to be encoded
-        proprio = self.proprio_encoder.encode(state)
-
         # encode the observation into the encoding space (E)
-        obs_encoding = self.obs_encoder.encode(obs)
+        proprio = flatten_observations(state, self.proprio_keys)
+        obs_encoding, achieved_goal = self.encoder(obs)
 
         # create the observation dict for the agent (proprio, encoding, goal)
         peg = {
             'observation': np.concatenate((proprio, obs_encoding), dtype=np.float32),
-            'achieved_goal': self.achieved_goal(proprio, obs_encoding),
-            'desired_goal': self.episode_goal_encoding,
+            'achieved_goal': achieved_goal,
+            'desired_goal': self.goal_encoding,
         }
         if self.is_episode_success:
             info['is_success'] = True
         else:
-            self.is_episode_success = self.check_success(peg['achieved_goal'], peg['desired_goal'], info)
+            self.is_episode_success = self.check_success(achieved_goal, self.goal_encoding, info)
             info['is_success'] = self.is_episode_success
         
-        reward = self.compute_reward(peg['achieved_goal'], peg['desired_goal'], info)
-        terminated = self.compute_terminated(peg['achieved_goal'], peg['desired_goal'], info)
-        truncated = done or self.request_truncate or self.compute_truncated(peg['achieved_goal'], peg['desired_goal'], info)
+        reward = self.compute_reward(achieved_goal, self.goal_encoding, info)
+        terminated = self.compute_terminated(achieved_goal, self.goal_encoding, info)
+        truncated = done or self.request_truncate or self.compute_truncated(achieved_goal, self.goal_encoding, info)
 
         # cache current episode information
         self.raw_state = state
