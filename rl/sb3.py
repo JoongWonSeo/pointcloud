@@ -7,10 +7,10 @@ import pointcloud_vision
 from sb3_contrib import TQC
 from sb3_contrib.tqc.policies import MultiInputPolicy
 
-task, agent = 'GTReach-v0', 'RoboReach-v0'
+# task, agent = 'GTReach-v0', 'RoboReach-v0'
 # task = 'VisionReach-v0'
 # agent = 'VisionReach-v0'
-# task = agent = 'RobosuitePickAndPlace-v0'
+task, agent = 'RoboReach-v0', 'RobosuiteReach-v0'
 
 env = gym.make(task, render_mode='human', max_episode_steps=50)
 # env = DummyVecEnv([lambda: gym.make(task, render_mode='human', max_episode_steps=100)])

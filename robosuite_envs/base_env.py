@@ -121,7 +121,7 @@ class RobosuiteGoalEnv(GoalEnv):
         pass
 
     @abstractmethod
-    def check_success(self, achieved, desired, info) -> bool:
+    def check_success(self, achieved, desired, info, force_gt=False) -> bool:
         '''
         function that takes (achieved_goal, desired_goal, info) and returns True if the task is completed
         G x G -> {0, 1}

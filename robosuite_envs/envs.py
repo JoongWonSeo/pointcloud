@@ -139,11 +139,11 @@ class RoboReach(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info):
+    def check_success(self, achieved, desired, info, force_gt=False):
         axis = 1 if achieved.ndim == 2 else None # batched version or not
-        if self.encoder.latent_encoding:
-            # threshold = np.array([0., 0., 0., 0., 0., 1.4301205, 1.6259564, 1.8243289, 0., 0., 0., 4.081347, 1.8291509, 0., 0.14140771, 0.], dtype=np.float32)
-            threshold = np.array([0., 0., 0., 0., 0., 1.2245406, 1.588274, 1.9326254, 0., 0., 0., 3.5028644, 1.2349489, 0., 0.26512176, 0.], dtype=np.float32)
+        if not force_gt and self.encoder.latent_encoding:
+            # threshold = np.zeros(self.encoder.encoding_dim, dtype=np.float32)
+            threshold = np.array([1.0804849 , 0.15690984, 0.55260617, 0.47639585, 0.10479672, 0.68694496, 0.13635914, 0.7482889 , 0.7138428 , 0.32089424], dtype=np.float32) * 2
             #TODO: threshold should be encoder specific...
             # self.goal_encoder.goal_threshold * 0.05?
 
@@ -216,7 +216,7 @@ class RoboPush(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info):
+    def check_success(self, achieved, desired, info, force_gt=False):
         axis = 1 if achieved.ndim == 2 else None # batched version or not
         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
     
@@ -291,7 +291,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info):
+    def check_success(self, achieved, desired, info, force_gt=False):
         axis = 1 if achieved.ndim == 2 else None # batched version or not
         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 

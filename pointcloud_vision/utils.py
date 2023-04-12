@@ -196,6 +196,7 @@ def mean_cube_pos(Y):
             print("DEBUG: no cube points found")
             return torch.zeros(3)
 
+    # return cube_points.median(dim=0).values
     return cube_points.mean(dim=0)
 
 

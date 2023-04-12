@@ -1,4 +1,4 @@
-from .pc_encoder import PointCloudSensor, PointCloudGTPredictor, GlobalSceneEncoder
+from .pc_encoder import PointCloudSensor, PointCloudGTPredictor, GlobalAEEncoder, GlobalSegmenterEncoder
 
 from gymnasium.envs.registration import register
 from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace
@@ -9,7 +9,7 @@ register(
     max_episode_steps=50,
     kwargs={
         'sensor':PointCloudSensor,
-        'encoder':GlobalSceneEncoder,
+        'encoder':GlobalAEEncoder,
     }
 )
 
