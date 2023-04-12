@@ -45,8 +45,12 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=Fa
     for i in range(runs):
         # reset env and get initial obs
         obs, info = env.reset()
-        gt_goal = gt_encoder.encode_goal(env.goal_obs)
-        success = False
+        gt_goal = gt_encoder.encode_goal(env.goal_state)
+        gt_achieved = gt_encoder.encode_goal(env.raw_state)
+        success = env.check_success(gt_achieved, gt_goal, info=info, force_gt=True)
+        if success:
+            print('WARNING: success right after reset!')
+            # continue
         dist = np.abs(env.goal_encoding - env.encoding)
 
         # per-episode stats
@@ -58,7 +62,6 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=Fa
 
         for t in range(horizon):
             # get actual (ground truth) observation and achieved goal
-            gt_achieved = gt_encoder.encode_goal(env.observation)
             gt_obs = {
                 'observation': np.concatenate((env.proprioception, gt_achieved), dtype=np.float32),
                 'achieved_goal': gt_achieved,
@@ -71,6 +74,8 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=Fa
             obs, reward, terminated, truncated, info = env.step(action)
 
             # determine latent space success
+            gt_achieved = gt_encoder.encode_goal(env.observation)
+
             succ_prev = success # whether previous step was a success
             success = env.check_success(gt_achieved, gt_goal, info=info, force_gt=True)
             if success:
@@ -121,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--horizon', type=int, default=50)
     parser.add_argument('--runs', type=int, default=40)
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--strictness', type=float, default=0.3)
+    parser.add_argument('--strictness', type=float, default=0.2)
     parser.add_argument('--show_distribution', action='store_true')
     arg = parser.parse_args()
 

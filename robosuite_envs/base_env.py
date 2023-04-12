@@ -4,7 +4,9 @@
 
 from abc import abstractmethod
 from copy import deepcopy
+from functools import reduce, wraps
 import numpy as np
+from numpy.testing import assert_equal
 from gymnasium_robotics.core import GoalEnv
 from gymnasium.spaces import Box, Dict
 import robosuite as suite
@@ -273,6 +275,11 @@ class RobosuiteGoalEnv(GoalEnv):
         self.robo_env.close()
         if self.viewer is not None:
             self.viewer.close()
+        if self.goal_env is not None:
+            self.goal_env.close()
+    
+    def __del__(self):
+        self.close()
 
 
     #################
@@ -358,3 +365,25 @@ class RobosuiteGoalEnv(GoalEnv):
             raise Exception('goal_env not set')
             
             
+################# Safty Utils #################
+def assert_correctness(func):
+    # disable correctness check for performance
+    # return func
+
+    if func.__name__ == 'desired_goal_state':
+        # ensure initial state is not changed
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self, state = args[0], args[1]
+            backup = deepcopy(state) # backup the initial state
+
+            result = func(*args, **kwargs)
+            assert_equal(state, backup)
+            # print('Correctness check passed for', func.__name__)
+            
+            return result
+        return wrapper            
+
+    else:
+        print('Warning: no correctness check for', func.__name__, 'implemented, skipping...')
+        return func

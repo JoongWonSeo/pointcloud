@@ -1,9 +1,10 @@
 import numpy as np
 from random import uniform
+from copy import deepcopy
 import robosuite as suite
 from robosuite.controllers import load_controller_config
 
-from .base_env import RobosuiteGoalEnv
+from .base_env import RobosuiteGoalEnv, assert_correctness
 from .encoders import PassthroughEncoder
 from .sensors import PassthroughSensor
 from .utils import apply_preset, set_obj_pos, set_robot_pose, disable_rendering
@@ -123,8 +124,11 @@ class RoboReach(RobosuiteGoalEnv):
         robo_env.sim.forward()
 
     # define environment functions
+    @assert_correctness
     def desired_goal_state(self, state, rerender=False):
+        # desired_state = deepcopy(state) # easy but slow
         desired_state = state.copy() # shallow copy
+        desired_state['robot0_eef_pos'] = np.zeros(3) # important! new array
         desired_state['robot0_eef_pos'][0] = np.random.uniform(-0.2, 0.2)
         desired_state['robot0_eef_pos'][1] = np.random.uniform(-0.2, 0.2)
         desired_state['robot0_eef_pos'][2] = np.random.uniform(0.85, 1.2)
@@ -196,6 +200,7 @@ class RoboPush(RobosuiteGoalEnv):
  
 
     # define environment functions
+    @assert_correctness
     def desired_goal_state(self, state, rerender=False):
         cube_pos = state['cube_pos'].copy()
         # pick random dist and direction to move the cube towards
@@ -268,6 +273,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
  
 
     # define environment functions
+    @assert_correctness
     def desired_goal_state(self, state, rerender=False):
         # goal is the cube position
         cube_pos = state['cube_pos'].copy() # cube position
