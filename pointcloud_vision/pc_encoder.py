@@ -10,43 +10,8 @@ from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize,
 from torchvision.transforms import Compose
 from gymnasium.spaces import Box
 
-class PointCloudSensor(Sensor):
-    '''
-    Sensor that generates a pointcloud from a 2.5D observation
-    observe returns a dict that is compatible with the PointCloudDataset save format,
-    including keys 'points' and features like 'rgb', 'segmentation', and also 'boundingbox' and 'classes'
-    '''
-    requires_vision = True
-
-    def __init__(self, env):
-        super().__init__(env)
-
-        self.features = ['rgb', 'segmentation']
-        self.bbox = torch.as_tensor(env.bbox).to(cfg.device)
-        self.preprocess = Compose([
-            FilterBBox(self.bbox),
-            SampleFurthestPoints(self.env.sample_points),
-        ])
-
-    @property
-    def env_kwargs(self):
-        return super().env_kwargs | {
-            'camera_depths': True,
-            'camera_segmentations': 'class',
-        }
-    
-    def observe(self, state):
-        '''
-        Even though this depends on the self.env.robo_env.sim, it only uses it to get the camera poses, so *as long as the camera poses are the same*, the generated pointclouds will only depend on the given state, even for a different environment (so you can use this for the goal imagination env).
-        '''
-        # generate pointcloud from 2.5D observations
-        pc, feats = multiview_pointcloud(self.env.robo_env.sim, state, self.env.cameras, self.preprocess, self.features, cfg.device)
-        # TODO: currently, the original state is also included in the observation, in order to allow GT Encoders to work as well.
-        return state | {'points': pc, 'boundingbox': self.bbox} | feats
-
 
 ####### Utils #######
-
 def model_path(scene, model, backbone='PointNet2', version=None):
     if version is not None:
         model_dir = f'output/{scene}/{model}_{backbone}/version_{version}/checkpoints/'
@@ -65,6 +30,21 @@ def load_model(scene, model, backbone, version=None):
     lit, _ = create_model(model, backbone, scene, load_dir)
     return lit.model
 
+def save_metadata(data_dict, scene, model, backbone, version=None):
+    '''Use this to save any data alongside the model!'''
+    file = model_path(scene, model, backbone, version)
+    file = file.replace('/checkpoints/', '/metadata/').replace('.ckpt', '.npz')
+    # first create directory if it doesn't exist
+    os.makedirs(os.path.dirname(file), exist_ok=True)
+    np.savez(file, **data_dict)
+    return file
+
+def load_metadata(scene, model, backbone, version=None):
+    file = model_path(scene, model, backbone, version)
+    file = file.replace('/checkpoints/', '/metadata/').replace('.ckpt', '.npz')
+    data = np.load(file)
+    return data
+
 
 
 class GlobalSceneEncoder(ObservationEncoder):
@@ -81,6 +61,11 @@ class GlobalSceneEncoder(ObservationEncoder):
     def __init__(self, env, obs_keys, goal_keys, model, backbone, version=None):
         super().__init__(env, obs_keys, goal_keys)
 
+        self.env = env
+        self.model = model
+        self.backbone = backbone
+        self.version = version
+
         # sanity checks
         if model not in ['Autoencoder', 'Segmenter']:
             raise NotImplementedError()
@@ -89,9 +74,8 @@ class GlobalSceneEncoder(ObservationEncoder):
         self.encoding_dim = sum(env.class_latent_dim)
 
         model = load_model(env.scene, model, backbone, version)
-        # TODO LOAD PRECALIBRATED LATENT THRESHOLD
-        # self.latent_threshold = model.latent_threshold
-
+        self.latent_threshold = self.load_latent_threshold()
+        
         self.pc_encoder = model.encoder.to(cfg.device).eval()
     
     def encode_observation(self, obs):
@@ -114,6 +98,18 @@ class GlobalSceneEncoder(ObservationEncoder):
     
     def get_goal_space(self, robo_env):
         return self.get_encoding_space(robo_env)
+    
+    def load_latent_threshold(self):
+        try:
+            data = load_metadata(self.env.scene, self.model, self.backbone, self.version)
+            return data['latent_threshold']
+        except:
+            print('No latent threshold found! Make sure to calibrate the encoder!')
+            return None
+    
+    def save_latent_threshold(self, threshold):
+        save_metadata({'latent_threshold': threshold}, self.env.scene, self.model, self.backbone, self.version)
+        self.latent_threshold = threshold
 
 
 # Specific Encoders

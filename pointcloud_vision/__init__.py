@@ -1,4 +1,5 @@
-from .pc_encoder import PointCloudSensor, PointCloudGTPredictor, GlobalAEEncoder, GlobalSegmenterEncoder
+from .pc_sensor import PointCloudSensor
+from .pc_encoder import PointCloudGTPredictor, GlobalAEEncoder, GlobalSegmenterEncoder
 
 from gymnasium.envs.registration import register
 from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace

@@ -5,7 +5,8 @@ import robosuite_envs
 from robosuite_envs.base_env import RobosuiteGoalEnv
 import pointcloud_vision
 from robosuite_envs.encoders import PassthroughEncoder
-from pointcloud_vision.pc_encoder import PointCloudSensor, GlobalSceneEncoder
+from pointcloud_vision.pc_sensor import PointCloudSensor
+from pointcloud_vision.pc_encoder import GlobalSceneEncoder
 
 from sb3_contrib.tqc.policies import MultiInputPolicy
 from sb3_contrib import TQC
@@ -23,14 +24,8 @@ from sb3_contrib import TQC
 # (2) a Vision simulation to record the latent space distance desired - acheived,
 # (3) the ground-truth success checker to determine when the agent has reached success.
 
-# vision_task = 'VisionReach-v0'
-# policy_dir = '../rl/weights/'+vision_task.replace('Vision', 'Robo')+'_policy'
-# horizon = 25
-# runs = 2
-# render = True
-# threshold_strictness = 0.3
 
-def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=False, show_progress=False):
+def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold_strictness=0.3, render=False, show_progress=False, save=True):
     env = gym.make(vision_task, render_mode='human' if render else None, max_episode_steps=horizon)
     # assert(isinstance(env, RobosuiteGoalEnv))
     # model = TQC.load('../rl/weights/'+task.replace('Vision', 'Robosuite'), env=env)
@@ -99,7 +94,6 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=Fa
         else:
             print('WARNING: the policy failed in episode', i)
 
-    env.close()
 
     if show_progress:
         print('\ndone')
@@ -108,14 +102,20 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, render=Fa
         all_before_succ = np.stack(all_before_succ)
     if len(all_dists) > 0:
         all_dists = np.stack(all_dists)
-
-    return all_before_succ, all_dists
-
-def calculate_threshold(all_before_succ, all_dists, threshold_strictness=0.3):
+    
     if len(all_before_succ) > 0 and len(all_dists) > 0:
-        return ((1-threshold_strictness) * all_before_succ.mean(axis=0) + threshold_strictness * (all_dists.mean(axis=0)))
+        threshold = ((1-threshold_strictness) * all_before_succ.mean(axis=0) + threshold_strictness * (all_dists.mean(axis=0)))
     else:
-        raise ValueError('No data to calculate threshold')
+        print('Warning: No data to calculate threshold')
+        threshold = None
+
+    if threshold is not None and save:
+        env.encoder.save_latent_threshold(threshold)
+    
+    env.close()
+
+    return threshold, all_before_succ, all_dists
+
 
 
 if __name__ == '__main__':
@@ -128,12 +128,13 @@ if __name__ == '__main__':
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--strictness', type=float, default=0.2)
     parser.add_argument('--show_distribution', action='store_true')
+    parser.add_argument('--dont_save', action='store_true')
     arg = parser.parse_args()
 
-    all_before_succ, all_dists = latent_distributions(arg.vision_task, arg.policy_dir, arg.horizon, arg.runs, arg.render, show_progress=True)
+    threshold, all_before_succ, all_dists = latent_distributions(arg.vision_task, arg.policy_dir, arg.horizon, arg.runs, arg.strictness, arg.render, show_progress=True, save=not arg.dont_save)
 
     print('Suggested latent space threshold:')
-    print(calculate_threshold(all_before_succ, all_dists, arg.strictness).__repr__())
+    print(threshold.__repr__())
 
     if arg.show_distribution:
         # show distribution of distances
