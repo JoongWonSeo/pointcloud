@@ -47,8 +47,9 @@ def FilterAE(preencoder, out_points, bottleneck=16):
     return PCEncoderDecoder(encoder, decoder)
 
 class MultiSegAE(nn.Module):
-    def __init__(self, preencoder, name_points_dims):
+    def __init__(self, preencoder, class_labels, name_points_dims):
         super().__init__()
+        self.class_labels = class_labels
         self.preencoder = preencoder
         self.autoencoders = nn.ModuleDict({
             name: PCEncoderDecoder(
@@ -68,6 +69,24 @@ class MultiSegAE(nn.Module):
     def forward(self, X):
         self.global_encoding = self.preencoder(X)
         return {name: ae(self.global_encoding) for name, ae in self.autoencoders.items()}
+    
+    def reconstruct_labeled(self, X):
+        device = X.device
+        self.global_encoding = self.preencoder(X)
+        class_pcs = {self.class_labels[name]: ae(self.global_encoding) for name, ae in self.autoencoders.items()}
+        # give each pc a label dimension
+        class_pcs = [torch.cat([pc, torch.ones(pc.shape[0], pc.shape[1], 1, device=device) * l], dim=2) for l, pc in class_pcs.items()]
+        # concatenate all pcs
+        return torch.cat(class_pcs, dim=1)
+    
+    @property
+    def local_encodings(self):
+        return {name: sub_ae.encoding for name, sub_ae in self.autoencoders.items()}
+    
+    @property
+    def flat_local_encodings(self):
+        return torch.cat([sub_ae.encoding for sub_ae in self.autoencoders.values()], dim=1)
+    
 
 
 

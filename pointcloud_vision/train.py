@@ -181,12 +181,12 @@ def create_model(model_type, backbone, scene, load_dir=None):
             for (n, p, d) in zip(scene.classes, scene.class_distribution, scene.class_latent_dim)
             if d>0
         ]
-        name_indices = {n: scene.classes.index(n) for (n, _, _) in name_points_dims}
+        class_labels = {n: scene.classes.index(n) for (n, _, _) in name_points_dims}
         print(f'MultiFilter: {name_points_dims}')
-        
+
         model = Lit(
-            MultiSegAE(encoder_backbone, name_points_dims),
-            SegmentingChamferDistance(name_indices),
+            MultiSegAE(encoder_backbone, class_labels, name_points_dims),
+            SegmentingChamferDistance(class_labels),
             log_info=model_type
         )
         dataset = lambda input_dir: \

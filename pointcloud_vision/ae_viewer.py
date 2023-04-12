@@ -52,7 +52,6 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         classes = list(zip(scene.classes, scene.class_colors))
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
-        class_color = {name: color for name, color in classes}
 
     # states
     input_set = open_dataset(input_dir) # dataset of input pointclouds
@@ -102,22 +101,16 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         #     animation_speed = 1 # no animation, makes no sense for this
         
         if model == 'MultiSegmenter':
-            pred = ae(orig.to(cfg.device).unsqueeze(0))
-            pred = {name: pc.squeeze(0).detach().cpu().numpy() for name, pc in pred.items()}
-            pred = {name: np.concatenate([pc, np.zeros_like(pc)], axis=1) for name, pc in pred.items()}
-            for name, pc in pred.items():
-                pc[:, 3:] = np.array(class_color[name])
-            pred = np.concatenate(list(pred.values()), axis=0)
-            print('encodings:', {name: x.encoding.detach().cpu().numpy() for name, x in ae.autoencoders.items()})
+            pred = ae.reconstruct_labeled(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+            print('global encoding:', ae.global_encoding)
+            print('encodings:', ae.local_encodings)
 
             target_pc = target
             target_feature = 'seg'
             pred_pc = pred
-            pred_feature = 'rgb'
-
-            # if view_mode != 'overlap':
-            #     print('MultiFilter only supports overlap view mode')
-            #     view_mode = 'overlap'
+            pred_feature = 'seg'
+            target_gt = mean_cube_pos(target)
+            pred_gt = mean_cube_pos(pred)
 
 
         # assemble the pointclouds        

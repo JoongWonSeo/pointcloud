@@ -108,19 +108,19 @@ class FilterBBox:
         return points[mask]
 
 class FilterClasses:
-    def __init__(self, whitelist, seg_dim):
+    def __init__(self, whitelist, label_dim):
         '''
-        whitelist: list of classes to keep
+        whitelist: list of classes (labels) to keep
         num_classes: number of classes in the dataset
-        seg_dim: dimension index of the segmentation label in the point cloud
+        label_dim: dimension index of the segmentation label in the point cloud
         '''
         self.whitelist = whitelist
-        self.seg_dim = seg_dim
+        self.label_dim = label_dim
     
     def __call__(self, points):
         # only keep points that are in the whitelist
-        seg = points[:, self.seg_dim].long() # (N,)
-        mask = reduce(torch.logical_or, [seg == v for v in self.whitelist])
+        label = points[:, self.label_dim].long() # (N,)
+        mask = reduce(torch.logical_or, [label == v for v in self.whitelist])
         return points[mask, :]
 
 class Normalize:
@@ -225,14 +225,14 @@ class FilteringChamferDistance:
         return pytorch3d_loss.chamfer_distance(pred, target, y_lengths=torch.tensor(num_points, device=device))[0]
 
 class SegmentingChamferDistance:
-    def __init__(self, class_names_index):
+    def __init__(self, class_labels):
         '''
         This loss function is for MultiFilterAE, which outputs C many filtered point clouds, one for each class
         Therefore the predicted output is {class_name: point clouds}, and the target is a single segmented point cloud,
         which this loss function will automatically filter for each class, and then compute the chamfer distance
-        class_names_index: dictionary mapping class names to their index in the one-hot encoded segmentation label
+        class_labels: dictionary mapping class names to their label (index) in the one-hot encoded segmentation label
         '''
-        self.classs_losses = {c: FilteringChamferDistance(FilterClasses([i], seg_dim=3)) for c, i in class_names_index.items()}
+        self.classs_losses = {c: FilteringChamferDistance(FilterClasses([l], label_dim=3)) for c, l in class_labels.items()}
 
     def __call__(self, pred, target):
         loss_per_class = torch.stack([loss(pred[c], target) for c, loss in self.classs_losses.items()])
