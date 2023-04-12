@@ -146,7 +146,7 @@ class RoboReach(RobosuiteGoalEnv):
     def check_success(self, achieved, desired, info, force_gt=False):
         axis = 1 if achieved.ndim == 2 else None # batched version or not
         if not force_gt and self.encoder.latent_encoding:
-            threshold = self.encoder.latent_threhsold
+            threshold = self.encoder.latent_threshold
             return (np.abs(achieved - desired) <= threshold).all(axis=axis)
         else:
             return np.linalg.norm(achieved - desired, axis=axis) < 0.05
