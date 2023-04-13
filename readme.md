@@ -79,17 +79,17 @@ python ae_viewer.py --view=sidebyside --animation_speed=0.5 Lift Lift Segmenter
 
 Make sure you also have [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3) and [SB3-Contrib](https://github.com/Stable-Baselines-Team/stable-baselines3-contrib) installed.
 ```
-python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000
+python -m rl_zoo3.train --algo tqc --env RoboReach-v0 --progress --tensorboard-log ./output --save-freq 100000
 ```
 
 Multiprocessing (be careful of RAM usage!):
 ```
-python -m rl_zoo3.train --algo tqc --env RobosuiteReach-v0 --progress --tensorboard-log ./output --save-freq 100000 --vec-env subproc -params n_envs:4
+python -m rl_zoo3.train --algo tqc --env RoboReach-v0 --progress --tensorboard-log ./output --save-freq 100000 --vec-env subproc -params n_envs:4
 ```
 
 Viewing the result:  
 ```
-python -m rl_zoo3.enjoy --algo tqc --env RobosuiteReach-v0 --folder ./logs
+python -m rl_zoo3.enjoy --algo tqc --env RoboReach-v0 --folder ./logs
 ```
 
 
