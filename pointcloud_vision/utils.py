@@ -76,7 +76,7 @@ class SampleRandomPoints:
         # sample K points
         points = points[torch.randint(points.shape[0], (self.K,)), :]
 
-        return points
+        return points.float()
 
 class SampleFurthestPoints:
     def __init__(self, K):

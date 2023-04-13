@@ -68,7 +68,7 @@ class Lit(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=cfg.vision_lr)
 
 
-def create_model(model_type, backbone, scene, load_dir=None):
+def create_model(model_type, backbone, scene, load_dir=None, encoder_only=False):
     scene_name = scene
     scene = SimpleNamespace(**cfg_scene[scene_name]) # dot notation rather than dict notation
 
@@ -82,6 +82,8 @@ def create_model(model_type, backbone, scene, load_dir=None):
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
             log_info=model_type
         )
+        if encoder_only:
+            del model.model.decoder
         dataset = lambda input_dir: \
             PointCloudDataset(
                 root_dir=input_dir,
@@ -98,6 +100,8 @@ def create_model(model_type, backbone, scene, load_dir=None):
             EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
             log_info=model_type
         )
+        if encoder_only:
+            del model.model.decoder
         dataset = lambda input_dir: \
             PointCloudDataset(
                 root_dir=input_dir,
@@ -121,6 +125,9 @@ def create_model(model_type, backbone, scene, load_dir=None):
             SegmentingChamferDistance(class_labels),
             log_info=model_type
         )
+        if encoder_only:
+            for ae in model.model.autoencoders.values():
+                del ae.decoder
         dataset = lambda input_dir: \
             PointCloudDataset(
                 root_dir=input_dir,
@@ -149,7 +156,7 @@ def create_model(model_type, backbone, scene, load_dir=None):
         raise NotImplementedError(f'Unknown model type: {model_type}')
     
     if load_dir:
-        model.load_state_dict(torch.load(load_dir)['state_dict'])
+        model.load_state_dict(torch.load(load_dir)['state_dict'], strict=not encoder_only)
     
     model.loss_fn.log = model.log # let the loss function log to tensorboard
 

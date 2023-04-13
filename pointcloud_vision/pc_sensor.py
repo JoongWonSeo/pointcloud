@@ -22,7 +22,7 @@ class PointCloudSensor(Sensor):
         self.bbox = torch.as_tensor(env.bbox).to(cfg.device)
         self.preprocess = Compose([
             FilterBBox(self.bbox),
-            SampleFurthestPoints(self.env.sample_points),
+            env.sampler(env.sample_points),
         ])
 
     @property

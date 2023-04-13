@@ -9,6 +9,8 @@ from .encoders import PassthroughEncoder
 from .sensors import PassthroughSensor
 from .utils import apply_preset, set_obj_pos, set_robot_pose, disable_rendering
 
+from pointcloud_vision.utils import SampleRandomPoints, SampleFurthestPoints
+
 # keyward arguments for Robosuite environment to be created
 robo_kwargs = {}
 # Configuration for each scene
@@ -28,6 +30,7 @@ robo_kwargs['Base'] = {
 cfg_scene['Base'] = {
     'camera_size': (128, 128), # width, height
     'sample_points': 2048, # points in the point cloud
+    'sampler': SampleFurthestPoints, # sampling method
 }
 
 

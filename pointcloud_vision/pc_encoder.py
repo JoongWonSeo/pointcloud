@@ -32,7 +32,7 @@ def metadata_path(scene, model, backbone='PointNet2', version=None):
 
 def load_model(scene, model, backbone, version=None):
     load_dir = model_path(scene, model, backbone, version)
-    lit, _ = create_model(model, backbone, scene, load_dir)
+    lit, _ = create_model(model, backbone, scene, load_dir, encoder_only=True)
     return lit.model
 
 def save_metadata(data_dict, file):
