@@ -41,11 +41,30 @@ def SegAE(preencoder, num_classes, out_points=2048, bottleneck=16):
     decoder = PCSegmenter(bottleneck, out_points, num_classes)
     return PCEncoderDecoder(encoder, decoder)
 
-class MultiSegAE(nn.Module):
-    def __init__(self, preencoder, class_labels, name_points_dims):
+
+class MultiBottle(nn.Module):
+    '''
+    Generic module for preencoder + multiple bottlenecks (+ optionally decoder)
+    '''
+    def __init__(self, preencoder):
         super().__init__()
-        self.class_labels = class_labels
         self.preencoder = preencoder
+        self.autoencoders = nn.ModuleDict()
+    
+    def forward(self, X):
+        self.global_encoding = self.preencoder(X)
+        return {name: ae(self.global_encoding) for name, ae in self.autoencoders.items()}
+    
+    def remove_unused(self, whitelist):
+        blacklist = self.autoencoders.keys() - whitelist
+        for name in blacklist:
+            del self.autoencoders[name]
+
+class MultiSegAE(MultiBottle):
+    def __init__(self, preencoder, class_labels, name_points_dims):
+        super().__init__(preencoder)
+        self.class_labels = class_labels
+
         self.autoencoders = nn.ModuleDict({
             name: PCEncoderDecoder(
                 encoder=MLP(preencoder.ENCODING_DIM, bottleneck, hidden_sizes=[512, 256], output_activation=None),
@@ -53,10 +72,6 @@ class MultiSegAE(nn.Module):
             )
             for name, num_points, bottleneck in name_points_dims
         })
-    
-    def forward(self, X):
-        self.global_encoding = self.preencoder(X)
-        return {name: ae(self.global_encoding) for name, ae in self.autoencoders.items()}
     
     def forward_encoders(self, X):
         self.global_encoding = self.preencoder(X)
@@ -78,17 +93,24 @@ class MultiSegAE(nn.Module):
     @property
     def flat_local_encodings(self):
         return torch.cat([sub_ae.encoding for sub_ae in self.autoencoders.values()], dim=1)
-    
-    def remove_unused(self, whitelist):
-        blacklist = self.autoencoders.keys() - whitelist
-        for name in blacklist:
-            del self.autoencoders[name]
-        print('remaining autoencoders:', self.autoencoders.keys())
+
+class MultiGTEncoder(MultiBottle):
+    def __init__(self, preencoder, state_dims):
+        super().__init__(preencoder)
+
+        self.autoencoders = nn.ModuleDict({
+            name: MLP(
+                input_size=preencoder.ENCODING_DIM,
+                hidden_sizes=[512, 256, 128],
+                output_size=gt_dim,
+                output_activation=nn.Sigmoid
+            )
+            for name, gt_dim in state_dims.items()
+        })
     
 
 ###### Point Cloud Encoders ######
 def PCEncoder(preencoder, bottleneck_dim, hidden_sizes=[], output_activation=None):
-    #TODO: compare with sigmoid or other activation functions
     return nn.Sequential(
         preencoder,
         *MLP(

@@ -10,9 +10,9 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 import lightning.pytorch as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-from pointcloud_vision.models.architectures import AE, SegAE, MultiSegAE, backbone_factory
+from pointcloud_vision.models.architectures import AE, SegAE, MultiSegAE, MultiGTEncoder, backbone_factory
 import pointcloud_vision.pc_encoder as pc_encoder
-from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, SegmentingChamferDistance, EarthMoverDistance, seg_to_color
+from pointcloud_vision.utils import PointCloudDataset, PointCloudGTDataset, Normalize, Unnormalize, OneHotEncode, FilterClasses, ChamferDistance, FilteringChamferDistance, SegmentingChamferDistance, EarthMoverDistance, StatePredictionLoss, seg_to_color
 from robosuite_envs.envs import cfg_scene
 
 
@@ -106,74 +106,6 @@ def create_model(model_type, backbone, scene, load_dir=None):
                 in_transform=Normalize(scene.bbox),
                 out_transform=Normalize(scene.bbox)
             )
-
-    #region outdated
-    # elif model_type == 'GTEncoder':
-    #     model = Lit(
-    #         GTEncoder(encoder_backbone, out_dim=scene.class_gt_dim),
-    #         F.mse_loss
-    #     )
-    #     dataset = lambda input_dir: \
-    #         PointCloudGTDataset(
-    #             root_dir=input_dir,
-    #             in_features=['rgb'],
-    #             in_transform=Normalize(scene.bbox),
-    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox)
-    #         )
-    
-    # # only for testing
-    # elif model_type == 'GTDecoder':
-    #     model = Lit(
-    #         PCDecoder(encoding_dim=scene.gt_dim, out_points=scene.sample_points, out_dim=6),
-    #         EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=None),
-    #     )
-    #     dataset = lambda input_dir: \
-    #         PointCloudGTDataset(
-    #             root_dir=input_dir,
-    #             in_features=['rgb'],
-    #             in_transform=Normalize(scene.bbox),
-    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox),
-    #             swap_xy=True
-    #         )
-    
-    # # only for testing
-    # elif model_type == 'GTSegmenter':
-    #     C = len(scene.classes)
-    #     model = Lit(
-    #         PCSegmenter(encoding_dim=scene.gt_dim, out_points=scene.sample_points, num_classes=C),
-    #         EarthMoverDistance(eps=cfg.emd_eps, its=cfg.emd_iterations, num_classes=C),
-    #     )
-    #     dataset = lambda input_dir: \
-    #         PointCloudGTDataset(
-    #             root_dir=input_dir,
-    #             in_features=['segmentation'],
-    #             in_transform=Normalize(scene.bbox),
-    #             out_transform=pc_encoder.PointCloudGTPredictor.cfgs[scene_name]['from_gt'](scene.bbox),
-    #             swap_xy=True
-    #         )
-
-    # elif model_type == 'ObjectFilter':
-    #     OBS_C = len(scene.obs_classes) # the number of classes to reconstruct
-    #     assert(OBS_C == 1)
-    #     class_names = [name for (name, _) in scene.classes]
-    #     classes = [class_names.index(c) for (c, _) in scene.obs_classes] # index of classes to reconstruct
-    #     obs_points = [ceil(p * scene.sample_points) for (_, p) in scene.obs_classes] # number of points to reconstruct for each class
-    #     print(f'ObjectFilter: {classes} with {obs_points} points each')
-    #     model = Lit(
-    #         FilterAE(encoder_backbone, out_points=sum(obs_points), bottleneck=cfg.bottleneck_size),
-    #         FilteringChamferDistance(FilterClasses(classes, seg_dim=3)),
-    #         log_info=model_type
-    #     )
-    #     dataset = lambda input_dir: \
-    #         PointCloudDataset(
-    #             root_dir=input_dir,
-    #             in_features=['rgb'],
-    #             out_features=['segmentation'],
-    #             in_transform=Normalize(scene.bbox),
-    #             out_transform=Normalize(scene.bbox)
-    #         )
-        
-    #endregion
     
     elif model_type == 'MultiSegmenter':
         name_points_dims = [ #(class name, number of points, latent dimension)
@@ -196,6 +128,21 @@ def create_model(model_type, backbone, scene, load_dir=None):
                 out_features=['segmentation'],
                 in_transform=Normalize(scene.bbox),
                 out_transform=Normalize(scene.bbox)
+            )
+
+    elif model_type == 'StatePredictor':
+        state_dims = {n: d for (n, d) in zip(scene.states, scene.state_dim) if d>0}
+        transforms = pc_encoder.StatePredictor.from_state(scene)
+
+        model = Lit(
+            MultiGTEncoder(encoder_backbone, state_dims),
+            StatePredictionLoss(state_dims, transforms),
+        )
+        dataset = lambda input_dir: \
+            PointCloudGTDataset(
+                root_dir=input_dir,
+                in_features=['rgb'],
+                in_transform=Normalize(scene.bbox),
             )
 
     else:

@@ -1,5 +1,5 @@
 from .pc_sensor import PointCloudSensor
-from .pc_encoder import GlobalAEEncoder, GlobalSegmenterEncoder, MultiSegmenterEncoder
+from .pc_encoder import GlobalAEEncoder, GlobalSegmenterEncoder, MultiSegmenterEncoder, StatePredictor
 
 from gymnasium.envs.registration import register
 from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace
@@ -54,6 +54,16 @@ register(
     }
 )
 
+register(
+    id='VisionPushGT-v0',
+    entry_point=RoboPush,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': StatePredictor,
+    }
+)
+
 # register(
 #     id='VisionPush-v0',
 #     entry_point=RoboPush,
@@ -65,13 +75,12 @@ register(
 #     }
 # )
 
-# register(
-#     id='VisionPickAndPlace-v0',
-#     entry_point=RoboPickAndPlace,
-#     max_episode_steps=50,
-#     kwargs={
-#         'sensor':PointCloudSensor,
-#         'obs_encoder':PointCloudGTPredictor,
-#         'goal_encoder':PointCloudGTPredictor,
-#     }
-# )
+register(
+    id='VisionPickAndPlace-v0',
+    entry_point=RoboPickAndPlace,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': StatePredictor,
+    }
+)

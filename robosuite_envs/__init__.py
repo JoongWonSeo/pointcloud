@@ -1,5 +1,5 @@
 from gymnasium.envs.registration import register
-from .envs import RoboReach, RoboPush, RoboPickAndPlace
+from .envs import RoboReach, RoboPush, RoboPickAndPlace, RoboPegInHole
 
 register(
     id='RoboReach-v0',
@@ -19,3 +19,8 @@ register(
     max_episode_steps=50,
 )
 
+register(
+    id='RoboPegInHole-v0',
+    entry_point=RoboPegInHole,
+    max_episode_steps=50,
+)

@@ -18,7 +18,7 @@ debug = True
 
 ########## Vision: Model and Training Settings ##########
 
-models = ['Autoencoder', 'Segmenter', 'MultiSegmenter', 'GTEncoder']
+models = ['Autoencoder', 'Segmenter', 'MultiSegmenter', 'StatePredictor']
 encoder_backbones = ['PointNet', 'PointNet2', 'PointMLP', 'PointMLPE']
 
 

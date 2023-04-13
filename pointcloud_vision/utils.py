@@ -135,6 +135,7 @@ class Normalize:
 
     @support_numpy
     def __call__(self, points):
+        self.min, self.max = self.min.to(points.device), self.max.to(points.device)
         orig_shape = points.shape
         points = points.reshape(-1, points.shape[-1])
         # normalize points along each axis
@@ -153,6 +154,7 @@ class Unnormalize:
 
     @support_numpy
     def __call__(self, points):
+        self.min, self.max = self.min.to(points.device), self.max.to(points.device)
         # unnormalize points along each axis
         points[:, 0:self.dim] = points[:, 0:self.dim] * (self.max - self.min) + self.min
         return points
@@ -306,6 +308,13 @@ class EarthMoverDistance:
 
         return point_l + feature_l
 
+class StatePredictionLoss:
+    def __init__(self, states, transforms):
+        self.state_losses = {s: F.mse_loss for s in states}
+        self.t = transforms
+    
+    def __call__(self, pred, target):
+        return torch.stack([loss(pred[s], self.t[s](target[s])) for s, loss in self.state_losses.items()]).sum()
 
 
 ########## PyTorch Datasets ##########
@@ -399,7 +408,7 @@ class PointCloudGTDataset(Dataset):
     def __getitem__(self, idx):
         obs = self.get_file(idx)
 
-        out_data = torch.from_numpy(obs['ground_truth']).float()
+        out_data = {s: torch.from_numpy(v).float() for (s, v) in obs['ground_truth']}
         in_pc = obs_to_pc(obs, self.in_features)
 
         if self.in_transform:

@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import seg_to_color, mean_cube_pos, IntegerEncode
+from pointcloud_vision.pc_encoder import StatePredictor
 from types import SimpleNamespace
 from robosuite_envs.envs import cfg_scene
 
@@ -52,6 +53,8 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         classes = list(zip(scene.classes, scene.class_colors))
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
+    if model == 'StatePredictor':
+        from_state = StatePredictor.from_state(scene)
 
     # states
     input_set = open_dataset(input_dir) # dataset of input pointclouds
@@ -68,7 +71,7 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
 
         target_pc, target_feature = None, None
         pred_pc, pred_feature = None, None
-        target_gt, pred_gt = None, None
+        target_gts, pred_gts = None, None
 
         if model == 'Autoencoder':
             # show the input and predicted pointclouds
@@ -87,8 +90,8 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
             target_feature = 'seg'
             pred_pc = pred
             pred_feature = 'seg'
-            target_gt = mean_cube_pos(target)
-            pred_gt = mean_cube_pos(pred)
+            target_gts = [mean_cube_pos(target)]
+            pred_gts = [mean_cube_pos(pred)]
 
         # if model == 'GTEncoder':
         #     pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
@@ -109,8 +112,18 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
             target_feature = 'seg'
             pred_pc = pred
             pred_feature = 'seg'
-            target_gt = mean_cube_pos(target)
-            pred_gt = mean_cube_pos(pred)
+            target_gts = [mean_cube_pos(target)]
+            pred_gts = [mean_cube_pos(pred)]
+        
+        if model == 'StatePredictor':
+            pred = ae(orig.to(cfg.device).unsqueeze(0))
+            pred = {k: v.detach().cpu().numpy() for k, v in pred.items()}
+            target = {k: from_state[k](v.detach().cpu().numpy()) for k, v in target.items()}
+
+            target_pc = orig
+            target_feature = 'rgb'
+            target_gts = [target['cube_pos'], target['robot0_eef_pos']]
+            pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
 
 
         # assemble the pointclouds        
@@ -121,12 +134,12 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
 
         # create visualization
         vis = np.array([]).reshape(0, 6)
-        if target_gt is not None:
-            target_vis = aa_lines(target_gt, np.array([0, 1, 0]), res=50)
-            vis = np.concatenate((vis, target_vis), axis=0)
-        if pred_gt is not None:
-            pred_vis = aa_lines(pred_gt, np.array([1, 0, 0]), res=50)
-            vis = np.concatenate((vis, pred_vis), axis=0)
+        if target_gts is not None:
+            for i, gt in enumerate(target_gts):
+                vis = np.concatenate((vis, aa_lines(gt, np.array([0, 1, i*0.5]), res=50)), axis=0)
+        if pred_gts is not None:
+            for i, gt in enumerate(pred_gts):
+                vis = np.concatenate((vis, aa_lines(gt, np.array([1, 0, i*0.5]), res=50)), axis=0)
         
         # apply view mode
         if target_pc is not None and pred_pc is not None:

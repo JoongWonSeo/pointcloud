@@ -45,6 +45,10 @@ def save_metadata(data_dict, file):
 def load_metadata(file):
     return np.load(file)
 
+def flatten_classes(class_encodings, classes):
+    enc = [torch.as_tensor(class_encodings[c]).squeeze() for c in classes]
+    return torch.cat(enc, dim=0)
+
 
 class LatentEncoder(ObservationEncoder):
     latent_encoding = True
@@ -153,7 +157,7 @@ class MultiSegmenterEncoder(LatentEncoder):
         self.all_classes = {c for c in self.obs_classes + self.goal_classes}
         print('all classes:', self.all_classes)
         
-        class_dims = {c: d for c, d in zip(env.classes, env.class_latent_dim) if d > 0}
+        class_dims = {c: d for c, d in zip(env.classes, env.class_latent_dim) if c and d > 0}
         self.encoding_dim = sum(class_dims[c] for c in self.obs_classes)
         self.goal_encoding_dim = sum(class_dims[c] for c in self.goal_classes)
 
@@ -167,26 +171,23 @@ class MultiSegmenterEncoder(LatentEncoder):
     
         pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
         return self.encoder(pc)
-    
-    def flatten_classes(self, class_encodings, classes):
-        return torch.cat([class_encodings[c] for c in classes], dim=1).detach().squeeze(0)
 
     def encode_observation(self, obs):
         class_encodings = self.encode_classes(obs)
-        pred = self.flatten_classes(class_encodings, self.obs_classes)
+        pred = flatten_classes(class_encodings, self.obs_classes)
 
-        return pred.cpu().numpy()
+        return pred.detach().cpu().numpy()
     
     def encode_goal(self, obs):
         class_encodings = self.encode_classes(obs)
-        pred = self.flatten_classes(class_encodings, self.goal_classes)
+        pred = flatten_classes(class_encodings, self.goal_classes)
 
-        return pred.cpu().numpy()
+        return pred.detach().cpu().numpy()
     
     def __call__(self, obs):
         class_encodings = self.encode_classes(obs)
-        enc = self.flatten_classes(class_encodings, self.obs_classes).cpu().numpy()
-        goal = self.flatten_classes(class_encodings, self.goal_classes).cpu().numpy()
+        enc = flatten_classes(class_encodings, self.obs_classes).detach().cpu().numpy()
+        goal = flatten_classes(class_encodings, self.goal_classes).detach().cpu().numpy()
 
         return enc, goal
     
@@ -197,71 +198,79 @@ class MultiSegmenterEncoder(LatentEncoder):
         return Box(low=self.dtype(-np.inf), high=self.dtype(np.inf), shape=(self.goal_encoding_dim,))
     
 
-
-
-# TODO: this should be replaced by a multi-bottle archietecture
-class PointCloudGTPredictor(ObservationEncoder):
+class StatePredictor(ObservationEncoder):
     '''
     '''
     requires_vision = True
     latent_encoding = False
     global_encoding = False
 
-    # configure ground-truth data pre/postprocessing for each scene
-    cfgs = {}
-    cfgs['Table'] = {
-        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize eef position
-        'from_gt': lambda bbox: Normalize(bbox), # normalize eef position
+    # convert state representatino to internal representation and vice versa
+    to_state = lambda env: {
+        'cube_pos': Unnormalize(env.bbox),
+        'robot0_eef_pos': Unnormalize(env.bbox),
     }
-    cfgs['Cube'] = {
-        'to_gt': lambda bbox: Unnormalize(bbox), # unnormalize cube position
-        'from_gt': lambda bbox: Normalize(bbox), # normalize cube position
+    from_state = lambda env: {
+        'cube_pos': Normalize(env.bbox),
+        'robot0_eef_pos': Normalize(env.bbox),
     }
 
-    def __init__(self, env, obs_keys):
-        super().__init__(env, obs_keys)
+    def __init__(self, env, obs_keys, goal_keys, passthrough_goal=True):
+        super().__init__(env, obs_keys, goal_keys)
         
-        if self.obs_keys == ['cube_pos']:
-            # Cube position predictor from pointcloud (Point Cloud {XYZRGB} -> Cube (XYZ))
-            self.features = ['rgb']
-            feature_dims = 3
-            self.encoding_dim = env.gt_dim
-            self.postprocess_fn = self.cfgs['Lift']['to_gt']
+        self.features = ['rgb']
 
-            dataset = 'Lift'
-            model = 'GTEncoder'
-            backbone = 'PointNet2'
+        self.all_keys = {c for c in self.obs_keys + self.goal_keys}
+        print('all states:', self.all_keys)
+        
+        state_dims = {s: d for s, d in zip(env.states, env.state_dim) if s and d > 0}
+        self.encoding_dim = sum(state_dims[s] for s in self.obs_keys)
+        self.goal_encoding_dim = sum(state_dims[s] for s in self.goal_keys)
 
-            model = load_model(env, dataset, model, backbone)
-            self.pc_encoder = model.encoder.to(cfg.device)
+        model = load_model(env.scene, 'StatePredictor', 'PointNet2')
+        model.remove_unused(self.all_keys)
 
-        elif self.obs_keys == ['robot0_eef_pos']:
-            # EEF position predictor from pointcloud (Point Cloud {XYZRGB} -> EEF (XYZ))
-            self.features = ['rgb']
-            feature_dims = 3
-            self.encoding_dim = env.gt_dim
-            self.postprocess_fn = self.cfgs['Reach']['to_gt']
+        self.encoder = model.to(cfg.device).eval()
 
-            dataset = 'Reach'
-            model = 'GTEncoder'
-            backbone = 'PointNet2'
+        self.postprocessors = StatePredictor.to_state(env)
+        self.passthrough_goal = passthrough_goal
 
-            model = load_model(env, dataset, model, backbone)
-            self.pc_encoder = model.encoder.to(cfg.device)
-            
-        else:
-            raise NotImplementedError()
-
-        self.pc_encoder.eval()
-
-    def encode(self, obs):
+    def predict_states(self, obs):
         preprocess = Normalize(obs['boundingbox'])
-        postprocess = self.postprocess_fn(obs['boundingbox'])
     
         pc = preprocess(obs_to_pc(obs, self.features)).unsqueeze(0)
-        pred = postprocess(self.pc_encoder(pc).detach()).squeeze(0)
-
-        return pred.cpu().numpy()
+        return self.encoder(pc)
     
-    def get_space(self, robo_env):
-        return Box(low=np.float32(-np.inf), high=np.float32(np.inf), shape=(self.encoding_dim,))
+    def encode_observation(self, obs):
+        state_encodings = self.predict_states(obs)
+        state_encodings = {k: self.postprocessors[k](v) for k, v in state_encodings.items()}
+        pred = flatten_classes(state_encodings, self.obs_keys)
+
+        return pred.detach().cpu().numpy()
+    
+    def encode_goal(self, obs):
+        if self.passthrough_goal:
+            return flatten_classes(obs, self.goal_keys)
+        else:
+            state_encodings = self.predict_states(obs)
+            state_encodings = {k: self.postprocessors[k](v) for k, v in state_encodings.items()}
+            pred = flatten_classes(state_encodings, self.goal_keys)
+
+            return pred.detach().cpu().numpy()
+    
+    def __call__(self, obs):
+        state_encodings = self.predict_states(obs)
+        state_encodings = {k: self.postprocessors[k](v) for k, v in state_encodings.items()}
+        enc = flatten_classes(state_encodings, self.obs_keys).detach().cpu().numpy()
+        if self.passthrough_goal:
+            goal = flatten_classes(obs, self.goal_keys)
+        else:
+            goal = flatten_classes(state_encodings, self.goal_keys).detach().cpu().numpy()
+
+        return enc, goal
+
+    def get_encoding_space(self, robo_env):
+        return Box(low=self.dtype(-np.inf), high=self.dtype(np.inf), shape=(self.encoding_dim,))
+    
+    def get_goal_space(self, robo_env):
+        return Box(low=self.dtype(-np.inf), high=self.dtype(np.inf), shape=(self.goal_encoding_dim,))

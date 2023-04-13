@@ -28,7 +28,7 @@ agent_output_dim = env.action_space.shape[0]
 assert all(-env.action_space.low == env.action_space.high)
 agent_action_limit = env.action_space.high
 
-agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
+# agent = core.MLPActorCritic(agent_input_dim, agent_output_dim, agent_action_limit)
 
 
 # simulation
@@ -40,8 +40,8 @@ while run:
     total_reward = 0
     for t in range(horizon):
         # Simulation
-        action = agent.noisy_action(obs, 0) # sample agent action
-        # action = np.random.randn(agent_output_dim) # sample random action
+        # action = agent.noisy_action(obs, 0) # sample agent action
+        action = np.random.randn(agent_output_dim) # sample random action
         obs, reward, terminated, truncated, info = env.step(action)  # take action in the environment
         obs = np.concatenate((obs['observation'], obs['desired_goal']))
 

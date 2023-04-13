@@ -47,29 +47,46 @@ cfg_scene['Table'] = cfg_scene['Base'] | {
     'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 
     # class segmentation, the index corresponds to the label value (integer encoding)
-    # cube only exists because it is index 1, but there is no cube in the scene
-    'classes': ['env', 'cube', 'arm', 'base', 'gripper'],
+    'classes': ['env', 'cube', 'arm', 'base', 'gripper'], # cube only exists because it is index 1, but there is no cube in the scene
+    'states': [None, None, None, None, 'robot0_eef_pos'],
+    'state_dim': [0, 0, 0, 0, 3], # 0 will be ignored
+    'class_latent_dim': [0, 0, 7, 0, 3], # 0 will be ignored
     'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
     'class_distribution': [0.3, 0, 0.05, 0.05], #TODO: from generate_pc
-    'class_gt_dim': [0, 0, 7+7, 0, 3], # 0 will be ignored
-    'class_latent_dim': [0, 0, 7, 0, 3], # 0 will be ignored
 }
 
 
 ########## Cube Scene ##########
-# Configs for Envs based on the Robosuite Lift task
 robo_kwargs['Cube'] = robo_kwargs['Table']
 cfg_scene['Cube'] = cfg_scene['Table'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
 
     # class segmentation, the index corresponds to the label value (integer encoding)
     'classes': ['env', 'cube', 'arm', 'base', 'gripper'],
+    'states': [None, 'cube_pos', None, None, 'robot0_eef_pos'], # corresponding state name
+    'state_dim': [0, 3, 0, 0, 3], # 0 will be ignored
+    'class_latent_dim': [0, 3, 7, 0, 3], # 0 will be ignored
     'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
     'class_distribution': [0.3, 0.01, 0.4, 0.05, 0.05], #TODO: from generate_pc
-    'class_gt_dim': [0, 3, 7+7, 0, 3], # 0 will be ignored
-    'class_latent_dim': [0, 3, 7, 0, 3], # 0 will be ignored
 }
 
+
+########## PegInHole Scene ##########
+robo_kwargs['PegInHole'] = robo_kwargs['Base'] | {
+    'env_name': 'TwoArmPegInHole', # name of the Robosuite environment
+    'robots': ['Panda', 'Panda'], 
+    # 'controller_configs': load_controller_config(default_controller="OSC_POSE"),
+}
+cfg_scene['PegInHole'] = cfg_scene['Base'] | {
+    'scene': 'PegInHole', # name of this configuration, used to look up other configs of the same env
+    'cameras': { # name: (position, quaternion)
+        'agentview': None,
+    },
+    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
+
+    # class segmentation, the index corresponds to the label value (integer encoding)
+    # TODO
+}
 
 
 
@@ -277,5 +294,62 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
 
     def randomize(self):
         set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 1.3)]))
+
+
+
+
+########## PegInHole ##########
+class RoboPegInHole(RobosuiteGoalEnv):
+    task = 'PegInHole'
+    scene = 'PegInHole'
+
+    # spaces
+    # proprio_keys = ['robot0_proprio-state', 'robot1_proprio-state'] # all proprioception
+    proprio_keys = [] # hard version, since peg and hole and basically eefs
+    obs_keys = ['peg_to_hole', 'peg_quat', 'hole_pos', 'hole_quat'] # observe the pegs and holes
+    goal_keys = ['peg_to_hole', 'hole_pos'] # we only care about cube position
+
+    def __init__(
+        self,
+        render_mode=None,
+        sensor=PassthroughSensor,
+        encoder=PassthroughEncoder,
+        **kwargs
+        ):
+        # configure cameras and their poses
+        if sensor.requires_vision:
+            apply_preset(self, cfg_scene[self.scene])
+        else:
+            # default camera with default pose
+            self.cameras = {'frontview': None} if render_mode == 'human' else {}
+            self.camera_size = (512, 512) # width, height
+
+        def render_peg_hole(env, robo_obs):
+            peg_pos = robo_obs['hole_pos'] - robo_obs['peg_to_hole']
+            hole_pos = robo_obs['hole_pos']
+            # print('peg_pos', peg_pos)
+            return np.array([peg_pos, hole_pos]), np.array([[0, 1, 0], [1, 0, 0]])
+
+
+        # initialize RobosuiteGoalEnv
+        super().__init__(
+            robo_kwargs=robo_kwargs[self.scene],
+            sensor=sensor(env=self),
+            encoder=encoder(self, self.obs_keys, self.goal_keys),
+            render_mode=render_mode,
+            render_info=render_peg_hole,
+            simulate_goal=False, # robot pose is not relevant to goal state
+            **kwargs
+        )
+ 
+
+    # define environment functions
+    @assert_correctness
+    def desired_goal_state(self, state, rerender=False):
+        return state
+
+    def check_success(self, achieved, desired, info, force_gt=False):
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
+        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 
 
