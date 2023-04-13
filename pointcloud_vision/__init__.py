@@ -84,3 +84,23 @@ register(
         'encoder': StatePredictor,
     }
 )
+
+register(
+    id='VisionPickAndPlaceMultiSeg-v0',
+    entry_point=RoboPickAndPlace,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': MultiSegmenterEncoder,
+    }
+)
+
+register(
+    id='VisionPickAndPlaceGT-v0',
+    entry_point=RoboPickAndPlace,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': StatePredictor,
+    }
+)

@@ -1,7 +1,7 @@
 import torch
 from torchvision.transforms import Compose
 from robosuite_envs.sensors import Sensor
-from pointcloud_vision.utils import FilterBBox, SampleFurthestPoints, Normalize, Unnormalize, obs_to_pc
+from pointcloud_vision.utils import FilterBBox, SampleRandomPoints, SampleFurthestPoints, Normalize, Unnormalize, obs_to_pc
 from robosuite_envs.utils import multiview_pointcloud #TODO move to vision module
 import pointcloud_vision.cfg as cfg
 
@@ -20,9 +20,10 @@ class PointCloudSensor(Sensor):
 
         self.features = ['rgb', 'segmentation']
         self.bbox = torch.as_tensor(env.bbox).to(cfg.device)
+        sampler = {'FPS': SampleFurthestPoints, 'RS': SampleRandomPoints}[env.sampler]
         self.preprocess = Compose([
             FilterBBox(self.bbox),
-            env.sampler(env.sample_points),
+            sampler(env.sample_points),
         ])
 
     @property

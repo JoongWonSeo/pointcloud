@@ -9,8 +9,8 @@ from sb3_contrib import TQC
 from sb3_contrib.tqc.policies import MultiInputPolicy
 
 # task, agent = 'GTReach-v0', 'RoboReach-v0'
-# task, agent = 'VisionPickAndPlace-v0', 'RoboPickAndPlace-v0'
-task, agent = 'VisionPushMultiSeg-v0', 'RoboPush-v0'
+task, agent = 'VisionPickAndPlaceGT-v0', 'RoboPickAndPlace-v0'
+# task, agent = 'VisionPushMultiSeg-v0', 'RoboPush-v0'
 
 env = gym.make(task, render_mode='human', max_episode_steps=50)
 gt = PassthroughEncoder(env=env, obs_keys=env.encoder.obs_keys, goal_keys=env.encoder.goal_keys)
