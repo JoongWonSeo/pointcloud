@@ -46,10 +46,14 @@ RoboPush-v0:
   n_envs: 4
   gradient_steps: -1
 
-
 RoboPickAndPlace-v0:
   <<: *her-defaults
   learning_starts: 1000
   n_envs: 4
   gradient_steps: -1
 
+VisionPushMultiSeg-v0:
+  <<: *her-defaults
+  learning_starts: 1000
+  n_envs: 4
+  gradient_steps: -1
