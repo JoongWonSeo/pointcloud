@@ -58,6 +58,9 @@ class RobosuiteGoalEnv(GoalEnv):
         self.robo_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs))
         self.sensor = sensor
         self.encoder = encoder
+
+        # only to check for actual success
+        self.gt = PassthroughEncoder(env=self, obs_keys=self.encoder.obs_keys, goal_keys=self.encoder.goal_keys)
         
         self.visual_goal = kwargs.get('visual_goal', self.encoder.requires_vision)
 
@@ -69,7 +72,9 @@ class RobosuiteGoalEnv(GoalEnv):
         self.goal_state = None # raw goal state from goal_state() function
         self.goal_obs = None # goal observation from the sensor
         self.goal_encoding = None # encoding from the goal encoder
-        self.is_episode_success = False
+        self.believe_success = False # whether the obs encoder believes it has succeeded
+        self.actual_success = False # whether the task is actually successful
+        self.is_episode_success = False # whether at least 1 step was successful
 
 
         #######################
@@ -133,7 +138,12 @@ class RobosuiteGoalEnv(GoalEnv):
         function that takes (achieved_goal, desired_goal, info) and returns True if the task is completed
         G x G -> {0, 1}
         '''
-        pass
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
+        if not force_gt and self.encoder.latent_encoding:
+            threshold = self.encoder.latent_threshold
+            return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+        else:
+            return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 
     @staticmethod
     def set_initial_state(robo_env, get_state):
@@ -172,8 +182,6 @@ class RobosuiteGoalEnv(GoalEnv):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-
-        self.is_episode_success = False
 
         # remember the camera pose for convenience
         if not self.reset_camera_poses:
@@ -214,6 +222,9 @@ class RobosuiteGoalEnv(GoalEnv):
         self.goal_state = goal_state
         self.goal_obs = goal_obs
         self.goal_encoding = goal_encoding
+        self.believe_success = self.check_success(achieved_goal, goal_encoding, None)
+        self.actual_success = self.check_success(self.gt.encode_goal(state), self.gt.encode_goal(goal_state), None, force_gt=True)
+        self.is_episode_success = self.believe_success
         info = {'is_success': self.is_episode_success}
 
         if self.render_mode == 'human':
@@ -248,10 +259,14 @@ class RobosuiteGoalEnv(GoalEnv):
             'achieved_goal': achieved_goal,
             'desired_goal': self.goal_encoding,
         }
+        
+        self.believe_success = self.check_success(achieved_goal, self.goal_encoding, None)
+        self.actual_success = self.check_success(self.gt.encode_goal(state), self.gt.encode_goal(self.goal_state), None, force_gt=True)
+
         if self.is_episode_success:
             info['is_success'] = True
         else:
-            self.is_episode_success = self.check_success(achieved_goal, self.goal_encoding, info)
+            self.is_episode_success = self.believe_success
             info['is_success'] = self.is_episode_success
         
         reward = self.compute_reward(achieved_goal, self.goal_encoding, info)
@@ -336,6 +351,14 @@ class RobosuiteGoalEnv(GoalEnv):
             points, rgb = self.render_info(self, robo_obs)
             w2c = get_camera_transform_matrix(self.robo_env.sim, cam, camera_h, camera_w)
             render(points, rgb, camera_image, w2c, camera_h, camera_w)
+
+            # show success info
+            # left half of the bottom row is actual success
+            mid = camera_w // 2
+            camera_image[0:2, :mid, :] = [0, 1, 0] if self.actual_success else [1, 0, 0]
+            # right half of the bottom row is believe success
+            camera_image[0:2, mid:, :] = [0, 1, 0] if self.believe_success else [1, 0, 0]
+
         self.viewer.show(to_cv2_img(camera_image))
     
 

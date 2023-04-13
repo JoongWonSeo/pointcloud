@@ -9,16 +9,15 @@ from sb3_contrib import TQC
 from sb3_contrib.tqc.policies import MultiInputPolicy
 
 # task, agent = 'GTReach-v0', 'RoboReach-v0'
-# task = 'VisionReach-v0'
-# agent = 'VisionReach-v0'
-task, agent = 'VisionPickAndPlace-v0', 'RoboPickAndPlace-v0'
+# task, agent = 'VisionPickAndPlace-v0', 'RoboPickAndPlace-v0'
+task, agent = 'VisionPushMultiSeg-v0', 'RoboPush-v0'
 
 env = gym.make(task, render_mode='human', max_episode_steps=50)
-gt_encoder = PassthroughEncoder(env=env, obs_keys=env.encoder.obs_keys, goal_keys=env.encoder.goal_keys)
+gt = PassthroughEncoder(env=env, obs_keys=env.encoder.obs_keys, goal_keys=env.encoder.goal_keys)
 
 if False:
-    model = TQC.load('weights/'+task, env=env)
-    model.policy.save('weights/'+task+'_policy')
+    model = TQC.load('weights/'+agent, env=env)
+    model.policy.save('weights/'+agent+'_policy')
     policy = model.policy
 else:
     policy = MultiInputPolicy.load('weights/'+agent+'_policy')
@@ -31,8 +30,8 @@ while True:
     action, _states = policy.predict(obs, deterministic=True)
     obs, reward, terminated, truncated, info = env.step(action)
     
-    gt_goal = gt_encoder.encode_goal(env.goal_state)
-    gt_achieved = gt_encoder.encode_goal(env.raw_state)
+    gt_goal = gt.encode_goal(env.goal_state)
+    gt_achieved = gt.encode_goal(env.raw_state)
     ep_reward += bool(env.check_success(gt_achieved, gt_goal, info=info, force_gt=True)) - 1
     env.render()
     if terminated or truncated:

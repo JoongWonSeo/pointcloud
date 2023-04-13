@@ -150,13 +150,13 @@ class RoboReach(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info, force_gt=False):
-        axis = 1 if achieved.ndim == 2 else None # batched version or not
-        if not force_gt and self.encoder.latent_encoding:
-            threshold = self.encoder.latent_threshold
-            return (np.abs(achieved - desired) <= threshold).all(axis=axis)
-        else:
-            return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    # def check_success(self, achieved, desired, info, force_gt=False):
+    #     axis = 1 if achieved.ndim == 2 else None # batched version or not
+    #     if not force_gt and self.encoder.latent_encoding:
+    #         threshold = self.encoder.latent_threshold
+    #         return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+    #     else:
+    #         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
         
 
 
@@ -218,9 +218,13 @@ class RoboPush(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info, force_gt=False):
-        axis = 1 if achieved.ndim == 2 else None # batched version or not
-        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    # def check_success(self, achieved, desired, info, force_gt=False):
+    #     axis = 1 if achieved.ndim == 2 else None # batched version or not
+    #     if not force_gt and self.encoder.latent_encoding:
+    #         threshold = self.encoder.latent_threshold
+    #         return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+    #     else:
+    #         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
     
     def randomize(self):
         set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 0.9)]))
@@ -288,9 +292,13 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
 
         return desired_state
 
-    def check_success(self, achieved, desired, info, force_gt=False):
-        axis = 1 if achieved.ndim == 2 else None # batched version or not
-        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    # def check_success(self, achieved, desired, info, force_gt=False):
+    #     axis = 1 if achieved.ndim == 2 else None # batched version or not
+    #     if not force_gt and self.encoder.latent_encoding:
+    #         threshold = self.encoder.latent_threshold
+    #         return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+    #     else:
+    #         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 
     def randomize(self):
         set_obj_pos(self.robo_env.sim, joint='cube_joint0', pos=np.array([uniform(-0.4, 0.4), uniform(-0.4, 0.4), uniform(0.8, 1.3)]))
@@ -348,8 +356,12 @@ class RoboPegInHole(RobosuiteGoalEnv):
     def desired_goal_state(self, state, rerender=False):
         return state
 
-    def check_success(self, achieved, desired, info, force_gt=False):
-        axis = 1 if achieved.ndim == 2 else None # batched version or not
-        return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    # def check_success(self, achieved, desired, info, force_gt=False):
+    #     axis = 1 if achieved.ndim == 2 else None # batched version or not
+    #     if not force_gt and self.encoder.latent_encoding:
+    #         threshold = self.encoder.latent_threshold
+    #         return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+    #     else:
+    #         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
 
 
