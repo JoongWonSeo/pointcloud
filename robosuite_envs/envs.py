@@ -4,7 +4,7 @@ from copy import deepcopy
 import robosuite as suite
 from robosuite.controllers import load_controller_config
 
-from .base_env import RobosuiteGoalEnv, assert_correctness
+from .base_env import RobosuiteGoalEnv, render_goal, render_pred_goal, assert_correctness
 from .encoders import PassthroughEncoder
 from .sensors import PassthroughSensor
 from .utils import apply_preset, set_obj_pos, set_robot_pose, disable_rendering
@@ -98,16 +98,6 @@ class RoboReach(RobosuiteGoalEnv):
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
             self.camera_size = (512, 512) # width, height
 
-        # for visualization of the goal
-        def render_goal(env, robo_obs):
-            eef_goal = env.goal_state['robot0_eef_pos']
-            return np.array([eef_goal]), np.array([[0, 1, 0]])
-            
-        def render_pred(env, robo_obs):
-            predicted_eef = env.encoding
-            eef_goal = env.goal_state['robot0_eef_pos']
-            return np.array([predicted_eef, eef_goal]), np.array([[1, 0, 0], [0, 1, 0]])
-
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
@@ -134,7 +124,7 @@ class RoboReach(RobosuiteGoalEnv):
         desired_state['robot0_eef_pos'][2] = np.random.uniform(0.85, 1.2)
 
         if rerender:
-            if self.goal_env: # simulated goal
+            if self.simulate_goal: # simulated goal
                 desired_state, succ = self.simulate_eef_pos(desired_state['robot0_eef_pos'])
                 if not succ:
                     print('Warning: failed to reach the desired robot pos for the goal state imagination')
@@ -178,19 +168,14 @@ class RoboPush(RobosuiteGoalEnv):
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
             self.camera_size = (512, 512) # width, height
 
-        # for cube-only goal
-        def render_goal_obs(env, robo_obs):
-            encoded_cube = env.encoding
-            cube_goal = env.goal_encoding
-            return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
-
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal_obs,
+            render_info=render_goal,
+            simulate_goal=False, # robot pose is not relevant to goal state
             **kwargs
         )
  
@@ -200,16 +185,15 @@ class RoboPush(RobosuiteGoalEnv):
     def desired_goal_state(self, state, rerender=False):
         cube_pos = state['cube_pos'].copy()
         # pick random dist and direction to move the cube towards
-        dist = np.random.uniform(0.13, 0.2) # move by at least 13cm so goal is not achieved by default
+        dist = np.random.uniform(0.13, 0.3) # move by at least 13cm so goal is not achieved by default
         dir = np.random.uniform(0, 2*np.pi)
         cube_pos[0] += dist * np.cos(dir)
         cube_pos[1] += dist * np.sin(dir)
 
         if rerender:
-            if self.goal_env: # simulated goal
+            if self.simulate_goal: # simulated goal
                 raise NotImplementedError
             else: # visualized goal
-                print('rerendering goal')
                 desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
         else:
             desired_state = state.copy()
@@ -250,12 +234,6 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
             # default camera with default pose
             self.cameras = {'frontview': None} if render_mode == 'human' else {}
             self.camera_size = (512, 512) # width, height
-        
-        # for visualization of the goal
-        def render_goal_obs(env, robo_obs):
-            encoded_cube = env.encoding
-            cube_goal = env.goal_encoding
-            return np.array([encoded_cube, cube_goal]), np.array([[0, 1, 0], [1, 0, 0]])
 
         # initialize RobosuiteGoalEnv
         super().__init__(
@@ -263,7 +241,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_goal_obs,
+            render_info=render_pred_goal,
             **kwargs
         )
  
@@ -282,7 +260,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
             cube_pos[2] += np.random.uniform(0.01, 0.2)
 
         if rerender:
-            if self.goal_env: # simulated goal
+            if self.simulate_goal: # simulated goal
                 raise NotImplementedError
             else: # rendered goal
                 print('rerendering goal')

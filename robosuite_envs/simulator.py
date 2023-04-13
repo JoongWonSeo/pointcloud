@@ -3,14 +3,13 @@ import argparse
 import numpy as np
 import gymnasium as gym
 import pointcloud_vision
-from pointcloud_vision import PointCloudSensor, PointCloudGTPredictor
 from robosuite_envs.utils import *
 from rl import core
 
 # parse arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('env', type=str, help='environment ID')
-parser.add_argument('--horizon', default=50, help='horizon')
+parser.add_argument('--horizon', type=int, default=50, help='horizon')
 # parser.add_argument('--sensor', default='default', choices=['default', 'GT', 'PC'], help='sensor')
 # parser.add_argument('--obs_encoder', default='default', choices=['default', 'passthru', 'ae'], help='observation encoder')
 # parser.add_argument('--goal_encoder', default='PointCloudGTPredictor', help='goal encoder')

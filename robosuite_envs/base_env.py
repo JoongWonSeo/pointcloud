@@ -31,6 +31,10 @@ class RobosuiteGoalEnv(GoalEnv):
         obs_encoder: ObservationEncoder that turns an observation into an encoding and goal (O -> ExG)
         render_mode: str for render mode such as 'human' or None
         render_info: a function that returns array of points and colors to render
+
+        Optional kwargs:
+        visual_goal: manual override for whether goal is rendered or not
+        simulate_goal: manual override for whether goal is simulated or not
         '''
         ###################################################
         # internal variables, not part of the Gym Env API #
@@ -100,7 +104,8 @@ class RobosuiteGoalEnv(GoalEnv):
 
 
         # dummy environment for goal imagination
-        if kwargs.get('goal_env', False) or (self.visual_goal and self.encoder.latent_encoding):
+        self.simulate_goal = kwargs.get('simulate_goal', self.visual_goal and self.encoder.global_encoding)
+        if self.simulate_goal:
             abs_controller = load_controller_config(default_controller="OSC_POSITION")
             abs_controller['control_delta'] = False # desired eef position is absolute
             self.goal_env = suite.make(hard_reset=False, **(robo_kwargs | sensor.env_kwargs | {'controller_configs': abs_controller}))
@@ -335,7 +340,7 @@ class RobosuiteGoalEnv(GoalEnv):
     
 
     def simulate_eef_pos(self, target, state_setter=None, tolerance=0.01, max_steps=50, eef_key='robot0_eef_pos'):
-        if self.goal_env:
+        if self.simulate_goal:
             success = False
             with disable_rendering(self.goal_env) as renderer:
                 self.goal_env.reset()
@@ -362,10 +367,22 @@ class RobosuiteGoalEnv(GoalEnv):
             state = self.goal_env._get_observations(force_update=True)
             return state, success
         else:
-            raise Exception('goal_env not set')
+            raise Exception('goal simulation is disabled')
             
-            
-################# Safty Utils #################
+
+################# Utils #################
+
+# render infos
+def render_goal(env, robo_obs):
+    goal = env.goal_state[env.goal_keys[0]]
+    return np.array([goal]), np.array([[0, 1, 0]])
+    
+def render_pred_goal(env, robo_obs):
+    pred = env.encoding
+    goal = env.goal_state[env.goal_keys[0]]
+    return np.array([pred, goal]), np.array([[1, 0, 0], [0, 1, 0]])
+
+# safety check
 def assert_correctness(func):
     # disable correctness check for performance
     # return func

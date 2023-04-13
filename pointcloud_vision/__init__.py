@@ -1,5 +1,5 @@
 from .pc_sensor import PointCloudSensor
-from .pc_encoder import PointCloudGTPredictor, GlobalAEEncoder, GlobalSegmenterEncoder
+from .pc_encoder import GlobalAEEncoder, GlobalSegmenterEncoder, MultiSegmenterEncoder
 
 from gymnasium.envs.registration import register
 from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace
@@ -9,20 +9,50 @@ register(
     entry_point=RoboReach,
     max_episode_steps=50,
     kwargs={
-        'sensor':PointCloudSensor,
-        'encoder':GlobalAEEncoder,
+        'sensor': PointCloudSensor,
+        'encoder': GlobalAEEncoder,
     }
 )
 
 # register(
-#     id='GTReach-v0',
+#     id='VisionReachGT-v0',
 #     entry_point=RoboReach,
 #     max_episode_steps=50,
 #     kwargs={
-#         'sensor':PointCloudSensor,
-#         'obs_encoder':PointCloudGTPredictor,
+#         'sensor': PointCloudSensor,
+#         'encoder': GlobalSegmenterEncoder,
 #     }
 # )
+
+register(
+    id='VisionPush-v0',
+    entry_point=RoboPush,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': MultiSegmenterEncoder,
+    }
+)
+
+register(
+    id='VisionPushSeg-v0',
+    entry_point=RoboPush,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': GlobalSegmenterEncoder,
+    }
+)
+
+register(
+    id='VisionPushMultiSeg-v0',
+    entry_point=RoboPush,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': MultiSegmenterEncoder,
+    }
+)
 
 # register(
 #     id='VisionPush-v0',

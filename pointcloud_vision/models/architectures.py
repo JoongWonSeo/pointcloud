@@ -58,6 +58,10 @@ class MultiSegAE(nn.Module):
         self.global_encoding = self.preencoder(X)
         return {name: ae(self.global_encoding) for name, ae in self.autoencoders.items()}
     
+    def forward_encoders(self, X):
+        self.global_encoding = self.preencoder(X)
+        return {name: ae.encoder(self.global_encoding) for name, ae in self.autoencoders.items()}
+    
     def reconstruct_labeled(self, X):
         device = X.device
         self.global_encoding = self.preencoder(X)
@@ -74,6 +78,12 @@ class MultiSegAE(nn.Module):
     @property
     def flat_local_encodings(self):
         return torch.cat([sub_ae.encoding for sub_ae in self.autoencoders.values()], dim=1)
+    
+    def remove_unused(self, whitelist):
+        blacklist = self.autoencoders.keys() - whitelist
+        for name in blacklist:
+            del self.autoencoders[name]
+        print('remaining autoencoders:', self.autoencoders.keys())
     
 
 ###### Point Cloud Encoders ######

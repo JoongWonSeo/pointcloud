@@ -28,6 +28,7 @@ class ObservationEncoder(ABC):
     '''
     requires_vision = False # whether the encoder requires vision (rendering) or not
     latent_encoding = False # whether the encoder produces a latent encoding or the ground truth state space (either passthrough or predicted)
+    global_encoding = False # whether the encoder produces a global latent encoding (i.e. a single encoding for the entire observation)
     dtype = np.float32
 
     def __init__(self, env, obs_keys, goal_keys):
@@ -86,6 +87,7 @@ class ObservationEncoder(ABC):
 class PassthroughEncoder(ObservationEncoder):
     requires_vision = False
     latent_encoding = False
+    global_encoding = False
 
     def encode_observation(self, obs):
         return flatten_observations(obs, self.obs_keys, self.dtype)
