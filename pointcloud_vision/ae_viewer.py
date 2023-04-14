@@ -92,16 +92,6 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
             pred_feature = 'seg'
             target_gts = [mean_cube_pos(target)]
             pred_gts = [mean_cube_pos(pred)]
-
-        # if model == 'GTEncoder':
-        #     pred = ae(orig.to(cfg.device).unsqueeze(0)).detach().cpu().numpy()
-
-        #     target_pc = orig
-        #     target_feature = 'rgb'
-        #     target_gt = target
-        #     pred_gt = pred
-
-        #     animation_speed = 1 # no animation, makes no sense for this
         
         if model == 'MultiSegmenter':
             pred = ae.reconstruct_labeled(orig.to(cfg.device).unsqueeze(0)).squeeze(0).detach().cpu().numpy()

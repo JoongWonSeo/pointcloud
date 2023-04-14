@@ -29,7 +29,8 @@ robo_kwargs['Base'] = {
     'ignore_done': True, # unlimited horizon (use gym's TimeLimit wrapper instead)
 }
 cfg_scene['Base'] = {
-    'camera_size': (128, 128), # width, height
+    # 'camera_size': (128, 128), # width, height
+    'camera_size': (256, 256), # width, height
     'sample_points': 2048, # points in the point cloud
     'sampler': 'FPS', # sampling method: 'FPS' or 'RS'
 }
