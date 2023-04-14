@@ -28,8 +28,11 @@ from sb3_contrib import TQC
 def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold_strictness=0.3, render=False, show_progress=False, save=True):
     env = gym.make(vision_task, render_mode='human' if render else None, max_episode_steps=horizon)
     # assert(isinstance(env, RobosuiteGoalEnv))
-    # model = TQC.load('../rl/weights/'+task.replace('Vision', 'Robosuite'), env=env)
     gt_policy = MultiInputPolicy.load(policy_dir)
+
+    if env.encoder.latent_threshold is None:
+        print('latent_threshold is None, setting to 0')
+        env.encoder.latent_threshold = np.zeros(env.encoder.get_goal_space(env.robo_env).shape)
 
     gt_encoder = PassthroughEncoder(env=env, obs_keys=env.encoder.obs_keys, goal_keys=env.encoder.goal_keys)
 
@@ -41,7 +44,7 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold
         # reset env and get initial obs
         obs, info = env.reset()
         gt_goal = gt_encoder.encode_goal(env.goal_state)
-        gt_achieved = gt_encoder.encode_goal(env.raw_state)
+        gt_obs, gt_achieved = gt_encoder(env.raw_state)
         success = env.check_success(gt_achieved, gt_goal, info=info, force_gt=True)
         if success:
             print('WARNING: success right after reset!')
@@ -57,19 +60,19 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold
 
         for t in range(horizon):
             # get actual (ground truth) observation and achieved goal
-            gt_obs = {
-                'observation': np.concatenate((env.proprioception, gt_achieved), dtype=np.float32),
+            gt = {
+                'observation': np.concatenate((env.proprioception, gt_obs), dtype=np.float32),
                 'achieved_goal': gt_achieved,
                 'desired_goal': gt_goal,
             }
             # get action from policy
-            action, _states = gt_policy.predict(gt_obs, deterministic=True)
+            action, _states = gt_policy.predict(gt, deterministic=True)
 
             # step env
             obs, reward, terminated, truncated, info = env.step(action)
 
             # determine latent space success
-            gt_achieved = gt_encoder.encode_goal(env.observation)
+            gt_obs, gt_achieved = gt_encoder(env.observation)
 
             succ_prev = success # whether previous step was a success
             success = env.check_success(gt_achieved, gt_goal, info=info, force_gt=True)
@@ -133,6 +136,11 @@ if __name__ == '__main__':
 
     threshold, all_before_succ, all_dists = latent_distributions(arg.vision_task, arg.policy_dir, arg.horizon, arg.runs, arg.strictness, arg.render, show_progress=True, save=not arg.dont_save)
 
+    print('Average latent space distance before success:')
+    print(all_before_succ.mean(axis=0))
+    print('Average latent space distance during success:')
+    print(all_dists.mean(axis=0))
+
     print('Suggested latent space threshold:')
     print(threshold.__repr__())
 
@@ -140,15 +148,23 @@ if __name__ == '__main__':
         # show distribution of distances
         import matplotlib.pyplot as plt
         n = all_dists.shape[1]
-        h = min(4, n) # max 4 plots per row
-        w = int(np.ceil(n/h)) # ceil to get at least n plots
-        fig, ax = plt.subplots(w, h, figsize=(h*4, w*4))
+        if n > 4:
+            h = min(4, n) # max 4 plots per row
+            w = int(np.ceil(n/h)) # ceil to get at least n plots
+            fig, ax = plt.subplots(w, h, figsize=(h*4, w*4))
 
-        for dim in range(all_before_succ.shape[1]):
-            x, y = dim//h, dim%h
-            ax[x, y].hist(all_before_succ[:,dim], bins=20, alpha=0.5, label='before success')
-            ax[x, y].hist(all_dists[:,dim], bins=20, alpha=0.5, label='during success')
-        lines, labels = fig.axes[0].get_legend_handles_labels()
-        fig.legend(lines, labels)
+            for dim in range(all_before_succ.shape[1]):
+                x, y = dim//h, dim%h
+                ax[x, y].hist(all_before_succ[:,dim], bins=20, alpha=0.5, label='before success')
+                ax[x, y].hist(all_dists[:,dim], bins=20, alpha=0.5, label='during success')
+            lines, labels = fig.axes[0].get_legend_handles_labels()
+            fig.legend(lines, labels)
+        else:
+            fig, ax = plt.subplots(all_dists.shape[1])
+            for dim in range(all_before_succ.shape[1]):
+                ax[dim].hist(all_before_succ[:,dim], bins=20, alpha=0.5, label='before success')
+                ax[dim].hist(all_dists[:,dim], bins=20, alpha=0.5, label='during success')
+                # ax[dim].title('latent space dimension '+str(dim))
+                ax[dim].legend()
         plt.show()
 

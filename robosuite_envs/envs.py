@@ -55,9 +55,9 @@ cfg_scene['Table'] = cfg_scene['Base'] | {
     'classes': ['env', 'cube', 'arm', 'base', 'gripper'], # cube only exists because it is index 1, but there is no cube in the scene
     'states': [None, None, None, None, 'robot0_eef_pos'],
     'state_dim': [0, 0, 0, 0, 3], # 0 will be ignored
-    'class_latent_dim': [0, 0, 7, 0, 3], # 0 will be ignored
+    'class_latent_dim': [0, 0, 0, 0, 3], # 0 will be ignored
     'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
-    'class_distribution': [0.3, 0, 0.05, 0.05], #TODO: from generate_pc
+    'class_distribution': [0.3, 0, 0.4, 0.05, 0.05], #TODO: from generate_pc
 }
 
 

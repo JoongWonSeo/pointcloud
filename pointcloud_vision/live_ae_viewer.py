@@ -9,6 +9,7 @@ from pointcloud_vision.pc_sensor import PointCloudSensor
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import obs_to_pc, seg_to_color, mean_cube_pos, IntegerEncode, Normalize, Unnormalize
 from robosuite_envs.envs import cfg_scene
+from sb3_contrib.tqc.policies import MultiInputPolicy
 
 
 def aa_lines(pos, col, length=0.4, res=50):
@@ -28,7 +29,7 @@ def aa_lines(pos, col, length=0.4, res=50):
 def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
-def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
+def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', policy=''):
  
     env = gym.make(env, render_mode='human', sensor=PointCloudSensor, autoreset=True)
     scene_name = env.scene
@@ -45,10 +46,14 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
 
     # load model
     ae, open_dataset = create_model(model, backbone, scene_name, load_dir=model_dir)
-    ae = ae.model
-
-    ae = ae.to(cfg.device)
+    ae = ae.model.to(cfg.device)
     ae.eval()
+
+    # load policy
+    if policy:
+        agent = MultiInputPolicy.load(policy)
+    else:
+        agent = None
 
     if model in ['Segmenter', 'GTSegmenter', 'MultiSegmenter']:
         classes = list(zip(env.classes, env.class_colors))
@@ -133,13 +138,25 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
             return np.array([]).reshape(0, 3), np.array([]).reshape(0, 3)
 
     env.unwrapped.render_info = update_pc
-    env.reset()
+    obs, info = env.reset()
 
 
     keep_running = True
     while keep_running:
-        action = np.random.randn(env.action_space.shape[0])
-        env.step(action)
+        if agent:
+            gt_obs, gt_achieved = env.gt(env.observation)
+            o = {
+                'observation': np.concatenate((env.proprioception, gt_obs), dtype=np.float32),
+                'achieved_goal': gt_achieved,
+                'desired_goal': env.gt.encode_goal(env.goal_state),
+            }
+            action, _states = agent.predict(o, deterministic=True)
+        else:
+            action = np.random.randn(env.action_space.shape[0])
+        obs, reward, terminated, truncated, info = env.step(action)
+        
+        if env.viewer.is_pressed('g'): # show goal state
+            env.show_frame(env.goal_state, None)
 
         if env.viewer.is_pressed('i'):
             show_input = not show_input
@@ -152,11 +169,12 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('scene', type=str)
+    parser.add_argument('env', type=str)
     parser.add_argument('model', type=str)
     parser.add_argument('--backbone', default='PointNet2', type=str)
     parser.add_argument('--model_ver', default=-1, type=int)
     parser.add_argument('--view', default='overlap', choices=['overlap', 'sidebyside'])
+    parser.add_argument('--policy', default=None, type=str)
     arg = parser.parse_args()
 
-    main(arg.scene, arg.model, arg.backbone, arg.model_ver, arg.view)
+    main(arg.env, arg.model, arg.backbone, arg.model_ver, arg.view, arg.policy)

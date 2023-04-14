@@ -14,6 +14,17 @@ register(
     }
 )
 
+register(
+    id='VisionReachMultiSeg-v0',
+    entry_point=RoboReach,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': MultiSegmenterEncoder,
+        'simulate_goal': True,
+    }
+)
+
 # register(
 #     id='VisionReachGT-v0',
 #     entry_point=RoboReach,
