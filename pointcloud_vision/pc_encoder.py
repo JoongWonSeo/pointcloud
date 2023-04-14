@@ -120,13 +120,13 @@ class GlobalSceneEncoder(LatentEncoder):
         return self.get_encoding_space(robo_env)
     
 
+class GlobalAEEncoder(GlobalSceneEncoder):
+    def __init__(self, env, obs_keys, goal_keys):
+        super().__init__(env, obs_keys, goal_keys, 'Autoencoder', 'PointNet2')
 
-# Specific Encoders
-def GlobalAEEncoder(env, obs_keys, goal_keys):
-    return GlobalSceneEncoder(env, obs_keys, goal_keys, 'Autoencoder', 'PointNet2')
-
-def GlobalSegmenterEncoder(env, obs_keys, goal_keys):
-    return GlobalSceneEncoder(env, obs_keys, goal_keys, 'Segmenter', 'PointNet2')
+class GlobalSegmenterEncoder(GlobalSceneEncoder):
+    def __init__(self, env, obs_keys, goal_keys):
+        super().__init__(env, obs_keys, goal_keys, 'Segmenter', 'PointNet2')
 
 
 # MultiBottleEncoderDecoder
@@ -234,6 +234,8 @@ class StatePredictor(ObservationEncoder):
 
         self.postprocessors = StatePredictor.to_state(env)
         self.passthrough_goal = passthrough_goal
+        if self.passthrough_goal:
+            self.env.visual_goal = False
 
     def predict_states(self, obs):
         preprocess = Normalize(obs['boundingbox'])
@@ -274,3 +276,7 @@ class StatePredictor(ObservationEncoder):
     
     def get_goal_space(self, robo_env):
         return Box(low=self.dtype(-np.inf), high=self.dtype(np.inf), shape=(self.goal_encoding_dim,))
+    
+class StatePredictorVisualGoal(StatePredictor):
+    def __init__(self, env, obs_keys, goal_keys):
+        super().__init__(env, obs_keys, goal_keys, passthrough_goal=False)

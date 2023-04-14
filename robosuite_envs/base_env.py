@@ -62,7 +62,9 @@ class RobosuiteGoalEnv(GoalEnv):
         # only to check for actual success
         self.gt = PassthroughEncoder(env=self, obs_keys=self.encoder.obs_keys, goal_keys=self.encoder.goal_keys)
         
-        self.visual_goal = kwargs.get('visual_goal', self.encoder.requires_vision)
+        # visual_goal might have already been overriden by the encoder
+        if not hasattr(self, 'visual_goal'):
+            self.visual_goal = kwargs.get('visual_goal', self.encoder.requires_vision)
 
         # cached information about the current episode that is not returned by step()
         self.raw_state = None # raw state from the Robosuite environment
@@ -98,6 +100,7 @@ class RobosuiteGoalEnv(GoalEnv):
         ###################
         self.render_mode = render_mode
         self.render_info = render_info # function that returns points to render
+        self.overlay = None # a function that returns transparent overlay to render on top of the camera image
 
         self.viewer = None
         self.request_truncate = False # from the UI
@@ -359,6 +362,9 @@ class RobosuiteGoalEnv(GoalEnv):
             # right half of the bottom row is believe success
             camera_image[0:2, mid:, :] = [0, 1, 0] if self.believe_success else [1, 0, 0]
 
+        if self.overlay:
+            camera_image += self.overlay(camera_h, camera_w)
+
         self.viewer.show(to_cv2_img(camera_image))
     
 
@@ -397,13 +403,23 @@ class RobosuiteGoalEnv(GoalEnv):
 
 # render infos
 def render_goal(env, robo_obs):
-    goal = env.goal_state[env.goal_keys[0]]
-    return np.array([goal]), np.array([[0, 1, 0]])
+    p, c = [], []
     
-def render_pred_goal(env, robo_obs):
-    pred = env.encoding
-    goal = env.goal_state[env.goal_keys[0]]
-    return np.array([pred, goal]), np.array([[1, 0, 0], [0, 1, 0]])
+    # encoder produces GT prediction
+    if env.encoder.requires_vision and not env.encoder.latent_encoding:
+        # prediction
+        p.append(env.encoding)
+        c.append([1, 0, 0])
+        
+        # goal prediction
+        p.append(env.goal_encoding)
+        c.append([0, 0.7, 0])
+
+    # goal
+    p.append(env.goal_state[env.goal_keys[0]])
+    c.append([0, 1, 0])
+
+    return np.array(p), np.array(c)
 
 # safety check
 def assert_correctness(func):

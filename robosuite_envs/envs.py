@@ -4,10 +4,13 @@ from copy import deepcopy
 import robosuite as suite
 from robosuite.controllers import load_controller_config
 
-from .base_env import RobosuiteGoalEnv, render_goal, render_pred_goal, assert_correctness
+from .base_env import RobosuiteGoalEnv, render_goal, render_goal, assert_correctness
 from .encoders import PassthroughEncoder
 from .sensors import PassthroughSensor
 from .utils import apply_preset, set_obj_pos, set_robot_pose, disable_rendering
+
+# misc settings
+keep_cam_pose = False # reset camera position after each reset
 
 # keyward arguments for Robosuite environment to be created
 robo_kwargs = {}
@@ -41,9 +44,9 @@ robo_kwargs['Table'] = robo_kwargs['Base'] | {
 cfg_scene['Table'] = cfg_scene['Base'] | {
     'scene': 'Table', # name of this configuration, used to look up other configs of the same env
     'cameras': { # name: (position, quaternion)
-        'frontview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]),
-        'agentview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]),
-        'birdview': ([1.5, 0, 2], [0.35629062, 0.35629062, 0.61078392, 0.61078392])
+        'frontview': None, # front
+        'agentview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]), # left
+        'birdview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]), # right
     },
     'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 
@@ -125,6 +128,8 @@ class RoboReach(RobosuiteGoalEnv):
             render_info=render_goal,
             **kwargs
         )
+        if keep_cam_pose:
+            self.reset_camera_poses=False
 
     @staticmethod
     def set_initial_state(robo_env, get_state):
@@ -196,6 +201,8 @@ class RoboPush(RobosuiteGoalEnv):
             simulate_goal=False, # robot pose is not relevant to goal state
             **kwargs
         )
+        if keep_cam_pose:
+            self.reset_camera_poses=False
  
 
     # define environment functions
@@ -263,9 +270,11 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
             sensor=sensor(env=self),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
-            render_info=render_pred_goal,
+            render_info=render_goal,
             **kwargs
         )
+        if keep_cam_pose:
+            self.reset_camera_poses=False
  
 
     # define environment functions
@@ -350,6 +359,8 @@ class RoboPegInHole(RobosuiteGoalEnv):
             simulate_goal=False, # robot pose is not relevant to goal state
             **kwargs
         )
+        if keep_cam_pose:
+            self.reset_camera_poses=False
  
 
     # define environment functions

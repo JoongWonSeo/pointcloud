@@ -1,4 +1,6 @@
 from gymnasium.envs.registration import register
+from .sensors import Sensor, PassthroughSensor
+from .encoders import ObservationEncoder, PassthroughEncoder
 from .envs import RoboReach, RoboPush, RoboPickAndPlace, RoboPegInHole
 
 register(

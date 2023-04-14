@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from time import time
 import numpy as np
+from pointnet2_ops.pointnet2_utils import furthest_point_sample # a MUCH FASTER IMPLEMENTATION OF FPS
 
 def timeit(tag, t):
     print("{}: {}s".format(tag, time() - t))
@@ -60,28 +61,33 @@ def index_points(points, idx):
     return new_points
 
 
+# def farthest_point_sample(xyz, npoint):
+#     """
+#     Input:
+#         xyz: pointcloud data, [B, N, 3]
+#         npoint: number of samples
+#     Return:
+#         centroids: sampled pointcloud index, [B, npoint]
+#     """
+#     device = xyz.device
+#     B, N, C = xyz.shape
+#     centroids = torch.zeros(B, npoint, dtype=torch.long).to(device)
+#     distance = torch.ones(B, N).to(device) * 1e10
+#     farthest = torch.randint(0, N, (B,), dtype=torch.long).to(device)
+#     batch_indices = torch.arange(B, dtype=torch.long).to(device)
+#     # print('FPS:', xyz.shape, npoint, device)
+#     for i in range(npoint):
+#         centroids[:, i] = farthest
+#         centroid = xyz[batch_indices, farthest, :].view(B, 1, 3)
+#         dist = torch.sum((xyz - centroid) ** 2, -1)
+#         mask = dist < distance
+#         distance[mask] = dist[mask]
+#         farthest = torch.max(distance, -1)[1]
+#     return centroids
+
+# The above implementation is SO SLOW! (MORE THAN 300x SLOWER THAN THE ONE BELOW)
 def farthest_point_sample(xyz, npoint):
-    """
-    Input:
-        xyz: pointcloud data, [B, N, 3]
-        npoint: number of samples
-    Return:
-        centroids: sampled pointcloud index, [B, npoint]
-    """
-    device = xyz.device
-    B, N, C = xyz.shape
-    centroids = torch.zeros(B, npoint, dtype=torch.long).to(device)
-    distance = torch.ones(B, N).to(device) * 1e10
-    farthest = torch.randint(0, N, (B,), dtype=torch.long).to(device)
-    batch_indices = torch.arange(B, dtype=torch.long).to(device)
-    for i in range(npoint):
-        centroids[:, i] = farthest
-        centroid = xyz[batch_indices, farthest, :].view(B, 1, 3)
-        dist = torch.sum((xyz - centroid) ** 2, -1)
-        mask = dist < distance
-        distance[mask] = dist[mask]
-        farthest = torch.max(distance, -1)[1]
-    return centroids
+    return furthest_point_sample(xyz.contiguous(), npoint).long()
 
 
 def query_ball_point(radius, nsample, xyz, new_xyz):
