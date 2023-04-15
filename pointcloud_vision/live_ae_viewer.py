@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import gymnasium as gym
 from pointcloud_vision.pc_sensor import PointCloudSensor
+from pointcloud_vision.pc_encoder import StatePredictor
 from pointcloud_vision.train import create_model
 from pointcloud_vision.utils import obs_to_pc, seg_to_color, mean_cube_pos, IntegerEncode, Normalize, Unnormalize
 from robosuite_envs.envs import cfg_scene
@@ -29,9 +30,9 @@ def aa_lines(pos, col, length=0.4, res=50):
 def interpolate_transition(prev, next, interp):
     return prev * (1 - interp) + next * interp
 
-def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', policy=''):
+def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', policy='', gt_policy=False):
  
-    env = gym.make(env, render_mode='human', sensor=PointCloudSensor, autoreset=True)
+    env = gym.make(env, render_mode='human', sensor=PointCloudSensor, horizon=100, autoreset=True)
     scene_name = env.scene
     show_input, show_output, show_vis = True, True, True
 
@@ -59,6 +60,8 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
         classes = list(zip(env.classes, env.class_colors))
         C = len(classes)
         to_label = IntegerEncode(num_classes=C)
+    if model == 'StatePredictor':
+        from_state = StatePredictor.from_state(env)
 
     # Autoencoder Input Output
     def update_pc(env, robo_obs):
@@ -94,6 +97,12 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
             pred_pc = pred
             pred_feature = 'seg'
             pred_gts = [mean_cube_pos(pred)]
+        
+        if model == 'StatePredictor':
+            pred = ae(orig.to(cfg.device).unsqueeze(0))
+            pred = {k: v.detach().cpu().numpy() for k, v in pred.items()}
+
+            pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
 
 
         # assemble the pointclouds        
@@ -104,10 +113,10 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
         vis = np.array([]).reshape(0, 6)
         if target_gts is not None:
             for i, gt in enumerate(target_gts):
-                vis = np.concatenate((vis, aa_lines(gt, np.array([0, 1, i*0.5]), res=50, length=0.1)), axis=0)
+                vis = np.concatenate((vis, aa_lines(gt, np.array([0, 1, i*(len(target_gts)-1)]), res=50, length=0.1)), axis=0)
         if pred_gts is not None:
             for i, gt in enumerate(pred_gts):
-                vis = np.concatenate((vis, aa_lines(gt, np.array([1, 0, i*0.5]), res=50, length=0.1)), axis=0)
+                vis = np.concatenate((vis, aa_lines(gt, np.array([1, 0, i*(len(pred_gts)-1)]), res=50, length=0.1)), axis=0)
 
                 
         target_pc = target_pc.cpu().numpy()
@@ -125,11 +134,11 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
             
         # merge input and visualizations
         pcs = []
-        if show_input:
+        if show_input and target_pc is not None:
             pcs += [target_pc]
-        if show_output:
+        if show_output and pred_pc is not None:
             pcs += [pred_pc]
-        if show_vis:
+        if show_vis and vis is not None:
             pcs += [vis]
         if len(pcs) > 0:
             pcs = postprocess(np.concatenate(tuple(pcs), axis=0))
@@ -144,12 +153,15 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
     keep_running = True
     while keep_running:
         if agent:
-            gt_obs, gt_achieved = env.gt(env.observation)
-            o = {
-                'observation': np.concatenate((env.proprioception, gt_obs), dtype=np.float32),
-                'achieved_goal': gt_achieved,
-                'desired_goal': env.gt.encode_goal(env.goal_state),
-            }
+            if gt_policy:
+                gt_obs, gt_achieved = env.gt(env.observation)
+                o = {
+                    'observation': np.concatenate((env.proprioception, gt_obs), dtype=np.float32),
+                    'achieved_goal': gt_achieved,
+                    'desired_goal': env.gt.encode_goal(env.goal_state),
+                }
+            else:
+                o = obs
             action, _states = agent.predict(o, deterministic=True)
         else:
             action = np.random.randn(env.action_space.shape[0])
@@ -175,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_ver', default=-1, type=int)
     parser.add_argument('--view', default='overlap', choices=['overlap', 'sidebyside'])
     parser.add_argument('--policy', default=None, type=str)
+    parser.add_argument('--gt_policy', action='store_true')
     arg = parser.parse_args()
 
-    main(arg.env, arg.model, arg.backbone, arg.model_ver, arg.view, arg.policy)
+    main(arg.env, arg.model, arg.backbone, arg.model_ver, arg.view, arg.policy, arg.gt_policy)

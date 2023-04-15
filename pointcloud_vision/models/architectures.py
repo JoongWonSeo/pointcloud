@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pointcloud_vision.models.pointnet import PointNetEncoder
 from pointcloud_vision.models.pointnet2 import PointNet2Encoder
+# from pointcloud_vision.models.pointnet2_ssg_cls import PointNet2SSGEncoder
 from pointcloud_vision.models.pointmlp import PointMLP, PointMLPElite
 
 # constructors for the different point cloud encoders

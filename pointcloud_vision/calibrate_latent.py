@@ -113,7 +113,7 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold
         threshold = None
 
     if threshold is not None and save:
-        env.encoder.save_latent_threshold(threshold)
+        env.encoder.save_latent_threshold(threshold, all_before_succ, all_dists)
     
     env.close()
 
@@ -127,9 +127,9 @@ if __name__ == '__main__':
     parser.add_argument('vision_task', type=str)
     parser.add_argument('policy_dir', type=str)
     parser.add_argument('--horizon', type=int, default=50)
-    parser.add_argument('--runs', type=int, default=40)
+    parser.add_argument('--runs', type=int, default=100)
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--strictness', type=float, default=0.2)
+    parser.add_argument('--strictness', type=float, default=0.4)
     parser.add_argument('--show_distribution', action='store_true')
     parser.add_argument('--dont_save', action='store_true')
     arg = parser.parse_args()

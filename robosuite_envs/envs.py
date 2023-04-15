@@ -29,11 +29,27 @@ robo_kwargs['Base'] = {
     'ignore_done': True, # unlimited horizon (use gym's TimeLimit wrapper instead)
 }
 cfg_scene['Base'] = {
-    # 'camera_size': (128, 128), # width, height
-    'camera_size': (256, 256), # width, height
+    'camera_size': (128, 128), # width, height
     'sample_points': 2048, # points in the point cloud
     'sampler': 'FPS', # sampling method: 'FPS' or 'RS'
+    'cameras': { # name: (position, quaternion)
+        'frontview': ([ 1.5, 0, 1], [0.53, 0.53, 0.46, 0.46]), # front
+    },
+    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 }
+cfg_scene['Base_full'] = {
+    'camera_size': (128, 128), # width, height
+    'sample_points': 2048, # points in the point cloud
+    'sampler': 'FPS', # sampling method: 'FPS' or 'RS'
+    'cameras': { # name: (position, quaternion)
+        'frontview': None, # front
+        'agentview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]), # left
+        'birdview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]), # right
+    },
+    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
+}
+# cfg_scene['Base'] = cfg_scene['Base_full']
+
 
 
 ########## Table Scene ##########
@@ -44,12 +60,6 @@ robo_kwargs['Table'] = robo_kwargs['Base'] | {
 }
 cfg_scene['Table'] = cfg_scene['Base'] | {
     'scene': 'Table', # name of this configuration, used to look up other configs of the same env
-    'cameras': { # name: (position, quaternion)
-        'frontview': None, # front
-        'agentview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]), # left
-        'birdview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]), # right
-    },
-    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 
     # class segmentation, the index corresponds to the label value (integer encoding)
     'classes': ['env', 'cube', 'arm', 'base', 'gripper'], # cube only exists because it is index 1, but there is no cube in the scene
@@ -295,7 +305,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
             if self.simulate_goal: # simulated goal
                 raise NotImplementedError
             else: # rendered goal
-                print('rerendering goal')
+                # print('rerendering goal')
                 desired_state = self.render_state(lambda env: set_obj_pos(env.sim, joint='cube_joint0', pos=cube_pos))
         else:
             desired_state = state.copy()

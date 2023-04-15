@@ -67,8 +67,13 @@ class LatentEncoder(ObservationEncoder):
             print('No latent threshold found! Make sure to calibrate the encoder!')
             return None
     
-    def save_latent_threshold(self, threshold):
-        save_metadata({'latent_threshold': threshold}, self.metadata_dir)
+    def save_latent_threshold(self, threshold, all_before_succ=None, all_dists=None):
+        data = {'latent_threshold': threshold}
+        if all_before_succ is not None:
+            data['all_before_succ'] = all_before_succ
+        if all_dists is not None:
+            data['all_dists'] = all_dists
+        save_metadata(data, self.metadata_dir)
         self.latent_threshold = threshold
 
 
@@ -252,7 +257,7 @@ class StatePredictor(ObservationEncoder):
     
     def encode_goal(self, obs):
         if self.passthrough_goal:
-            return flatten_classes(obs, self.goal_keys)
+            return flatten_classes(obs, self.goal_keys).numpy()
         else:
             state_encodings = self.predict_states(obs)
             state_encodings = {k: self.postprocessors[k](v) for k, v in state_encodings.items()}
@@ -265,7 +270,7 @@ class StatePredictor(ObservationEncoder):
         state_encodings = {k: self.postprocessors[k](v) for k, v in state_encodings.items()}
         enc = flatten_classes(state_encodings, self.obs_keys).detach().cpu().numpy()
         if self.passthrough_goal:
-            goal = flatten_classes(obs, self.goal_keys)
+            goal = flatten_classes(obs, self.goal_keys).numpy()
         else:
             goal = flatten_classes(state_encodings, self.goal_keys).detach().cpu().numpy()
 

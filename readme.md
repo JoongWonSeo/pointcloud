@@ -54,7 +54,7 @@ Run the following scripts in the `pointcloud_vision/` directory.
 
 For example for the RobosuiteReach-v0 dataset (validation), this will create 25 * 8 = 200 point cloud frames with randomized movement. The `--show_distribution` flag shows all generated data combined including the ground truth (red) and goal (green) if they're simple 3D points.
 ```
-python generate_pc.py input/Table/val --env RobosuiteReach-v0 --horizon 25 --runs 8 --show_distribution
+python generate_pc.py input/Table/val --env RoboReach-v0 --horizon 25 --runs 8 --show_distribution
 ```
 
 To view any of the generated point cloud in the browser, you can run e.g.:

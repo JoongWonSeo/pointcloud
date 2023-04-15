@@ -228,9 +228,10 @@ class UI:
 
         if self.key == 27: #ESC key: quit program
             return False
-        
         if self.key == 9: # tab key: switch camera
             self.camera_index = (self.camera_index + 1) % len(self.env.cameras)
+        if self.key == ord('p'): # p key: print current camera pose
+            print('Current camera pose:', self.camera_mover.get_camera_pose())
 
         # move camera with WASD
         self.camera_mover.move_camera((1,0,0), ((self.key == ord('d')) - (self.key == ord('a'))) * 0.05) # x axis (right-left)
