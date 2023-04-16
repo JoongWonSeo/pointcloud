@@ -12,7 +12,7 @@ from pointcloud_vision.utils import SampleRandomPoints, SampleFurthestPoints
 def generate_pc(dir, env, horizon, runs, actions_per_frame, action_scale, steps_per_action, render, show_distribution):
     total_steps = horizon * runs
 
-    env = gym.make(arg.env, max_episode_steps=horizon, sensor=PointCloudSensor, render_mode='human' if render else None)
+    env = gym.make(arg.env, max_episode_steps=horizon, sensor=PointCloudSensor, render_mode='human' if render else None, require_segmentation=True)
     gt_states = [s for s in env.states if s]
 
     # stats

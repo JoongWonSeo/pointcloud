@@ -16,7 +16,7 @@ class Sensor(ABC):
     '''
     requires_vision = False
 
-    def __init__(self, env):
+    def __init__(self, env, **kwargs):
         self.env = env
     
     @property

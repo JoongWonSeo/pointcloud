@@ -120,6 +120,7 @@ class RoboReach(RobosuiteGoalEnv):
         render_mode=None,
         sensor=PassthroughSensor,
         encoder=PassthroughEncoder,
+        require_segmentation=False,
         **kwargs
         ):
         # configure cameras and their poses
@@ -133,7 +134,7 @@ class RoboReach(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
-            sensor=sensor(env=self),
+            sensor=sensor(env=self, require_segmentation=require_segmentation),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
             render_info=render_goal,
@@ -192,6 +193,7 @@ class RoboPush(RobosuiteGoalEnv):
         render_mode=None,
         sensor=PassthroughSensor,
         encoder=PassthroughEncoder,
+        require_segmentation=False,
         **kwargs
         ):
         # configure cameras and their poses
@@ -205,7 +207,7 @@ class RoboPush(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
-            sensor=sensor(env=self),
+            sensor=sensor(env=self, require_segmentation=require_segmentation),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
             render_info=render_goal,
@@ -265,6 +267,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
         render_mode=None,
         sensor=PassthroughSensor,
         encoder=PassthroughEncoder,
+        require_segmentation=False,
         **kwargs
         ):
         # configure cameras and their poses
@@ -278,7 +281,7 @@ class RoboPickAndPlace(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
-            sensor=sensor(env=self),
+            sensor=sensor(env=self, require_segmentation=require_segmentation),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
             render_info=render_goal,
@@ -343,6 +346,7 @@ class RoboPegInHole(RobosuiteGoalEnv):
         render_mode=None,
         sensor=PassthroughSensor,
         encoder=PassthroughEncoder,
+        require_segmentation=False,
         **kwargs
         ):
         # configure cameras and their poses
@@ -363,7 +367,7 @@ class RoboPegInHole(RobosuiteGoalEnv):
         # initialize RobosuiteGoalEnv
         super().__init__(
             robo_kwargs=robo_kwargs[self.scene],
-            sensor=sensor(env=self),
+            sensor=sensor(env=self, require_segmentation=require_segmentation),
             encoder=encoder(self, self.obs_keys, self.goal_keys),
             render_mode=render_mode,
             render_info=render_peg_hole,

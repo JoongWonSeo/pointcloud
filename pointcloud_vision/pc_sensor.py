@@ -15,10 +15,10 @@ class PointCloudSensor(Sensor):
     '''
     requires_vision = True
 
-    def __init__(self, env):
+    def __init__(self, env, require_segmentation=False):
         super().__init__(env)
 
-        self.features = ['rgb', 'segmentation']
+        self.features = ['rgb'] + (['segmentation'] if require_segmentation else [])
         self.bbox = torch.as_tensor(env.bbox).to(cfg.device)
         sampler = {'FPS': SampleFurthestPoints, 'RS': SampleRandomPoints}[env.sampler]
         self.preprocess = Compose([
@@ -30,7 +30,7 @@ class PointCloudSensor(Sensor):
     def env_kwargs(self):
         return super().env_kwargs | {
             'camera_depths': True,
-            'camera_segmentations': 'class',
+            'camera_segmentations': 'class' if 'segmentation' in self.features else None,
         }
     
     def observe(self, state):
