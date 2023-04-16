@@ -58,7 +58,7 @@ robo_kwargs['Table'] = robo_kwargs['Base'] | {
     'robots': 'Panda', 
     'controller_configs': load_controller_config(default_controller="OSC_POSITION"),
 }
-cfg_scene['Table'] = cfg_scene['Base'] | {
+cfg_scene['Table'] = cfg_scene['Base_full'] | {
     'scene': 'Table', # name of this configuration, used to look up other configs of the same env
 
     # class segmentation, the index corresponds to the label value (integer encoding)
@@ -73,7 +73,7 @@ cfg_scene['Table'] = cfg_scene['Base'] | {
 
 ########## Cube Scene ##########
 robo_kwargs['Cube'] = robo_kwargs['Table']
-cfg_scene['Cube'] = cfg_scene['Table'] | {
+cfg_scene['Cube'] = cfg_scene['Base'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
 
     # class segmentation, the index corresponds to the label value (integer encoding)
