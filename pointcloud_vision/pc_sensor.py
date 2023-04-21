@@ -30,7 +30,7 @@ class PointCloudSensor(Sensor):
     def env_kwargs(self):
         return super().env_kwargs | {
             'camera_depths': True,
-            'camera_segmentations': 'class' if 'segmentation' in self.features else None,
+            'camera_segmentations': 'instance' if 'segmentation' in self.features else None,
         }
     
     def observe(self, state):

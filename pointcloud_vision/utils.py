@@ -312,9 +312,13 @@ class StatePredictionLoss:
     def __init__(self, states, transforms):
         self.state_losses = {s: F.mse_loss for s in states}
         self.t = transforms
+        # if no transform is given, use identity
+        for s in states:
+            if s not in self.t:
+                self.t[s] = lambda x: x
     
     def __call__(self, pred, target):
-        return torch.stack([loss(pred[s], self.t[s](target[s])) for s, loss in self.state_losses.items()]).sum()
+        return torch.stack([loss(pred[s], self.t[s](target[s])) for s, loss in self.state_losses.items()]).mean()
 
 
 ########## PyTorch Datasets ##########

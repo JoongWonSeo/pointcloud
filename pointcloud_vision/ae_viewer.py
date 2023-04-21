@@ -107,13 +107,22 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         
         if model == 'StatePredictor':
             pred = ae(orig.to(cfg.device).unsqueeze(0))
+            # print(pred, target)
+            for k in pred:
+                if k not in from_state:
+                    print('using identity function for', k)
+                    from_state[k] = lambda x: x
             pred = {k: v.detach().cpu().numpy() for k, v in pred.items()}
             target = {k: from_state[k](v.detach().cpu().numpy()) for k, v in target.items()}
 
             target_pc = orig
             target_feature = 'rgb'
-            target_gts = [target['cube_pos'], target['robot0_eef_pos']]
-            pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
+            if scene_name == 'Cube':
+                target_gts = [target['cube_pos'], target['robot0_eef_pos']]
+                pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
+            if scene_name == 'PegInHole':
+                target_gts = [target['hole_pos'], target['hole_pos'] - from_state['hole_pos'](target['peg_to_hole'])]
+                pred_gts = [pred['hole_pos'], pred['hole_pos'] - pred['peg_to_hole']]
 
 
         # assemble the pointclouds        

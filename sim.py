@@ -49,10 +49,10 @@ if a.passive_encoder and encoders[a.passive_encoder]:
 
     def show_sucess(h, w):
         # swap out the encoders temporarily
-        env.encoder, orig = pe, env.encoder
+        env.unwrapped.encoder, orig = pe, env.encoder
         pe_achieved = pe.encode_goal(env.observation)
         pe_succ = env.check_success(pe_achieved, pe_goal, info=None)
-        env.encoder = orig # restore original encoder
+        env.unwrapped.encoder = orig # restore original encoder
 
         overlay = np.zeros((h, w, 3))
         overlay[h-2:h, :, :] = [0, 1, 0] if pe_succ else [1, 0, 0]
@@ -98,6 +98,12 @@ while run:
         
         if env.viewer.is_pressed('g'): # show goal state
             env.show_frame(env.goal_state, None)
+        if env.viewer.is_pressed('v'): # save visual goal 
+            # pickle current robo obs
+            import pickle
+            with open(f'pointcloud_vision/input/{env.scene}/{a.env}_visual_goal.pkl', 'wb') as f:
+                pickle.dump(env.raw_state, f)
+                print('saved visual goal state')
 
         if terminated or truncated:
             break
