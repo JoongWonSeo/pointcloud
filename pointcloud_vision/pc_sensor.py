@@ -20,7 +20,7 @@ class PointCloudSensor(Sensor):
 
         self.features = ['rgb'] + (['segmentation'] if require_segmentation else [])
         self.bbox = torch.as_tensor(env.bbox).to(cfg.device)
-        sampler = {'FPS': SampleFurthestPoints, 'RS': SampleRandomPoints}[env.sampler]
+        sampler = {'FPS': SampleFurthestPoints, 'RS': SampleRandomPoints, None: lambda x: (lambda y: y)}[env.sampler]
         self.preprocess = Compose([
             FilterBBox(self.bbox),
             sampler(env.sample_points),
