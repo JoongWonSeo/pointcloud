@@ -30,6 +30,7 @@ parser.add_argument('--sensor', default='default', choices=list(sensors.keys()),
 parser.add_argument('--encoder', default='default', choices=list(encoders.keys()), help='observation encoder')
 parser.add_argument('--passive_encoder', default='', choices=list(encoders.keys()), help='passive encoder just for goal checking and visualization')
 parser.add_argument('--policy', default='', type=str, help='path to policy file')
+parser.add_argument('--benchmark', default=None, type=int, help='number of episodes to run for benchmarking')
 a = parser.parse_args()
 
 
@@ -75,6 +76,8 @@ agent_action_limit = env.action_space.high
 
 
 # simulation
+ep_rewards = []
+ep_is_success = []
 run = True
 while run:
     obs, info = env.reset()
@@ -104,8 +107,23 @@ while run:
             with open(f'pointcloud_vision/input/{env.scene}/{a.env}_visual_goal.pkl', 'wb') as f:
                 pickle.dump(env.raw_state, f)
                 print('saved visual goal state')
+        if env.viewer.is_pressed('b'): # benchmark mean reward and success
+            print("episodes = ", len(ep_rewards))
+            print(f"mean reward = {np.mean(ep_rewards)}")
+            print(f"median reward = {np.median(ep_rewards)}")
+            print(f"success rate = {np.mean(ep_is_success)}")
 
         if terminated or truncated:
             break
+    
+    ep_rewards.append(total_reward)
+    ep_is_success.append(info['is_success'])
 
-    print(f"\ntotal_reward = {total_reward}\nis_success = {info['is_success']}")
+    if a.benchmark and len(ep_rewards) >= a.benchmark:
+        print("episodes = ", len(ep_rewards))
+        print(f"mean reward = {np.mean(ep_rewards)}")
+        print(f"median reward = {np.median(ep_rewards)}")
+        print(f"success rate = {np.mean(ep_is_success)}")
+        run = False
+    if not a.benchmark:
+        print(f"\ntotal_reward = {total_reward}\nis_success = {info['is_success']}")

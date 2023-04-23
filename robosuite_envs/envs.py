@@ -42,7 +42,7 @@ cfg_scene['Base_full'] = {
     'sample_points': 2048, # points in the point cloud
     'sampler': 'FPS', # sampling method: 'FPS' or 'RS'
     'cameras': { # name: (position, quaternion)
-        'frontview': None, # front
+        'frontview': ([ 1.5, 0, 1], [0.53, 0.53, 0.46, 0.46]), # front
         'agentview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]), # left
         'birdview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]), # right
     },
@@ -73,7 +73,7 @@ cfg_scene['Table'] = cfg_scene['Base_full'] | {
 
 ########## Cube Scene ##########
 robo_kwargs['Cube'] = robo_kwargs['Table']
-cfg_scene['Cube'] = cfg_scene['Base_full'] | {
+cfg_scene['Cube'] = cfg_scene['Base'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
     'camera_size': (256, 256), # width, height
 
