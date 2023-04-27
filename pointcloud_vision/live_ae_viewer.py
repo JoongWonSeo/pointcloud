@@ -34,7 +34,7 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
  
     env = gym.make(env, render_mode='human', sensor=PointCloudSensor, horizon=100, autoreset=True)
     scene_name = env.scene
-    show_input, show_output, show_vis = True, True, True
+    show_input, show_output, show_vis = False, True, True
 
     if model_ver > -1:
         model_dir = f'output/{scene_name}/{model}_{backbone}/version_{model_ver}/checkpoints/'

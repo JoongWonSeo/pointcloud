@@ -11,6 +11,10 @@
 *.html
 *.pdf
 
+# recordings
+*.mp4
+*.avi
+
 # training data
 */input/
 

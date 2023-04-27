@@ -38,11 +38,11 @@ cfg_scene['Base'] = {
     'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 }
 cfg_scene['Base_full'] = {
-    'camera_size': (128, 128), # width, height
+    'camera_size': (256, 256), # width, height
     'sample_points': 2048, # points in the point cloud
     'sampler': 'FPS', # sampling method: 'FPS' or 'RS'
     'cameras': { # name: (position, quaternion)
-        'frontview': None, # front
+        'frontview': ([ 1.5, 0, 1], [0.53, 0.53, 0.46, 0.46]), # front
         'agentview': ([-0.15, -1.2, 2.3], [0.3972332, 0, 0, 0.9177177]), # left
         'birdview': ([-0.15, 1.2, 2.3], [0, 0.3972332, 0.9177177, 0]), # right
     },
@@ -66,14 +66,14 @@ cfg_scene['Table'] = cfg_scene['Base_full'] | {
     'states': [None, None, None, None, 'robot0_eef_pos'],
     'state_dim': [0, 0, 0, 0, 3], # 0 will be ignored
     'class_latent_dim': [0, 0, 0, 0, 3], # 0 will be ignored
-    'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
+    'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 0.4, 0], [0, 0, 1]],
     'class_distribution': [0.3, 0, 0.4, 0.05, 0.05], #TODO: from generate_pc
 }
 
 
 ########## Cube Scene ##########
 robo_kwargs['Cube'] = robo_kwargs['Table']
-cfg_scene['Cube'] = cfg_scene['Base'] | {
+cfg_scene['Cube'] = cfg_scene['Base_full'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
 
     # class segmentation, the index corresponds to the label value (integer encoding)
@@ -81,7 +81,7 @@ cfg_scene['Cube'] = cfg_scene['Base'] | {
     'states': [None, 'cube_pos', None, None, 'robot0_eef_pos'], # corresponding state name
     'state_dim': [0, 3, 0, 0, 3], # 0 will be ignored
     'class_latent_dim': [0, 3, 7, 0, 3], # 0 will be ignored
-    'class_colors': [[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0.5], [0, 1, 0], [0, 0, 1]],
+    'class_colors': [[0, 0, 0], [1, 0, 0], [0.8, 0.8, 0.8], [0, 1, 0], [0, 0, 1]],
     'class_distribution': [0.3, 0.01, 0.4, 0.05, 0.05], #TODO: from generate_pc
 }
 

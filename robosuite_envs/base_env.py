@@ -5,6 +5,7 @@
 from abc import abstractmethod
 from copy import deepcopy
 from functools import reduce, wraps
+import cv2
 import numpy as np
 from numpy.testing import assert_equal
 from gymnasium_robotics.core import GoalEnv
@@ -339,16 +340,20 @@ class RobosuiteGoalEnv(GoalEnv):
             return
 
         if self.viewer is None: #init renderer
-            self.viewer = UI('Robosuite', self)
+            self.viewer = UI('Robosuite', self, selected_camera=0)
         
         # update UI
         if not self.viewer.update(): # if user closes the window
+            self.vid.release() # save video
             quit() # force quit program
         self.request_truncate = self.viewer.is_pressed('r')
 
         # render
         cam = self.cameras[self.viewer.camera_index]
         camera_image = robo_obs[cam + '_image'] / 255
+        self.tint_strength = 0.5
+        self.tint_color = np.array([0, 0.3, 0])
+        camera_image = camera_image * (1 - self.tint_strength) + self.tint_color * self.tint_strength
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)
@@ -365,7 +370,18 @@ class RobosuiteGoalEnv(GoalEnv):
         if self.overlay:
             camera_image += self.overlay(camera_h, camera_w)
 
-        self.viewer.show(to_cv2_img(camera_image))
+        img = to_cv2_img(camera_image)
+        self.viewer.show(img)
+
+        # save video
+        if True:
+            if 'vid' not in self.__dict__:
+                self.vid = cv2.VideoWriter(f'recording/{self.task}.mp4', fourcc=cv2.VideoWriter_fourcc(*'mp4v'), fps=20.0, frameSize=(img.shape[1], img.shape[0]))
+                # self.vid = cv2.VideoWriter(f'recording/{self.task}.avi', fourcc=cv2.VideoWriter_fourcc(*'FFV1'), fps=20.0, frameSize=(img.shape[1], img.shape[0]))
+            else:
+                # convert 1.0 to 255
+                img = (img * 255).astype(np.uint8)
+                self.vid.write(img)
     
 
     def simulate_eef_pos(self, target, state_setter=None, tolerance=0.01, max_steps=50, eef_key='robot0_eef_pos'):
