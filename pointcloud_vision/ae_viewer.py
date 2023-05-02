@@ -198,8 +198,8 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         keep_running = vis.poll_events()
         if prev_pc is not None and curr_pc is not None and anim_t < 1:
             anim_t = min(anim_t + animation_speed, 1)
-            points = interpolate_transition(prev_pc[0], curr_pc[0], anim_t)
-            rgb = interpolate_transition(prev_pc[1], curr_pc[1], anim_t)
+            points = np.concatenate((curr_pc[0][:2048, :], interpolate_transition(prev_pc[0][2048:, :], curr_pc[0][2048:, :], anim_t)), axis=0)
+            rgb = np.concatenate((curr_pc[1][:2048, :], interpolate_transition(prev_pc[1][2048:, :], curr_pc[1][2048:, :], anim_t)), axis=0)
             pcd.points = o3d.utility.Vector3dVector(points)
             pcd.colors = o3d.utility.Vector3dVector(rgb)
             vis.update_geometry(pcd)
