@@ -143,9 +143,9 @@ def multiview_pointcloud(sim, obs, cameras, transform=None, features=['rgb'], de
     """
     feature_getter = {
         'rgb': lambda o, c: o[c + '_image'] / 255,
-        'segmentation': lambda o, c: o[c + '_segmentation_class']
+        # 'segmentation': lambda o, c: o[c + '_segmentation_class']
+        'segmentation': lambda o, c: o[c + '_segmentation_instance']
     }
-
     # combine multiple 2.5D observations into a single pointcloud
     pcs = []
     feats = [[] for _ in features] # [feat0, feat1, ...]

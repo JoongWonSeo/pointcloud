@@ -72,6 +72,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.observation = None # observation from the sensor
         self.proprioception = None # proprioception from the robot
         self.encoding = None # encoding from the observation encoder
+        self.achieved = None # achieved goal from the observation encoder
         self.goal_state = None # raw goal state from goal_state() function
         self.goal_obs = None # goal observation from the sensor
         self.goal_encoding = None # encoding from the goal encoder
@@ -223,6 +224,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.observation = obs
         self.proprioception = proprio
         self.encoding = obs_encoding
+        self.achieved = achieved_goal
         self.goal_state = goal_state
         self.goal_obs = goal_obs
         self.goal_encoding = goal_encoding
@@ -282,6 +284,7 @@ class RobosuiteGoalEnv(GoalEnv):
         self.observation = obs
         self.proprioception = proprio
         self.encoding = obs_encoding
+        self.achieved = achieved_goal
 
         if self.render_mode == 'human':
             self.show_frame(state, info)

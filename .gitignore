@@ -7,9 +7,11 @@
 *.ckpt
 *.zip
 
-# slides
+# slides and vids
 *.html
 *.pdf
+*.mp4
+*.avi
 
 # recordings
 *.mp4

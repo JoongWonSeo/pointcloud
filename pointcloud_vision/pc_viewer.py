@@ -1,3 +1,4 @@
+import argparse
 import pointcloud_vision.cfg as cfg
 import sys
 import torch
@@ -27,7 +28,7 @@ def split_by_class(points, seg, classes):
 def load_pointcloud(file_dir):
     return np.load(file_dir, allow_pickle=True)
 
-def plot_pointcloud(pointcloud, name='pointcloud'):
+def plot_pointcloud(pointcloud, name='pointcloud', max_points=20000, point_size=2):
     points = torch.Tensor(pointcloud['points']) # (N, 3)
 
     pointclouds = {}
@@ -41,8 +42,19 @@ def plot_pointcloud(pointcloud, name='pointcloud'):
 
     plot_scene({
         name: pointclouds
-    }, pointcloud_marker_size=3).show()
+    },
+        pointcloud_marker_size=point_size,
+        pointcloud_max_points=max_points,
+    ).show()
 
 
 if __name__ == '__main__':
-    plot_pointcloud(load_pointcloud(sys.argv[1]), name=sys.argv[1])
+    # args
+    parser = argparse.ArgumentParser(description='Pointcloud Viewer')
+    parser.add_argument('file_dir', type=str, help='pointcloud file directory')
+    parser.add_argument('--point_size', default=2, type=int, help='point size')
+    parser.add_argument('--max_points', default=20000, type=int, help='max points')
+    args = parser.parse_args()
+
+    # plot
+    plot_pointcloud(load_pointcloud(args.file_dir), name=args.file_dir, max_points=args.max_points, point_size=args.point_size)

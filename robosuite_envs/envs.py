@@ -76,6 +76,7 @@ cfg_scene['Table'] = cfg_scene['Base_full'] | {
 robo_kwargs['Cube'] = robo_kwargs['Table']
 cfg_scene['Cube'] = cfg_scene['Base_full'] | {
     'scene': 'Cube', # name of this configuration, used to look up other configs of the same env
+    'camera_size': (256, 256), # width, height
 
     # class segmentation, the index corresponds to the label value (integer encoding)
     'classes': ['env', 'cube', 'arm', 'base', 'gripper'],
@@ -91,17 +92,23 @@ cfg_scene['Cube'] = cfg_scene['Base_full'] | {
 robo_kwargs['PegInHole'] = robo_kwargs['Base'] | {
     'env_name': 'TwoArmPegInHole', # name of the Robosuite environment
     'robots': ['Panda', 'Panda'], 
-    # 'controller_configs': load_controller_config(default_controller="OSC_POSE"),
+    'controller_configs': load_controller_config(default_controller="OSC_POSE"),
 }
 cfg_scene['PegInHole'] = cfg_scene['Base'] | {
     'scene': 'PegInHole', # name of this configuration, used to look up other configs of the same env
+    'camera_size': (256, 128),
     'cameras': { # name: (position, quaternion)
-        'agentview': None,
+        'frontview':  ([ 1.82528550e+00, -7.45058060e-09,  1.76897722e+00], [0.43064612, 0.43064612, 0.56084215, 0.56084215]), #front
+        'agentview':  ([-1.94923647, -0.03970403,  1.57617048], [ 0.44933245, -0.43759465, -0.54293281,  0.55842209]), # back
     },
-    'bbox': [[-0.8, 0.8], [-0.8, 0.8], [0.5, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
+    'bbox': [[-1.4, 1.8], [-2, 2], [0.2, 2.0]], # (x_min, x_max), (y_min, y_max), (z_min, z_max)
 
-    # class segmentation, the index corresponds to the label value (integer encoding)
-    # TODO
+    'classes': ['peg_hole', 'robot0', 'base0', 'env', 'robot1', 'base1'],
+    'states': ['peg_to_hole', 'peg_quat', 'hole_pos', 'hole_quat', 't', 'd', 'angle'], # corresponding state name
+    'state_dim': [3, 4, 3, 4, 1, 1, 1], # 0 will be ignored
+    'class_latent_dim': [14, 7, 0, 0, 7, 0], # 0 will be ignored
+    'class_colors': [[1, 0, 0], [0.3, 0.3, 0.3], [0.2, 0.2, 0.2], [0, 0, 0], [0.7, 0.7, 0.7], [0.5, 0.5, 0.5]],
+    'class_distribution': [0.4, 0.3, 0, 0, 0.3, 0], #TODO: from generate_pc
 }
 
 
@@ -339,8 +346,15 @@ class RoboPegInHole(RobosuiteGoalEnv):
     # spaces
     # proprio_keys = ['robot0_proprio-state', 'robot1_proprio-state'] # all proprioception
     proprio_keys = [] # hard version, since peg and hole and basically eefs
+    # obs_keys = ['peg', 'hole']
+    # goal_keys = ['peg', 'hole']
     obs_keys = ['peg_to_hole', 'peg_quat', 'hole_pos', 'hole_quat'] # observe the pegs and holes
-    goal_keys = ['peg_to_hole', 'hole_pos'] # we only care about cube position
+    # obs_keys = ['peg_hole', 'robot0', 'robot1']
+    # goal_keys = ['peg_hole']
+    # goal_keys = obs_keys
+    # goal_keys = ['peg_to_hole', 'hole_pos'] # pegs and hole
+    goal_keys = ['t', 'd', 'angle'] # for GT
+    # goal_keys = []
 
     def __init__(
         self,
@@ -377,19 +391,39 @@ class RoboPegInHole(RobosuiteGoalEnv):
         )
         if keep_cam_pose:
             self.reset_camera_poses=False
+
+        # open pickeled goal state with visual info
+        import pickle
+        import os
+        path = os.path.join(os.path.dirname(__file__), '../pointcloud_vision/input/PegInHole/RoboPegInHole-v0_visual_goal.pkl')
+        with open(path, 'rb') as f:
+            self.desired_state = pickle.load(f)
+            print('loaded visual goal state from', path)
+            # print('goal state', self.desired_state)
  
 
     # define environment functions
     @assert_correctness
     def desired_goal_state(self, state, rerender=False):
-        return state
+        # t = parallel distance, d = perpendicular distance, cos = cos of angle between peg and hole
+        # desired_state = state.copy()
+        # # print(state['frontview_segmentation_class'].min(), state['frontview_segmentation_class'].max())
+        # desired_state['t'] = 0.0
+        # desired_state['d'] = 0.0
+        # desired_state['angle'] = 1.0
+        # open pickeled goal state with visual info
+        
+        return self.desired_state
+        # return np.array([0.0, 0.0, 1.0])
 
-    # def check_success(self, achieved, desired, info, force_gt=False):
-    #     axis = 1 if achieved.ndim == 2 else None # batched version or not
-    #     if not force_gt and self.encoder.latent_encoding:
-    #         threshold = self.encoder.latent_threshold
-    #         return (np.abs(achieved - desired) <= threshold).all(axis=axis)
-    #     else:
-    #         return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+    def check_success(self, achieved, desired, info, force_gt=False):
+        axis = 1 if achieved.ndim == 2 else None # batched version or not
+        if not force_gt and self.encoder.latent_encoding:
+            threshold = self.encoder.latent_threshold
+            return (np.abs(achieved - desired) <= threshold).all(axis=axis)
+        else:
+            # return np.linalg.norm(achieved - desired, axis=axis) < 0.05
+            return (np.abs(achieved - desired) <= np.array([0.14, 0.06, 0.05])).all(axis=axis)
+
 
 

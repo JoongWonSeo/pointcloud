@@ -107,13 +107,22 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         
         if model == 'StatePredictor':
             pred = ae(orig.to(cfg.device).unsqueeze(0))
+            # print(pred, target)
+            for k in pred:
+                if k not in from_state:
+                    print('using identity function for', k)
+                    from_state[k] = lambda x: x
             pred = {k: v.detach().cpu().numpy() for k, v in pred.items()}
             target = {k: from_state[k](v.detach().cpu().numpy()) for k, v in target.items()}
 
             target_pc = orig
             target_feature = 'rgb'
-            target_gts = [target['cube_pos'], target['robot0_eef_pos']]
-            pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
+            if scene_name == 'Cube':
+                target_gts = [target['cube_pos'], target['robot0_eef_pos']]
+                pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
+            if scene_name == 'PegInHole':
+                target_gts = [target['hole_pos'], target['hole_pos'] - from_state['hole_pos'](target['peg_to_hole'])]
+                pred_gts = [pred['hole_pos'], pred['hole_pos'] - pred['peg_to_hole']]
 
 
         # assemble the pointclouds        
@@ -189,8 +198,8 @@ def main(scene_name, model, backbone='PointNet2', model_ver=-1, view_mode='overl
         keep_running = vis.poll_events()
         if prev_pc is not None and curr_pc is not None and anim_t < 1:
             anim_t = min(anim_t + animation_speed, 1)
-            points = interpolate_transition(prev_pc[0], curr_pc[0], anim_t)
-            rgb = interpolate_transition(prev_pc[1], curr_pc[1], anim_t)
+            points = np.concatenate((curr_pc[0][:2048, :], interpolate_transition(prev_pc[0][2048:, :], curr_pc[0][2048:, :], anim_t)), axis=0)
+            rgb = np.concatenate((curr_pc[1][:2048, :], interpolate_transition(prev_pc[1][2048:, :], curr_pc[1][2048:, :], anim_t)), axis=0)
             pcd.points = o3d.utility.Vector3dVector(points)
             pcd.colors = o3d.utility.Vector3dVector(rgb)
             vis.update_geometry(pcd)

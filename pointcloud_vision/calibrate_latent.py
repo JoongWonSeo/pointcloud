@@ -49,7 +49,7 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold
         if success:
             print('WARNING: success right after reset!')
             # continue
-        dist = np.abs(env.goal_encoding - env.encoding)
+        dist = np.abs(env.goal_encoding - env.achieved)
 
         # per-episode stats
         zero_goal_space = np.zeros_like(env.goal_encoding)
@@ -80,7 +80,7 @@ def latent_distributions(vision_task, policy_dir, horizon=50, runs=50, threshold
                 if not succ_prev: # first success
                     before_succ_sum += dist
                     before_succ_count += 1
-                dist = np.abs(env.goal_encoding - env.encoding)
+                dist = np.abs(env.goal_encoding - env.achieved)
                 dist_sum += dist
                 dist_count += 1
 

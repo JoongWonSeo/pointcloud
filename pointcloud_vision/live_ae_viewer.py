@@ -73,7 +73,9 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
         postprocess = Unnormalize(obs['boundingbox'])
         orig = preprocess(obs_to_pc(obs, ['rgb']))
 
-        target_pc, target_gts = orig, [preprocess(env.goal_state[env.goal_keys[0]].copy())]
+        target_pc, target_gts = orig, None
+        if scene_name != 'PegInHole':
+            target_gts = [preprocess(env.goal_state[env.goal_keys[0]].copy())]
         pred_pc, pred_feature, pred_gts = None, None, None
 
         if model == 'Autoencoder':

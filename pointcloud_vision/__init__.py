@@ -2,7 +2,7 @@ from .pc_sensor import PointCloudSensor
 from .pc_encoder import GlobalAEEncoder, GlobalSegmenterEncoder, MultiSegmenterEncoder, StatePredictor, StatePredictorVisualGoal
 
 from gymnasium.envs.registration import register
-from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace
+from robosuite_envs.envs import RoboReach, RoboPush, RoboPickAndPlace, RoboPegInHole
 
 register(
     id='VisionReach-v0',
@@ -125,5 +125,27 @@ register(
     kwargs={
         'sensor': PointCloudSensor,
         'encoder': StatePredictor,
+    }
+)
+
+
+register(
+    id='VisionPegInHole-v0',
+    entry_point=RoboPegInHole,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': StatePredictor,
+    }
+)
+
+
+register(
+    id='VisionPegInHoleMultiSeg-v0',
+    entry_point=RoboPegInHole,
+    max_episode_steps=50,
+    kwargs={
+        'sensor': PointCloudSensor,
+        'encoder': MultiSegmenterEncoder,
     }
 )

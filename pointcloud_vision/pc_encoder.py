@@ -149,7 +149,14 @@ class MultiSegmenterEncoder(LatentEncoder):
 
     state_to_class = {
         'cube_pos': 'cube',
-        'robot0_eef_pos': 'gripper'
+        'robot0_eef_pos': 'gripper',
+        'peg_to_hole': 'peg_hole',
+        'peg_quat': 'robot0',
+        'hole_pos': 'robot1',
+        'hole_quat': None,
+        't': 'peg_hole',
+        'd': None,
+        'angle': None
     }
 
     def __init__(self, env, obs_keys, goal_keys):
@@ -157,8 +164,8 @@ class MultiSegmenterEncoder(LatentEncoder):
 
         self.features = ['rgb']
 
-        self.obs_classes = [self.state_to_class[c] for c in self.obs_keys]
-        self.goal_classes = [self.state_to_class[c] for c in self.goal_keys]
+        self.obs_classes = [self.state_to_class[c] for c in self.obs_keys if self.state_to_class[c]]
+        self.goal_classes = [self.state_to_class[c] for c in self.goal_keys if self.state_to_class[c]]
         self.all_classes = {c for c in self.obs_classes + self.goal_classes}
         print('all classes:', self.all_classes)
         
@@ -214,10 +221,14 @@ class StatePredictor(ObservationEncoder):
     to_state = lambda env: {
         'cube_pos': Unnormalize(env.bbox),
         'robot0_eef_pos': Unnormalize(env.bbox),
+        'hole_pos': Unnormalize(env.bbox),
+        # 'peg_to_hole': Unnormalize(env.bbox),
     }
     from_state = lambda env: {
         'cube_pos': Normalize(env.bbox),
         'robot0_eef_pos': Normalize(env.bbox),
+        'hole_pos': Normalize(env.bbox),
+        # 'peg_to_hole': Normalize(env.bbox),
     }
 
     def __init__(self, env, obs_keys, goal_keys, passthrough_goal=True):

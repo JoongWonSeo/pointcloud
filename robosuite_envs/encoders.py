@@ -11,7 +11,7 @@ def flatten_observations(obs, keys, dtype=np.float32):
 
 def flatten_robosuite_space(robo_env, keys, low=-np.inf, high=np.inf, dtype=np.float32):
     o = robo_env.observation_spec()
-    dim = sum([o[key].shape[0] if isinstance(o[key], np.ndarray) else 1 for key in keys])
+    dim = sum([o[key].shape[0] if isinstance(o[key], np.ndarray) and len(o[key].shape) > 0 else 1 for key in keys])
     return Box(low=dtype(low), high=dtype(high), shape=(dim,))
 
 

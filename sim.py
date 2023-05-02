@@ -30,6 +30,7 @@ parser.add_argument('--sensor', default='default', choices=list(sensors.keys()),
 parser.add_argument('--encoder', default='default', choices=list(encoders.keys()), help='observation encoder')
 parser.add_argument('--passive_encoder', default='', choices=list(encoders.keys()), help='passive encoder just for goal checking and visualization')
 parser.add_argument('--policy', default='', type=str, help='path to policy file')
+parser.add_argument('--benchmark', default=None, type=int, help='number of episodes to run for benchmarking')
 a = parser.parse_args()
 
 
@@ -49,10 +50,10 @@ if a.passive_encoder and encoders[a.passive_encoder]:
 
     def show_sucess(h, w):
         # swap out the encoders temporarily
-        env.encoder, orig = pe, env.encoder
+        env.unwrapped.encoder, orig = pe, env.encoder
         pe_achieved = pe.encode_goal(env.observation)
         pe_succ = env.check_success(pe_achieved, pe_goal, info=None)
-        env.encoder = orig # restore original encoder
+        env.unwrapped.encoder = orig # restore original encoder
 
         overlay = np.zeros((h, w, 3))
         overlay[h-2:h, :, :] = [0, 1, 0] if pe_succ else [1, 0, 0]
@@ -75,6 +76,8 @@ agent_action_limit = env.action_space.high
 
 
 # simulation
+ep_rewards = []
+ep_is_success = []
 run = True
 while run:
     obs, info = env.reset()
@@ -98,8 +101,29 @@ while run:
         
         if env.viewer.is_pressed('g'): # show goal state
             env.show_frame(env.goal_state, None)
+        if env.viewer.is_pressed('v'): # save visual goal 
+            # pickle current robo obs
+            import pickle
+            with open(f'pointcloud_vision/input/{env.scene}/{a.env}_visual_goal.pkl', 'wb') as f:
+                pickle.dump(env.raw_state, f)
+                print('saved visual goal state')
+        if env.viewer.is_pressed('b'): # benchmark mean reward and success
+            print("episodes = ", len(ep_rewards))
+            print(f"mean reward = {np.mean(ep_rewards)}")
+            print(f"median reward = {np.median(ep_rewards)}")
+            print(f"success rate = {np.mean(ep_is_success)}")
 
         if terminated or truncated:
             break
+    
+    ep_rewards.append(total_reward)
+    ep_is_success.append(info['is_success'])
 
-    print(f"\ntotal_reward = {total_reward}\nis_success = {info['is_success']}")
+    if a.benchmark and len(ep_rewards) >= a.benchmark:
+        print("episodes = ", len(ep_rewards))
+        print(f"mean reward = {np.mean(ep_rewards)}")
+        print(f"median reward = {np.median(ep_rewards)}")
+        print(f"success rate = {np.mean(ep_is_success)}")
+        run = False
+    if not a.benchmark:
+        print(f"\ntotal_reward = {total_reward}\nis_success = {info['is_success']}")
