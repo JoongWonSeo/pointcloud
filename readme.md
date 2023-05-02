@@ -1,10 +1,12 @@
 # 3D Point Cloud Autoencoder
 
-Info: This implementation is currently a WORK IN PROGRESS and INCOMPLETE. However, since it's part of my Bachelor's Thesis, it is due by April 2023.
 
 ## Installation
 
-This has been tested on python 3.9, cuda 11.7, pytorch 1.13.1, pytorch3d 0.7.2, mujoco 2.3.3, robosuite 1.3.3, gymnasium, gymnasium-robotics, lightning, open3d 0.17.0, etc.
+Please install CUDA 11.7. Then, in a conda environment, you can run
+```
+pip install -r requirements.txt
+```
 
 
 ## Packages and Features
@@ -16,35 +18,34 @@ This installable package provides two main features:
     - Additionally, it provides a ObservationEncoder interface which can be used to modularly plug in a vision module (see below) into any robosuite environment. Concrete implementations of this is only provided in the vision module (simple ground-truth observer included that work as a passthrough)
 
 2. `pointcloud_vision` package contains the vision module:
-    - The underlying PyTorch model and training procedure, including training data generation and training script (TODO: move sim.utils PC generation to vision)
+    - The underlying PyTorch model and training procedure, including training data generation and training script
     - Some point cloud loss functions (Chamfer Distance, Weighted Earth Mover Distance)
     - various utilities for visualization, PyTorch Dataset for point clouds, point cloud transformations in `torchvision.transforms` style (downsampling, filtering, normalization, etc.)
 
 
 ## Structure
 
-cfg.py: global configuration that has an effect on the training and simulation, in order to make it easier to switch between different configurations and increase reproducibility and reduce the number of command line arguments
-main.py: script to train, test, run the vision, rl and simulator
+`cfg.py`: global configuration that has an effect on the training and simulation, in order to make it easier to switch between different configurations and increase reproducibility and reduce the number of command line arguments
 
-sim
-    robosuite_envs: a subpackage for a gym-robosuite_envs interface with obs-encoders
-    simulator.py: run and view the env with obs-encoder and agent
-    utils.py: includes utils for rendering, UI, [TODO: move to vision.util:] point cloud creation, etc.
+`robosuite_envs`: a subpackage for a gym-robosuite_envs interface with obs-encoders
+- `simulator.py`: run and view the env with obs-encoder and agent
+- `base_env.py`: the inheritable environment wrapper around robosuite
+- `envs.py`: predefined scenes and tasks
+- `sensors.py`: base sensor module and passthrough sensor
+- `encoders.py`: base observation encoder module and pasthrough encoder
+- `utils.py`: includes utils for rendering, UI, point cloud creation, etc.
 
-vision
-    input: contains training, validation, and test data for different environments
-    output: output data of the model (autoencoder)
-    loss: point cloud loss functions including EMD, Chamfer and weighted EMD
-    models: source code for the models
-    weights: trained weights of the models
-    ae_viewer.py: interactive live viewer for the vision model
-    pc_viewer.py: browser based viewer for the point clouds
-    generate_pc.py: generate training data for the vision model
-    train.py: train the vision model
-    utils.py: includes pc transforms, and seg visualization
+`pointcloud_vision/`
+- `input/`: contains training, validation, and test data for different environments
+- `loss/`: point cloud loss functions including EMD, Chamfer and weighted EMD
+- `models/`: source code for the models
+- `output/`: trained weights of the models
+- `ae_viewer.py`: interactive live viewer for the vision model
+- `pc_viewer.py`: browser based viewer for the point clouds
+- `generate_pc.py`: generate training data for the vision model
+- `train.py`: train the vision model
+- `utils.py`: includes pc transforms, and seg visualization
 
-rl
-    coming soon [TODO]
 
 ## How to Use
 

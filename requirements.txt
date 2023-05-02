@@ -1,0 +1,16 @@
+gymnasium==0.28.1
+gymnasium_robotics==1.2.0
+lightning==2.0.0
+matplotlib==3.7.1
+numpy==1.23.5
+open3d==0.17.0
+opencv_python==4.7.0.72
+pointnet2_ops_lib @ git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib
+pytorch3d==0.7.2
+pytorch_lightning==2.0.0
+robosuite==1.4.0
+sb3_contrib==2.0.0a0
+scipy==1.10.1
+setuptools==65.6.3
+torch==1.13.1
+torchvision==0.14.1
