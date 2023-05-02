@@ -351,9 +351,9 @@ class RobosuiteGoalEnv(GoalEnv):
         # render
         cam = self.cameras[self.viewer.camera_index]
         camera_image = robo_obs[cam + '_image'] / 255
-        self.tint_strength = 0.5
-        self.tint_color = np.array([0, 0.3, 0])
-        camera_image = camera_image * (1 - self.tint_strength) + self.tint_color * self.tint_strength
+        # self.tint_strength = 0.5
+        # self.tint_color = np.array([0, 0.3, 0])
+        # camera_image = camera_image * (1 - self.tint_strength) + self.tint_color * self.tint_strength
         if self.render_info:
             camera_h, camera_w = camera_image.shape[:2]
             points, rgb = self.render_info(self, robo_obs)

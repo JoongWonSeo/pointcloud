@@ -96,13 +96,13 @@ def main(env, model, backbone='PointNet2', model_ver=-1, view_mode='overlap', po
 
             pred_pc = pred
             pred_feature = 'seg'
-            pred_gts = [mean_cube_pos(pred)]
+            # pred_gts = [mean_cube_pos(pred)]
         
         if model == 'StatePredictor':
             pred = ae(orig.to(cfg.device).unsqueeze(0))
             pred = {k: v.detach().cpu().numpy() for k, v in pred.items()}
 
-            pred_gts = [pred['cube_pos'], pred['robot0_eef_pos']]
+            pred_gts = [pred['cube_pos']]#, pred['robot0_eef_pos']]
 
 
         # assemble the pointclouds        
